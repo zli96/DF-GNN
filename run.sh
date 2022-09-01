@@ -10,7 +10,3 @@ for i in ${dump_file[@]}; do
     PYTORCH_JIT_LOG_LEVEL=">${i}" python ${code} >> ${log}/${logname}_graph_update.log 2>&1
     PYTORCH_JIT_LOG_LEVEL=">>${i}" python ${code} >> ${log}/${logname}_graph_debug.log 2>&1
 done
-
-
-
-
