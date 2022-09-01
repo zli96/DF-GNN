@@ -1,14 +1,7 @@
 log=log
 code=main.py
-
 logname=linear_add_relu
 dump_file=(profiling_graph_executor_impl tensorexpr_fuser)
-# # graph debug
-# PYTORCH_JIT_LOG_LEVEL=">>tensorexpr_fuser" python ${code} >& ${log}/${logname}_graph_debug.log
-
-# PYTORCH_JIT_LOG_LEVEL=">tensorexpr_fuser" python ${code} >& ${log}/${logname}_graph_update.log
-
-# PYTORCH_JIT_LOG_LEVEL="tensorexpr_fuser" python ${code} >& ${log}/${logname}_graph_dump.log
 
 # graph dump & update & debug
 rm ${log}/${logname}_graph_dump.log ${log}/${logname}_graph_update.log ${log}/${logname}_graph_debug.log
