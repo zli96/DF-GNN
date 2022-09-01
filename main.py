@@ -22,7 +22,7 @@ class InteractionPPBlock(torch.jit.ScriptModule):
     def forward(self, x_kj, idx_kj, sbf):
         # x_kj = self.act(self.lin_down(x_kj))
         # # Transform via 2D spherical basis.
-        # sbf = self.lin_sbf(sbf)
+        sbf = self.lin_sbf(sbf)
         sbf = sbf + 1
         sbf = sbf.relu()
         # x_kj = torch.index_select(x_kj, 0, idx_kj) * sbf 
