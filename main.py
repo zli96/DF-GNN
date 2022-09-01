@@ -1,9 +1,8 @@
 import torch
 from torch import nn
-from torch_geometric.nn.inits import glorot_orthogonal
 import os
 from pattern_match import pattern_matching
-ops_library_abs_path = os.path.abspath("/workspace2/Code/index_mul_demo/source/build/liboc20_customized_ops.so")
+ops_library_abs_path = os.path.abspath("/workspace2/index_mul_demo/source/build/liboc20_customized_ops.so")
 torch.ops.load_library(ops_library_abs_path)
 
 
@@ -15,19 +14,19 @@ class InteractionPPBlock(torch.jit.ScriptModule):
        num_elements
     ):
         super(InteractionPPBlock, self).__init__()
-        self.lin_sbf = nn.Linear(in_dim, out_dim)
+        self.lin_sbf = nn.Linear(128, 64)
         self.lin_down = nn.Linear(in_dim, out_dim)
         self.act = nn.ReLU()
 
     @torch.jit.script_method
     def forward(self, x_kj, idx_kj, sbf):
-        x_kj = self.act(self.lin_down(x_kj))
-        # Transform via 2D spherical basis.
-        sbf = self.lin_sbf(sbf)
+        # x_kj = self.act(self.lin_down(x_kj))
+        # # Transform via 2D spherical basis.
+        # sbf = self.lin_sbf(sbf)
         sbf = sbf + 1
         sbf = sbf.relu()
-        x_kj = torch.index_select(x_kj, 0, idx_kj) * sbf 
-        return x_kj
+        # x_kj = torch.index_select(x_kj, 0, idx_kj) * sbf 
+        return sbf
 
 
 def main():
