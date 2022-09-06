@@ -37,9 +37,19 @@ Reference: `torch/csrc/jit/codegen/cuda/README.md`
 * `PYTORCH_JIT_LOG_LEVEL="graph_fuser" python your_script.py &> tmp.log`
     * Looks for graph dumped with `Before Fusion` & `Before Compilation`, which shows the portion of graph where fusion pass runs on and the result of fusion (`CudaFusionGroup`).
 
-### 查看fuse后的cuda代码
+### PYTORCH_NVFUSER_DUMP
 * Ref: [pytorch_source_path]/torch/csrc/jit/codegen/cuda/utils.cpp
-* export  PYTORCH_NVFUSER_DUMP="cuda_kernel"
+* Available options:
+    * "fusion_ir, fusion_ir_math, kernel_ir, ca_map, cuda_kernel, cuda_full,"
+    * "cuda_to_file, debug_info, launch_param, segmented_fusion, fusion_args,"
+    * "kernel_args, dump_eff_bandwidth, draw_segmented_fusion,"
+    * "scheduler_params, parallel_dimensions, buffer_reuse_verbose,"
+    * "ptxas_verbose, halo, segmenter_logging, perf_debug_verbose"
+    * "transform_propagator, inline_propagator"
+* 查看fuse后的cuda代码
+    * export  PYTORCH_NVFUSER_DUMP="cuda_kernel,kernel_ir"
+* 查看fuse后的kernel perf
+    * export  PYTORCH_NVFUSER_DUMP="perf_debug_verbose"
 
 ### Disable the nvfuser fusion
 * There are three ways to disable nvfuser. Listed below with descending priorities
