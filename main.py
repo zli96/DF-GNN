@@ -23,10 +23,14 @@ class InteractionPPBlock(torch.jit.ScriptModule):
         # x_kj = self.act(self.lin_down(x_kj))
         # # Transform via 2D spherical basis.
         # sbf = self.lin_sbf(sbf)
-        sbf = sbf + 1
-        sbf = sbf.relu()
+        # sbf = sbf.relu()
+        # sbf = sbf - 1
+        # sbf = sbf*sbf
         x_kj = torch.index_select(x_kj, 0, idx_kj) * sbf 
-        return sbf
+
+        # lerp demo
+        # x_kj = torch.lerp(x_kj, sbf, 0.5)
+        return x_kj
 
 
 def main():
@@ -40,7 +44,8 @@ def main():
     model = InteractionPPBlock(in_dim, out_dim, num_elements).to("cuda:0")
     # pattern_matching(model.graph)
     with torch.jit.fuser("fuser2"):
-        for _ in range(2):
+        for i in range(2):
+            print(i)
             res = model(x, y, z)
     # loss = torch.mean(res)
     # loss.backward()

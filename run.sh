@@ -1,8 +1,8 @@
 log=log
 code=main.py
-logname=relu_sub_mul
+logname=relu_index_mul
 # dump_file=(profiling_graph_executor_impl tensorexpr_fuser graph_fuser partition)
-dump_file=(profiling_graph_executor_impl manager)
+dump_file=(profiling_graph_executor_impl manager partition)
 
 
 # graph dump & update & debug
