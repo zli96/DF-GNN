@@ -1,6 +1,5 @@
 import argparse
 import time
-
 import dgl
 import GPUtil
 import scipy.sparse as sp
@@ -48,6 +47,7 @@ class Net(nn.Module):
                 negative_slope,
                 residual,
                 bias=False,
+                activation=activation
             )
         )
         # hidden layers
@@ -62,6 +62,7 @@ class Net(nn.Module):
                     attn_drop,
                     negative_slope,
                     residual,
+                    activation=activation
                 )
             )
         # output projection
@@ -73,6 +74,7 @@ class Net(nn.Module):
                 feat_drop,
                 attn_drop,
                 negative_slope,
+                activation=activation
             )
         )
 
@@ -81,9 +83,8 @@ class Net(nn.Module):
         for l in range(self.num_layers):
             h = self.gat_layers[l](
                 self.row_ptr, self.col_idx, self.col_ptr, self.row_idx, self.permute, h
-            ).flatten(
-                1
-            )  # h.shape[-1] = num_heads*out_feats
+            ).flatten(1)  
+            # h.shape[-1] = num_heads*out_feats
         # output projection
         logits = self.gat_layers[-1](
             self.row_ptr, self.col_idx, self.col_ptr, self.row_idx, self.permute, h

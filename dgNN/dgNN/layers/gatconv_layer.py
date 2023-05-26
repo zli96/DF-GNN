@@ -67,14 +67,13 @@ class GATConv(nn.Module):  # our gat layer
             nn.init.xavier_normal_(self.res_fc.weight, gain=gain)
 
     def forward(self, row_ptr, col_ind, col_ptr, row_ind, permute, feat):
-
-        h = torch.matmul(feat, self.W).view(-1, self.num_heads, self.out_feats)
         # shape [num_nodes, num_heads, out_feats]
+        h = torch.matmul(feat, self.W).view(-1, self.num_heads, self.out_feats)
         h = self.feat_drop(h)
 
+        # shape [num_nodes, num_heads]
         attn_row = (self.attn_l * h).sum(dim=-1)
         attn_col = (self.attn_r * h).sum(dim=-1)
-        # shape [num_nodes, num_heads]
 
         if not self.training:
             rst = GATConvFuse_inference(
@@ -89,17 +88,17 @@ class GATConv(nn.Module):  # our gat layer
                 col_ptr,
                 row_ind,
                 permute,
-                self.negative_slope,
-                h,
+                self.negative_slope, #0.2
+                h, #[2708,4,64]
                 self.attn_drop,
             )
 
-        if self.res_fc is not None:
-            resval = self.res_fc(h).view(-1, self.num_heads, self.out_feats)
-            rst = rst + resval
+        # if self.res_fc is not None:
+        #     resval = self.res_fc(h).view(-1, self.num_heads, self.out_feats)
+        #     rst = rst + resval
 
-        if self.bias is not None:
-            rst = rst + self.bias.view(-1, self.num_heads, self.out_feats)
+        # if self.bias is not None:
+        #     rst = rst + self.bias.view(-1, self.num_heads, self.out_feats)
 
         if self.activation:
             rst = self.activation(rst)
