@@ -2,3 +2,13 @@ source/build
 .vscode
 __pycache__
 log
+*__pycache__
+data/
+*.txt
+*.json
+build/
+dgNN/dgNN.egg-info/
+dgNN.egg-info/
+dist/
+*dgNN.egg-info
+*.so
