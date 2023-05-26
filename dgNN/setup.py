@@ -1,6 +1,6 @@
 import setuptools
-from torch.utils.cpp_extension import BuildExtension, CUDAExtension
 import torch
+from torch.utils.cpp_extension import BuildExtension, CUDAExtension
 
 with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
@@ -26,14 +26,56 @@ setuptools.setup(
     packages=setuptools.find_packages(),
     python_requires=">=3.6",
     ext_modules=[
-        CUDAExtension('fused_gatconv', ['dgNN/src/fused_gatconv/fused_gatconv.cpp', 'dgNN/src/fused_gatconv/fused_gatconv_kernel.cu'], extra_compile_args={'cxx':[], 'nvcc':['-arch=sm_75']}, extra_link_args=['-lcurand']),
-        CUDAExtension('fused_edgeconv',['dgNN/src/fused_edgeconv/fused_edgeconv.cpp','dgNN/src/fused_edgeconv/fused_edgeconv_kernel.cu'], extra_compile_args={'cxx':[], 'nvcc':['-arch=sm_75']}, extra_link_args=['-lcurand']),
-        CUDAExtension('fused_gmmconv',['dgNN/src/fused_gmmconv/fused_gmmconv.cpp','dgNN/src/fused_gmmconv/fused_gmmconv_kernel.cu'], extra_compile_args={'cxx':[], 'nvcc':['-arch=sm_75']}, extra_link_args=['-lcurand']),
-        CUDAExtension('mhsddmm',['dgNN/src/sddmm/mhsddmm.cc','dgNN/src/sddmm/mhsddmm_kernel.cu'], extra_compile_args={'cxx':[], 'nvcc':['-arch=sm_75']}, extra_link_args=['-lcurand']),
-        CUDAExtension('mhtranspose',['dgNN/src/csr2csc/mhtranspose.cc','dgNN/src/csr2csc/mhtranspose_kernel.cu'], extra_compile_args={'cxx':[], 'nvcc':['-arch=sm_75']}, extra_link_args=['-lcurand']),
-        CUDAExtension('format_conversion',['dgNN/src/convert/convert.cpp','dgNN/src/convert/convert_kernel.cu'],extra_cflags=["-lcusparse"],extra_compile_args={'cxx':[], 'nvcc':['-arch=sm_75']}, extra_link_args=['-lcurand']),
-        ],
-    
-    cmdclass={'build_ext': BuildExtension},
-    install_requires=['torch']
+        CUDAExtension(
+            "fused_gatconv",
+            [
+                "dgNN/src/fused_gatconv/fused_gatconv.cpp",
+                "dgNN/src/fused_gatconv/fused_gatconv_kernel.cu",
+            ],
+            extra_compile_args={"cxx": [], "nvcc": ["-arch=sm_75"]},
+            extra_link_args=["-lcurand"],
+        ),
+        CUDAExtension(
+            "fused_edgeconv",
+            [
+                "dgNN/src/fused_edgeconv/fused_edgeconv.cpp",
+                "dgNN/src/fused_edgeconv/fused_edgeconv_kernel.cu",
+            ],
+            extra_compile_args={"cxx": [], "nvcc": ["-arch=sm_75"]},
+            extra_link_args=["-lcurand"],
+        ),
+        CUDAExtension(
+            "fused_gmmconv",
+            [
+                "dgNN/src/fused_gmmconv/fused_gmmconv.cpp",
+                "dgNN/src/fused_gmmconv/fused_gmmconv_kernel.cu",
+            ],
+            extra_compile_args={"cxx": [], "nvcc": ["-arch=sm_75"]},
+            extra_link_args=["-lcurand"],
+        ),
+        CUDAExtension(
+            "mhsddmm",
+            ["dgNN/src/sddmm/mhsddmm.cc", "dgNN/src/sddmm/mhsddmm_kernel.cu"],
+            extra_compile_args={"cxx": [], "nvcc": ["-arch=sm_75"]},
+            extra_link_args=["-lcurand"],
+        ),
+        CUDAExtension(
+            "mhtranspose",
+            [
+                "dgNN/src/csr2csc/mhtranspose.cc",
+                "dgNN/src/csr2csc/mhtranspose_kernel.cu",
+            ],
+            extra_compile_args={"cxx": [], "nvcc": ["-arch=sm_75"]},
+            extra_link_args=["-lcurand"],
+        ),
+        CUDAExtension(
+            "format_conversion",
+            ["dgNN/src/convert/convert.cpp", "dgNN/src/convert/convert_kernel.cu"],
+            extra_cflags=["-lcusparse"],
+            extra_compile_args={"cxx": [], "nvcc": ["-arch=sm_75"]},
+            extra_link_args=["-lcurand"],
+        ),
+    ],
+    cmdclass={"build_ext": BuildExtension},
+    install_requires=["torch"],
 )
