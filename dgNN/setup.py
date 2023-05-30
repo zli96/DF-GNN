@@ -36,6 +36,15 @@ setuptools.setup(
             extra_link_args=["-lcurand"],
         ),
         CUDAExtension(
+            "fused_gfconv",
+            [
+                "dgNN/src/fused_gfconv/fused_gfconv.cpp",
+                "dgNN/src/fused_gfconv/fused_gfconv_kernel.cu",
+            ],
+            extra_compile_args={"cxx": [], "nvcc": ["-arch=sm_75"]},
+            extra_link_args=["-lcurand"],
+        ),
+        CUDAExtension(
             "fused_edgeconv",
             [
                 "dgNN/src/fused_edgeconv/fused_edgeconv.cpp",
