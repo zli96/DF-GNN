@@ -1,5 +1,6 @@
 import dgl.sparse as dglsp
 import torch.nn as nn
+import torch
 import torch.nn.functional as F
 import pdb
 from ..operators.fused_gfconv import GFConvFuse
@@ -7,7 +8,7 @@ from ..operators.fused_gfconv import GFConvFuse
 class SparseMHA(nn.Module):
     """Sparse Multi-head Attention Module"""
 
-    def __init__(self, hidden_size=80, num_heads=8):
+    def __init__(self, hidden_size, num_heads):
         super().__init__()
         self.hidden_size = hidden_size
         self.num_heads = num_heads
@@ -29,14 +30,42 @@ class SparseMHA(nn.Module):
         ######################################################################
         # (HIGHLIGHT) Compute the multi-head attention with Sparse Matrix API
         ######################################################################
+        row_ptr, col_ind, val_idx = A.csr()
+        row_ptr = row_ptr.int()
+        col_ind =col_ind.int()
+        val = torch.tensor([A.val[i]for i in val_idx]).float()
         if fuse:
-            row_ptr, col_ind, val = A.csr()
-            print("q shape", q.transpose(1,2).shape)
-            out = GFConvFuse(row_ptr.int(), col_ind.int(), val.float(), q.transpose(1,2), k.transpose(1,2), v.transpose(1,2))
+            # TODO transpose or reshape?
+            q = q.transpose(1,2)
+            k = k.transpose(1,2)
+            v = v.transpose(1,2)
+            # q = q.reshape(N, self.num_heads, self.head_dim)
+            # k = k.reshape(N, self.num_heads, self.head_dim)
+            # v = v.reshape(N, self.num_heads, self.head_dim)
+            print("fuse kernel start")
+            print(f"q {q.shape}, k {k.shape}, v {v.shape}")
+            print(f"row_ptr {row_ptr.shape} col_ind {col_ind.shape} val {val.shape}")
+            pdb.set_trace()
+            out = GFConvFuse(row_ptr, col_ind, val, q, k, v)
+            print("fuse kernel end")
+            pdb.set_trace()
         else:
             attn = dglsp.bsddmm(A, q, k.transpose(1, 0))  # [N, N, nh]
+            print("------------(q@k)*A-------------")
+            print(A.row)
+            print(A.col)
+            csr_val = [attn.val[i] for i in val_idx]
+            
+            for i in range(5):
+                for head in range(self.num_heads):
+                    cols = col_ind[row_ptr[i]:row_ptr[i+1]]
+                    vals = [torch.dot(q.transpose(1,2)[i][head],k.transpose(1,2)[col][head]).item() for col in cols]
+                    print(f"node {i} head {head}")
+                    print(vals)
+                    print([elem[head].item() for elem in csr_val[row_ptr[i]:row_ptr[i+1]]])
+            pdb.set_trace()
             attn = attn.softmax()
             out = dglsp.bspmm(attn, v)
 
-        return self.out_proj(out.reshape(N, -1))
-    
+        # return self.out_proj(out.reshape(N, -1))
+        return out.reshape(N, -1)

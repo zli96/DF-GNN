@@ -12,16 +12,17 @@ from ogb.graphproppred.mol_encoder import AtomEncoder
 
 from dgNN.layers import SparseMHA
 
+import argparse
+
+import pdb
+
+
 class GTLayer(nn.Module):
     """Graph Transformer Layer"""
 
-    def __init__(self, hidden_size=64):
+    def __init__(self, hidden_size=2, num_heads=1):
         super().__init__()
-        self.MHA = SparseMHA(hidden_size=hidden_size)
-        self.batchnorm1 = nn.BatchNorm1d(hidden_size)
-        self.batchnorm2 = nn.BatchNorm1d(hidden_size)
-        self.FFN1 = nn.Linear(hidden_size, hidden_size * 2)
-        self.FFN2 = nn.Linear(hidden_size * 2, hidden_size)
+        self.MHA = SparseMHA(hidden_size=hidden_size, num_heads=num_heads)
         self.atom_encoder = AtomEncoder(hidden_size)
 
     def forward(self, g, X, fuse=False):
@@ -35,33 +36,39 @@ class GTLayer(nn.Module):
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="GAT")
+    parser.add_argument("--dim", type=int, default=64)
+    parser.add_argument("--heads", type=int, default=8)
+    args = parser.parse_args()
+    print("hidden dim", args.dim)
+    print("num heads", args.heads)
+    
     # If CUDA is available, use GPU to accelerate the training, use CPU
     # otherwise.
     dev = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     # load dataset
-    pos_enc_size = 8
-    dataset = AsGraphPredDataset(
-        DglGraphPropPredDataset("ogbg-molhiv", "./data/OGB")
-    )
+    dataset = AsGraphPredDataset(DglGraphPropPredDataset("ogbg-molhiv", "./data/OGB"))
     evaluator = Evaluator("ogbg-molhiv")
     train_dataloader = GraphDataLoader(
         dataset[dataset.train_idx],
-        batch_size=256,
+        batch_size=1,
         collate_fn=collate_dgl,
     )
-    
+
     out_size = dataset.num_tasks
-    layer = GTLayer().to(dev)
+    layer = GTLayer(hidden_size=args.dim, num_heads=args.heads).to(dev)
     for batched_g, labels in train_dataloader:
         batched_g, labels = batched_g.to(dev), labels.to(dev)
         print("----------------------without fuse--------------------------")
         logits = layer(batched_g, batched_g.ndata["feat"])
-        
         print("logits shape ", logits.shape)
         print("----------------------with fuse--------------------------")
-        logits = layer(batched_g, batched_g.ndata["feat"],fuse=True)
-        print("logits shape ", logits.shape)
-        
-        
+        logits_fuse = layer(batched_g, batched_g.ndata["feat"], fuse=True)
+        pdb.set_trace()
+
+        print("logits shape ", logits_fuse.shape)
+        print("logits", logits)
+        print("logits_fuse", logits_fuse)
+
         exit()
