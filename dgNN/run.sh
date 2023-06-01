@@ -9,5 +9,11 @@
 # fi
 read -p "Enter dim: " dim  
 read -p "Enter heads: " heads 
+
+
+day=$(date +%d)
+Time=$(date +%H_%M_%S)
+
 python setup.py develop
-python dgNN/script/test/test_gf.py --dim $dim --heads $heads  | tee log/weight_ver_${dim}_${heads}.log
+mkdir log/day_${day}
+python dgNN/script/test/test_gf.py --dim $dim --heads $heads  | tee log/day_${day}/weight_ver_${dim}_${heads}_${Time}.log

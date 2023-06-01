@@ -201,8 +201,9 @@ gf_forward_cuda(torch::Tensor row_ptr,
   auto edge_max = torch::zeros({m, h}, options);
   auto edge_sum = torch::zeros({m, h}, options);
   // auto optionsI =
-  //     torch::TensorOptions().dtype(torch::kInt32).device(torch::kCUDA, devid);
+  //     torch::TensorOptions().dtyp e(torch::kInt32).device(torch::kCUDA, devid);
   auto edge_mask = torch::zeros({nnz, h}, options);
+  std::cout << " m " << m << "h " << h <<"f " <<f<<std::endl;
   gf_forward(m, nnz, h, f,
              row_ptr.data_ptr<int>(), col_ind.data_ptr<int>(), val.data_ptr<float>(),
              Q.data_ptr<float>(), K.data_ptr<float>(), V.data_ptr<float>(),
