@@ -34,7 +34,7 @@ __global__ void fused_forward_kernel(int m, int nnz, int h, int f, float attn_dr
 {
   int rid = blockIdx.x;
   int hid = blockIdx.y;
-  int lb = row_ptr[rid];
+  int lb = row_ptr[rid]; // row rid elements
   int hb = row_ptr[rid + 1];
   int ptr = lb + threadIdx.x;
   int loop = (hb - lb + 31) / 32;
@@ -47,7 +47,7 @@ __global__ void fused_forward_kernel(int m, int nnz, int h, int f, float attn_dr
 
   float weightMax = -1e38;
   // // computing weightMax
-  for (int j = 0; j < loop; j++)
+  for (int j = 0; j < loop; j++) //go through the whole row
   {
     int pid = ptr + (j << 5);
     float weight = -1e38;
@@ -61,14 +61,17 @@ __global__ void fused_forward_kernel(int m, int nnz, int h, int f, float attn_dr
     __syncwarp();
     for (int stride = 16; stride > 0; stride >>= 1)
     {
+      //T __shfl_xor_sync(unsigned mask, T var, int laneMask, int width=warpSize);
       float tmp = __shfl_xor_sync(0xffffffff, weight, stride, 32);
       weight = MAX(tmp, weight);
     }
-    weightMax = MAX(weight, weightMax);
+    weightMax = MAX(weight, weightMax); // store the max row attention value for current node head
   }
+  // store edge_max for backward
   if (threadIdx.x == 0)
     edge_max[rid * h + hid] = weightMax;
 
+  // compute the sum of each row
   float expAll = 0;
   for (int j = 0; j < loop; j++)
   {
@@ -90,6 +93,7 @@ __global__ void fused_forward_kernel(int m, int nnz, int h, int f, float attn_dr
     }
     expAll += exptmp;
   }
+  // store row sums for backward
   if (threadIdx.x == 0)
     edge_sum[rid * h + hid] = expAll;
 
@@ -114,7 +118,7 @@ __global__ void fused_forward_kernel(int m, int nnz, int h, int f, float attn_dr
       attn_val_sh[threadIdx.x] = weight/ (1.0 - attn_drop);
       cid_sh[threadIdx.x] = cid;
       __syncwarp();
-      int jj = lb + (j << 5);
+      int jj = lb + (j << 5); // 32 threads process 32 neighbor nodes concurrently
       for (int kk = 0; kk < 32 && jj + kk < hb; kk++)
       {
         int cid = cid_sh[kk];
@@ -404,10 +408,10 @@ gat_forward_cuda(torch::Tensor attn_row, torch::Tensor attn_col,
                  torch::Tensor row_ptr, torch::Tensor col_ind,
                  float negative_slope, torch::Tensor in_feat, float attn_drop)
 {
-  const auto m = row_ptr.size(0) - 1;
-  const auto nnz = col_ind.size(0);
-  const auto h = attn_row.size(1);
-  const auto f = in_feat.size(2);
+  const auto m = row_ptr.size(0) - 1; // num nodes
+  const auto nnz = col_ind.size(0); // num edges
+  const auto h = attn_row.size(1); // num heads
+  const auto f = in_feat.size(2);  // num feats
   auto devid = attn_row.device().index();
   auto options =
       torch::TensorOptions().dtype(torch::kFloat32).device(torch::kCUDA, devid);
