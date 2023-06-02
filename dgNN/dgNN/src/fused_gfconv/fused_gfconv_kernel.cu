@@ -37,8 +37,8 @@ __global__ void fused_forward_kernel(const int m, const int nnz, const int h, co
                                      float *edge_max, float *edge_sum, float *edge_mask,
                                      float *out_feat, unsigned long long seed)
 {
-  int rid = blockIdx.x; // loop over row of adj matrix
-  int hid = blockIdx.y; // loop over heads
+  int rid = blockIdx.x;                     // loop over row of adj matrix
+  int hid = blockIdx.y;                     // loop over heads
   int fid = threadIdx.y * 32 + threadIdx.x; // loop over feature dim
 
   int lb = row_ptr[rid]; // row rid elements
@@ -48,14 +48,11 @@ __global__ void fused_forward_kernel(const int m, const int nnz, const int h, co
   int threads_x = blockDim.x; // 32
   int threads_y = blockDim.y; // f/32
 
-  const int num_neighbor = hb - lb;
+  int num_neighbor = hb - lb;
   extern __shared__ float smem[];
   float *curr_node_feature = smem;
   float *neigh_nodes_weight = (float *)&curr_node_feature[f];
-  // float *neigh_nodes_weight = (float *)&smem[num_neighbor];
 
-  float weight = 0;
-  int cid = 0;
   float weightMax = -1e38;
 
   // init the shared memory
@@ -76,67 +73,61 @@ __global__ void fused_forward_kernel(const int m, const int nnz, const int h, co
   // compute the attention weight
   for (int j = 0; j < num_neighbor; j++)
   {
+    float weight;
+    float weight_partial = 0;
     if (fid < f)
     {
-      float weight_partial;
-      cid = col_ind[lb + j];
+
+      int cid = col_ind[lb + j];
       weight_partial = curr_node_feature[fid] * K[cid * h * f + hid * f + fid];
-      if (threadIdx.x == 0 && threadIdx.y == 0)
-        printf("node %d head %d weightpart %f\n", blockIdx.x, blockIdx.y, weight_partial);
-      atomicAdd(&neigh_nodes_weight[j], weight_partial);
-      __syncthreads();
-      weight = neigh_nodes_weight[j];
-      if (threadIdx.x == 0 && threadIdx.y == 0)
-        printf("node %d head %d weight %f\n", blockIdx.x, blockIdx.y, weight);
-      weightMax = MAX(weight, weightMax);
     }
+    atomicAdd(&neigh_nodes_weight[j], weight_partial);
+    __syncthreads();
+    weight = neigh_nodes_weight[j];
+    weightMax = MAX(weight, weightMax);
   }
-  // __syncthreads();
-  if (threadIdx.x == 0 && threadIdx.y == 0)
-    printf("node %d head %d weightMax %f\n", blockIdx.x, blockIdx.y, weightMax);
+  __syncthreads();
 
-  // const int loop = (num_neighbor + 31) / 32;
+  // compute the sum of exp
+  int loop = (num_neighbor + 31) / 32;
+  float expAll = 0;
+  for (int j = 0; j < loop; j++)
+  {
+    int pid = ptr + (j << 5); // node need to process in loop j
+    float exptmp = 0;
+    if (pid < hb)
+    {
+      float weight = neigh_nodes_weight[pid - lb];
+      exptmp = exp(weight - weightMax);
+    }
+    __syncwarp();
+    for (int stride = 16; stride > 0; stride >>= 1)
+    {
+      float tmp = __shfl_xor_sync(0xffffffff, exptmp, stride, 32);
+      exptmp += tmp;
+    }
+    __syncwarp();
+    expAll += exptmp;
+  }
+  __syncthreads();
 
-  // float expAll = 0;
-
-  // for (int j = 0; j < loop; j++)
-  // {
-  //   int pid = threadIdx.x + (j << 5); // node need to process in loop j
-  //   float exptmp = 0;
-  //   if (pid + lb < hb)
-  //   {
-  //     // weight = neigh_nodes_weight[pid];
-  //     weight = 0;
-
-  //     exptmp = exp(weight - weightMax);
-  //   }
-  //   __syncwarp();
-  //   // TODO 这里只用上了一个warp？
-  //   // for (int stride = 16; stride > 0; stride >>= 1)
-  //   // {
-  //   //   float tmp = __shfl_xor_sync(0xffffffff, exptmp, stride, 32);
-  //   //   exptmp += tmp;
-  //   // }
-  //   // expAll += exptmp;
-  // }
-  // __syncthreads();
-
-  // float acc = 0;
-  // for (int j = 0; j < num_neighbor; j++)
-  // {
-  //   // int pid = ptr + (j << 5);
-  //   // float weight = 0;
-  //   // int cid = 0;
-  //   if (fid < f)
-  //   {
-  //     weight = neigh_nodes_weight[j];
-  //     cid = col_ind[lb + j];
-  //     acc += weight * V[cid * h * f + hid * f + fid];
-  //   }
-  //   __syncwarp();
-  // }
-  // if (fid < f)
-  //   out_feat[rid * h * f + hid * f + fid] = acc;
+  // compute the output
+  float acc = 0;
+  for (int j = 0; j < num_neighbor; j++)
+  {
+    float weight;
+    float attn_val;
+    int cid = col_ind[lb + j];
+    if (fid < f)
+    {
+      float weight = neigh_nodes_weight[j];
+      attn_val = exp(weight - weightMax) / expAll;
+      acc += attn_val * V[cid * h * f + hid * f + fid];
+    }
+    __syncthreads();
+  }
+  if (fid < f)
+    out_feat[rid * h * f + hid * f + fid] = acc;
 }
 
 void gf_forward(int m, int nnz, int h, int f,
@@ -157,11 +148,6 @@ void gf_forward(int m, int nnz, int h, int f,
 
   /* Set seed */
   (curandSetPseudoRandomGeneratorSeed(gen, seed));
-
-  // fused_forward_kernel<<<dim3(m, h, 1), dim3(32, (f + 31) / 32, 1),
-  //                        (f + m) * sizeof(float)>>>(
-  //     m, nnz, h, f, row_ptr, col_ind, val,
-  //     Q, K, V, edge_max, edge_sum, edge_mask, out_feat, seed);
 
   const dim3 nblks(m, h, 1);
   const dim3 nthrs(32, (f + 31) / 32, 1);
@@ -200,10 +186,7 @@ gf_forward_cuda(torch::Tensor row_ptr,
   auto out_feat = torch::zeros({m, h, f}, options);
   auto edge_max = torch::zeros({m, h}, options);
   auto edge_sum = torch::zeros({m, h}, options);
-  // auto optionsI =
-  //     torch::TensorOptions().dtyp e(torch::kInt32).device(torch::kCUDA, devid);
   auto edge_mask = torch::zeros({nnz, h}, options);
-  std::cout << " m " << m << "h " << h <<"f " <<f<<std::endl;
   gf_forward(m, nnz, h, f,
              row_ptr.data_ptr<int>(), col_ind.data_ptr<int>(), val.data_ptr<float>(),
              Q.data_ptr<float>(), K.data_ptr<float>(), V.data_ptr<float>(),

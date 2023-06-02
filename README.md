@@ -25,8 +25,8 @@ cd dgNN
 python dgNN/script/test/test_gf.py
 ```
 
-|                        | weight + weight max | col3 |
-| ---------------------- | ------------------- | ---- |
-| dim=64, head=1, f = 64 | pass                |      |
-| dim=8, head=8, f = 1   | pass                |      |
-| dim=16, head=8, f = 2  | fail                |      |
+|                        | weight + weight max | softmax |
+| ---------------------- | :-----------------: | ------- |
+| dim=64, head=1, f = 64 |        pass        |         |
+| dim=8, head=8, f = 1   |        pass        |         |
+| dim=16, head=8, f = 2  |        pass        |         |

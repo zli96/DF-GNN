@@ -1,3 +1,7 @@
+import argparse
+
+import pdb
+
 import dgl
 import dgl.nn as dglnn
 import dgl.sparse as dglsp
@@ -6,15 +10,11 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from dgl.data import AsGraphPredDataset
-from ogb.graphproppred import collate_dgl, DglGraphPropPredDataset, Evaluator
 from dgl.dataloading import GraphDataLoader
-from ogb.graphproppred.mol_encoder import AtomEncoder
 
 from dgNN.layers import SparseMHA
-
-import argparse
-
-import pdb
+from ogb.graphproppred import collate_dgl, DglGraphPropPredDataset, Evaluator
+from ogb.graphproppred.mol_encoder import AtomEncoder
 
 
 class GTLayer(nn.Module):
@@ -42,7 +42,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     print("hidden dim", args.dim)
     print("num heads", args.heads)
-    
+
     # If CUDA is available, use GPU to accelerate the training, use CPU
     # otherwise.
     dev = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -52,7 +52,7 @@ if __name__ == "__main__":
     evaluator = Evaluator("ogbg-molhiv")
     train_dataloader = GraphDataLoader(
         dataset[dataset.train_idx],
-        batch_size=1,
+        batch_size=256,
         collate_fn=collate_dgl,
     )
 
@@ -65,10 +65,7 @@ if __name__ == "__main__":
         print("logits shape ", logits.shape)
         print("----------------------with fuse--------------------------")
         logits_fuse = layer(batched_g, batched_g.ndata["feat"], fuse=True)
-        pdb.set_trace()
-
         print("logits shape ", logits_fuse.shape)
-        print("logits", logits)
-        print("logits_fuse", logits_fuse)
-
+        if all(torch.isclose(logits, logits_fuse, atol=0.001).flatten()):
+            print("the results are the same, success!!!!!!!!!!")
         exit()
