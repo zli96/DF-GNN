@@ -58,14 +58,22 @@ if __name__ == "__main__":
 
     out_size = dataset.num_tasks
     layer = GTLayer(hidden_size=args.dim, num_heads=args.heads).to(dev)
-    for batched_g, labels in train_dataloader:
+    time_no_fuse = []
+    time_fuse = []
+
+    for i, (batched_g, labels) in enumerate(train_dataloader):
         batched_g, labels = batched_g.to(dev), labels.to(dev)
-        print("----------------------without fuse--------------------------")
-        logits = layer(batched_g, batched_g.ndata["feat"])
-        print("logits shape ", logits.shape)
-        print("----------------------with fuse--------------------------")
-        logits_fuse = layer(batched_g, batched_g.ndata["feat"], fuse=True)
-        print("logits shape ", logits_fuse.shape)
+        # print("----------------------without fuse--------------------------")
+        logits, elapsed_time = layer(batched_g, batched_g.ndata["feat"])
+        time_no_fuse.append(elapsed_time)
+        # print("logits shape ", logits.shape)
+        # print("----------------------with fuse--------------------------")
+        logits_fuse, elapsed_time = layer(batched_g, batched_g.ndata["feat"], fuse=True)
+        time_fuse.append(elapsed_time)
+        # print("logits_fuse shape ", logits_fuse.shape)
         if all(torch.isclose(logits, logits_fuse, atol=0.001).flatten()):
             print("the results are the same, success!!!!!!!!!!")
-        exit()
+        if i == 10:
+            print("no-fuse average time ", sum(time_no_fuse) / len(time_no_fuse))
+            print("fuse average time ", sum(time_fuse) / len(time_fuse))
+            exit()
