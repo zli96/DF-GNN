@@ -102,8 +102,7 @@ __global__ void fused_forward_kernel(const int m, const int nnz, const int h, co
     __syncwarp();
     for (int stride = 16; stride > 0; stride >>= 1)
     {
-      float tmp = __shfl_xor_sync(0xffffffff, exptmp, stride, 32);
-      exptmp += tmp;
+      exptmp += __shfl_xor_sync(0xffffffff, exptmp, stride, 32);
     }
     __syncwarp();
     expAll += exptmp;
