@@ -50,7 +50,7 @@ class SparseMHA(nn.Module):
             out = GFConvFuse(row_ptr, col_ind, val, q, k, v)
             torch.cuda.synchronize()
             elapsed_time = time.time() - start
-            print("fused time per epoch", elapsed_time)
+            out = out.transpose(1,2)
             # print("fuse kernel end")
             # print(out.shape)
             # for i in range(5):
@@ -68,7 +68,6 @@ class SparseMHA(nn.Module):
             out = dglsp.bspmm(attn, v)
             torch.cuda.synchronize()
             elapsed_time = time.time() - start
-            print("non-fused time per epoch", elapsed_time)
             # for i in range(5):
             #     for head in range(self.num_heads):
             #         cols = col_ind[row_ptr[i]:row_ptr[i+1]]
