@@ -55,6 +55,7 @@ if __name__ == "__main__":
         dataset[dataset.train_idx],
         batch_size=args.batch_size,
         collate_fn=collate_dgl,
+        shuffle=False,
     )
 
     out_size = dataset.num_tasks
@@ -68,25 +69,21 @@ if __name__ == "__main__":
         logits, elapsed_time = layer(batched_g, batched_g.ndata["feat"])
         if i > 5:
             time_no_fuse.append(elapsed_time)
-            print("no fused time per epoch", elapsed_time)
+            print(f"epoch {i} non-fused time ", elapsed_time)
             # print("----------------------with fuse--------------------------")
             logits_fuse, elapsed_time = layer(batched_g, batched_g.ndata["feat"], fuse=True)
             time_fuse.append(elapsed_time)
-            pdb.set_trace()
-            print("fused time per epoch", elapsed_time)
+            # pdb.set_trace()
+            print(f"epoch {i} fused time ", elapsed_time)
             if all(torch.isclose(logits, logits_fuse, atol=0.001).flatten()):
                 print("the results are the same, success!!!!!!!!!!")
             else:
-                indices = torch.stack(batched_g.edges())
-                N = batched_g.num_nodes()
-                A = dglsp.spmatrix(indices, shape=(N, N))
-                row_ptr, col_ind, val_idx = A.csr()
                 for i in range(logits.shape[0]):
-                    print(f"node {i} neighbor nodes", col_ind[row_ptr[i]:row_ptr[i+1]])
                     if not all(torch.isclose(logits[i], logits_fuse[i], atol=0.001).flatten()):
                         print(f"error node {i} mismatch")
                         # print("neighbor nodes", col_ind[row_ptr[i]:row_ptr[i+1]])
-                        # print(logits_fuse[i])
+                        print(logits[i])
+                        print(logits_fuse[i])
                         pdb.set_trace()
 
             if i == 10:
