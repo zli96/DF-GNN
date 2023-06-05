@@ -9,11 +9,21 @@
 # fi
 read -p "Enter dim: " dim  
 read -p "Enter heads: " heads 
+read -p "Enter batch size: " bs
 
+if [ -z "${dim}" ];then
+	dim=64
+fi
+if [ -z "${heads}" ];then
+	heads=8
+fi
+if [ -z "${bs}" ];then
+	bs=256
+fi
 
 day=$(date +%d)
 Time=$(date +%H_%M_%S)
 
 python setup.py develop
 mkdir log/day_${day}
-python dgNN/script/test/test_gf.py --dim $dim --heads $heads  | tee log/day_${day}/weight_ver_${dim}_${heads}_${Time}.log
+python dgNN/script/test/test_gf.py --dim $dim --heads $heads --batch-size $bs  | tee log/day_${day}/weight_ver_${dim}_${heads}_${Time}.log

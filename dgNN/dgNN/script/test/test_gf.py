@@ -39,10 +39,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="GAT")
     parser.add_argument("--dim", type=int, default=64)
     parser.add_argument("--heads", type=int, default=8)
+    parser.add_argument("--batch-size", type=int, default=256)
     args = parser.parse_args()
     print("hidden dim", args.dim)
     print("num heads", args.heads)
-
+    print("num heads", args.batch_size)
     # If CUDA is available, use GPU to accelerate the training, use CPU
     # otherwise.
     dev = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -65,15 +66,16 @@ if __name__ == "__main__":
         batched_g, labels = batched_g.to(dev), labels.to(dev)
         # print("----------------------without fuse--------------------------")
         logits, elapsed_time = layer(batched_g, batched_g.ndata["feat"])
-        time_no_fuse.append(elapsed_time)
-        # print("logits shape ", logits.shape)
-        # print("----------------------with fuse--------------------------")
-        logits_fuse, elapsed_time = layer(batched_g, batched_g.ndata["feat"], fuse=True)
-        time_fuse.append(elapsed_time)
-        # print("logits_fuse shape ", logits_fuse.shape)
-        if all(torch.isclose(logits, logits_fuse, atol=0.001).flatten()):
-            print("the results are the same, success!!!!!!!!!!")
-        if i == 10:
-            print("no-fuse average time ", sum(time_no_fuse) / len(time_no_fuse))
-            print("fuse average time ", sum(time_fuse) / len(time_fuse))
-            exit()
+        if i > 5:
+            time_no_fuse.append(elapsed_time)
+            # print("logits shape ", logits.shape)
+            # print("----------------------with fuse--------------------------")
+            logits_fuse, elapsed_time = layer(batched_g, batched_g.ndata["feat"], fuse=True)
+            time_fuse.append(elapsed_time)
+            # print("logits_fuse shape ", logits_fuse.shape)
+            if all(torch.isclose(logits, logits_fuse, atol=0.001).flatten()):
+                print("the results are the same, success!!!!!!!!!!")
+            if i == 10:
+                print("no-fuse average time ", sum(time_no_fuse) / len(time_no_fuse))
+                print("fuse average time ", sum(time_fuse) / len(time_fuse))
+                exit()

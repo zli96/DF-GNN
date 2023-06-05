@@ -33,7 +33,7 @@ class FusedGFFunction(torch.autograd.Function):
         K,
         V,
     ):
-        out_feat, edge_max, edge_sum, edge_mask = fused_gf.gf_forward(
+        out_feat = fused_gf.gf_forward(
             row_ptr,
             col_ind,
             val,
@@ -54,7 +54,7 @@ class FusedGFFunction(torch.autograd.Function):
         #     attn_row,
         #     attn_col,
         # )
-        return out_feat
+        return out_feat[0]
 
     # @staticmethod
     # def backward(ctx, grad_out):

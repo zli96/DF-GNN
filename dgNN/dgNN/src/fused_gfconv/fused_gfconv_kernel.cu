@@ -34,7 +34,6 @@ using namespace std;
 __global__ void fused_forward_kernel(const int m, const int nnz, const int h, const int f,
                                      const int *row_ptr, const int *col_ind, const float *val,
                                      const float *Q, const float *K, const float *V,
-                                     float *edge_max, float *edge_sum, float *edge_mask,
                                      float *out_feat, unsigned long long seed)
 {
   int rid = blockIdx.x;                     // loop over row of adj matrix
@@ -133,7 +132,6 @@ __global__ void fused_forward_kernel(const int m, const int nnz, const int h, co
 void gf_forward(int m, int nnz, int h, int f,
                 const int *row_ptr, const int *col_ind, const float *val,
                 const float *Q, const float *K, const float *V,
-                float *edge_max, float *edge_sum, float *edge_mask,
                 float *out_feat)
 {
   // float rt;
@@ -151,7 +149,7 @@ void gf_forward(int m, int nnz, int h, int f,
 
   const dim3 nblks(m, h, 1);
   const dim3 nthrs(32, (f + 31) / 32, 1);
-  printf("start kernel\n");
+  // printf("start kernel\n");
   // CUDA_KERNEL_CALL(
   //     (fused_forward_kernel),
   //     nblks, nthrs, (f + m) * sizeof(float), m, nnz, h, f, row_ptr, col_ind, val,
@@ -159,7 +157,7 @@ void gf_forward(int m, int nnz, int h, int f,
   fused_forward_kernel<<<dim3(m, h, 1), dim3(32, (f + 31) / 32, 1),
                          (f + m) * sizeof(float)>>>(
       m, nnz, h, f, row_ptr, col_ind, val,
-      Q, K, V, edge_max, edge_sum, edge_mask, out_feat, seed);
+      Q, K, V, out_feat, seed);
 
   cudaError_t errSync = cudaGetLastError();
   cudaError_t errAsync = cudaDeviceSynchronize();
@@ -184,13 +182,9 @@ gf_forward_cuda(torch::Tensor row_ptr,
   auto options =
       torch::TensorOptions().dtype(torch::kFloat32).device(torch::kCUDA, devid);
   auto out_feat = torch::zeros({m, h, f}, options);
-  auto edge_max = torch::zeros({m, h}, options);
-  auto edge_sum = torch::zeros({m, h}, options);
-  auto edge_mask = torch::zeros({nnz, h}, options);
   gf_forward(m, nnz, h, f,
              row_ptr.data_ptr<int>(), col_ind.data_ptr<int>(), val.data_ptr<float>(),
              Q.data_ptr<float>(), K.data_ptr<float>(), V.data_ptr<float>(),
-             edge_max.data_ptr<float>(), edge_sum.data_ptr<float>(), edge_mask.data_ptr<float>(),
              out_feat.data_ptr<float>());
-  return {out_feat, edge_max, edge_sum, edge_mask};
+  return {out_feat};
 }
