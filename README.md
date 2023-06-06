@@ -25,8 +25,10 @@ cd dgNN
 python dgNN/script/test/test_gf.py
 ```
 
-|                        | weight + weight max | softmax |
-| ---------------------- | :-----------------: | ------- |
-| dim=64, head=1, f = 64 |        pass        |         |
-| dim=8, head=8, f = 1   |        pass        |         |
-| dim=16, head=8, f = 2  |        pass        |         |
+## support dim & heads
+
+|        | dim=64 |  bs=32  |
+| :-----: | :-----: | :-----: |
+| heads=1 | support | support |
+| heads=2 | support | support |
+| heads=8 | support |    /    |

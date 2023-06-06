@@ -5,21 +5,7 @@
 #include <unistd.h>
 #include <stdio.h>
 
-/* we need these includes for CUDA's random number stuff */
-#include <curand.h>
-#include <curand_kernel.h>
-
 using namespace std;
-
-#define CURAND_CALL(x)                                \
-  do                                                  \
-  {                                                   \
-    if ((x) != CURAND_STATUS_SUCCESS)                 \
-    {                                                 \
-      printf("Error at %s:%d\n", __FILE__, __LINE__); \
-      return EXIT_FAILURE;                            \
-    }                                                 \
-  } while (0)
 
 #define CUDA_KERNEL_CALL(kernel, nblks, nthrs, shmem, ...)          \
   {                                                                 \
@@ -30,6 +16,22 @@ using namespace std;
           << "CUDA kernel launch error: " << cudaGetErrorString(e); \
     }                                                               \
   }
+
+__device__ void warpReduce(volatile float *sdata, int tid, int blockSize)
+{
+  if (blockSize >= 64)
+    sdata[tid] += sdata[tid + 32];
+  if (blockSize >= 32)
+    sdata[tid] += sdata[tid + 16];
+  if (blockSize >= 16)
+    sdata[tid] += sdata[tid + 8];
+  if (blockSize >= 8)
+    sdata[tid] += sdata[tid + 4];
+  if (blockSize >= 4)
+    sdata[tid] += sdata[tid + 2];
+  if (blockSize >= 2)
+    sdata[tid] += sdata[tid + 1];
+}
 
 __global__ void fused_forward_kernel(const int m, const int nnz, const int h, const int f,
                                      const int *row_ptr, const int *col_ind, const float *val,
@@ -42,16 +44,14 @@ __global__ void fused_forward_kernel(const int m, const int nnz, const int h, co
 
   int lb = row_ptr[rid]; // row rid elements
   int hb = row_ptr[rid + 1];
-  int ptr = threadIdx.x; // the neighbor node needed to process
 
   int threads_x = blockDim.x; // 32
   int threads_y = blockDim.y; // f/32
-  int blockSize = threads_x * threads_y;
   int num_neighbor = hb - lb;
   extern __shared__ float smem[];
   float *curr_node_feature = smem;
   float *feat_prod_result = (float *)&curr_node_feature[f];
-  float *neigh_nodes_weight = (float *)&feat_prod_result[f];
+  float *neigh_nodes_weight = (float *)&feat_prod_result[threads_x * threads_y];
   float weightMax = -1e38;
 
   // init the shared memory
@@ -75,37 +75,27 @@ __global__ void fused_forward_kernel(const int m, const int nnz, const int h, co
     if (fid < 32)
     {
       volatile float *sdata = feat_prod_result;
-      if (blockSize >= 64)
-        sdata[fid] += sdata[fid + 32];
-      if (blockSize >= 32)
-        sdata[fid] += sdata[fid + 16];
-      if (blockSize >= 16)
-        sdata[fid] += sdata[fid + 8];
-      if (blockSize >= 8)
-        sdata[fid] += sdata[fid + 4];
-      if (blockSize >= 4)
-        sdata[fid] += sdata[fid + 2];
-      if (blockSize >= 2)
-        sdata[fid] += sdata[fid + 1];
+      warpReduce(sdata, fid, f);
       __syncwarp();
-      if (fid == 0)
-      {
-        neigh_nodes_weight[j] = sdata[0];
-      }
-      __syncwarp();
+    }
+    if (fid == 0)
+    {
+      neigh_nodes_weight[j] = feat_prod_result[0];
     }
     __syncthreads();
     weight = neigh_nodes_weight[j];
     weightMax = MAX(weight, weightMax);
   }
+  __syncthreads();
+
   // compute the sum of exp
   int loop = (num_neighbor + 31) / 32;
   float expAll = 0;
   for (int j = 0; j < loop; j++)
   {
-    int pid = ptr + (j << 5); // node need to process in loop j
+    int pid = threadIdx.x + (j << 5); // node need to process in loop j
     float exptmp = 0;
-    if (pid < hb - lb)
+    if (pid < num_neighbor)
     {
       float weight = neigh_nodes_weight[pid];
       exptmp = exp(weight - weightMax);

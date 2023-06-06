@@ -1,13 +1,13 @@
-read -p "Enter dim(default=64): " dim  
-read -p "Enter heads(default=8): " heads 
-# read -p "Enter batch size(default=256): " bs
-read -p "Enter comment: " comment
+# read -p "Enter dim(default=64): " dim  
+# read -p "Enter heads(default=8): " heads 
+# # read -p "Enter batch size(default=256): " bs
+# read -p "Enter comment: " comment
 
 if [ -z "${dim}" ];then
-	dim=64
+	dim=32
 fi
 if [ -z "${heads}" ];then
-	heads=8
+	heads=1
 fi
 if [ -z "${comment}" ];then
 	comment=normal
