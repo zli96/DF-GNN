@@ -1,5 +1,5 @@
 import pdb
-
+import time
 import dgl.sparse as dglsp
 import torch
 import torch.nn as nn
@@ -41,25 +41,33 @@ class SparseMHA(nn.Module):
             q = q.transpose(1, 2).contiguous()
             k = k.transpose(1, 2).contiguous()
             v = v.transpose(1, 2).contiguous()
-            print("fuse kernel start")
-            print(f"q {q.shape}, k {k.shape}, v {v.shape}")
-            print(f"row_ptr {row_ptr.shape} col_ind {col_ind.shape} val {val.shape}")
+            # print("fuse kernel start")
+            # print(f"q {q.shape}, k {k.shape}, v {v.shape}")
+            # print(f"row_ptr {row_ptr.shape} col_ind {col_ind.shape} val {val.shape}")
             # pdb.set_trace()
-            out = GFConvFuse(row_ptr, col_ind, val, q, k, v).transpose(1, 2)
+            torch.cuda.synchronize()
+            start = time.time()
+            out = GFConvFuse(row_ptr, col_ind, val, q, k, v)
+            torch.cuda.synchronize()
+            elapsed_time = time.time() - start
+            out = out.transpose(1,2)
             # print("fuse kernel end")
             # print(out.shape)
             # for i in range(5):
             #     print("output", out[i].flatten())
             # pdb.set_trace()
         else:
+            torch.cuda.synchronize()
+            start = time.time()
             attn = dglsp.bsddmm(A, q, k.transpose(1, 0))  # [N, N, nh]
             attn = attn.softmax()
-            print("------------(q@k)*A-------------")
+            # print("------------(q@k)*A-------------")
             # print(A.row)
             # print(A.col)
             # csr_val = [attn.val[i] for i in val_idx]
             out = dglsp.bspmm(attn, v)
-
+            torch.cuda.synchronize()
+            elapsed_time = time.time() - start
             # for i in range(5):
             #     for head in range(self.num_heads):
             #         cols = col_ind[row_ptr[i]:row_ptr[i+1]]
@@ -73,4 +81,4 @@ class SparseMHA(nn.Module):
             # pdb.set_trace()
 
         # return self.out_proj(out.reshape(N, -1))
-        return out.reshape(N, -1)
+        return out.reshape(N, -1), elapsed_time * 1000
