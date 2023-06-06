@@ -60,21 +60,24 @@ if __name__ == "__main__":
 
     out_size = dataset.num_tasks
     layer = GTLayer(hidden_size=args.dim, num_heads=args.heads).to(dev)
+    
+    print("----------------------Forward------------------------")
     time_no_fuse = []
     time_fuse = []
-
+    warmup = 5
+    # iter = 10 
     for i, (batched_g, labels) in enumerate(train_dataloader):
         batched_g, labels = batched_g.to(dev), labels.to(dev)
         # print("----------------------without fuse--------------------------")
         logits, elapsed_time = layer(batched_g, batched_g.ndata["feat"])
-        if i > 5:
+        if i > warmup:
             time_no_fuse.append(elapsed_time)
-            print(f"epoch {i} non-fused time ", elapsed_time)
+            print(f"epoch {i} non-fused time %.4f" % elapsed_time)
             # print("----------------------with fuse--------------------------")
             logits_fuse, elapsed_time = layer(batched_g, batched_g.ndata["feat"], fuse=True)
             time_fuse.append(elapsed_time)
             # pdb.set_trace()
-            print(f"epoch {i} fused time ", elapsed_time)
+            print(f"epoch {i} fused time %.4f" % elapsed_time)
             if all(torch.isclose(logits, logits_fuse, atol=0.001).flatten()):
                 print("the results are the same, success!!!!!!!!!!")
             else:
@@ -86,8 +89,8 @@ if __name__ == "__main__":
                         print(logits_fuse[i])
                         pdb.set_trace()
 
-            if i == 10:
-                print("----------------------Result------------------------")
-                print("no-fuse average time ", sum(time_no_fuse) / len(time_no_fuse))
-                print("fuse average time ", sum(time_fuse) / len(time_fuse))
-                exit()
+            # if i == 10:
+            #     break
+    print("----------------------Result------------------------")
+    print("no-fuse average time {:.4f} ms".format(sum(time_no_fuse) / len(time_no_fuse)))
+    print("fuse average time {:.4f} ms".format(sum(time_fuse) / len(time_fuse)))

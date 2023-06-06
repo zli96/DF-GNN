@@ -46,7 +46,7 @@ __global__ void fused_forward_kernel(const int m, const int nnz, const int h, co
 
   int threads_x = blockDim.x; // 32
   int threads_y = blockDim.y; // f/32
-  int blockSize = threads_x*threads_y;
+  int blockSize = threads_x * threads_y;
   int num_neighbor = hb - lb;
   extern __shared__ float smem[];
   float *curr_node_feature = smem;
@@ -59,15 +59,6 @@ __global__ void fused_forward_kernel(const int m, const int nnz, const int h, co
   {
     curr_node_feature[fid] = Q[rid * h * f + hid * f + fid];
   }
-  // for (int j = 0; j < num_neighbor / (threads_x * threads_y) + 1; j++)
-  // {
-  //   int pid = fid + j * (threads_x * threads_y);
-  //   if (pid < num_neighbor)
-  //   {
-  //     neigh_nodes_weight[pid] = 0;
-  //   }
-  // }
-  // __syncthreads();
 
   // compute the attention weight
   for (int j = 0; j < num_neighbor; j++)
@@ -81,14 +72,21 @@ __global__ void fused_forward_kernel(const int m, const int nnz, const int h, co
       feat_prod_result[fid] = weight_partial;
     }
     __syncthreads();
-    if (fid<32){
-      volatile float* sdata = feat_prod_result;
-      if (blockSize >= 64) sdata[fid] += sdata[fid + 32];
-      if (blockSize >= 32) sdata[fid] += sdata[fid + 16];
-      if (blockSize >= 16) sdata[fid] += sdata[fid + 8];
-      if (blockSize >= 8) sdata[fid] += sdata[fid + 4];
-      if (blockSize >= 4) sdata[fid] += sdata[fid + 2];
-      if (blockSize >= 2) sdata[fid] += sdata[fid + 1];
+    if (fid < 32)
+    {
+      volatile float *sdata = feat_prod_result;
+      if (blockSize >= 64)
+        sdata[fid] += sdata[fid + 32];
+      if (blockSize >= 32)
+        sdata[fid] += sdata[fid + 16];
+      if (blockSize >= 16)
+        sdata[fid] += sdata[fid + 8];
+      if (blockSize >= 8)
+        sdata[fid] += sdata[fid + 4];
+      if (blockSize >= 4)
+        sdata[fid] += sdata[fid + 2];
+      if (blockSize >= 2)
+        sdata[fid] += sdata[fid + 1];
       __syncwarp();
       if (fid == 0)
       {
@@ -96,25 +94,9 @@ __global__ void fused_forward_kernel(const int m, const int nnz, const int h, co
       }
       __syncwarp();
     }
-    
-    // if (fid < 32)
-    // {
-    //   volatile float* vshm = feat_prod_result;
-    //   if (blockDim.x * blockDim.y >= 64)
-    //   {
-    //     vshm[fid] += vshm[fid + 32];
-    //   }
-    //   float val = vshm[threadIdx.x];
-    //   for (int stride = 16; stride > 0; stride >>= 1)
-    // {
-    //   val += __shfl_xor_sync(0xffffffff, val, stride, 32);
-    // }
-      
-    // }
-    
+    __syncthreads();
     weight = neigh_nodes_weight[j];
     weightMax = MAX(weight, weightMax);
-    __syncthreads();
   }
   // compute the sum of exp
   int loop = (num_neighbor + 31) / 32;
@@ -176,7 +158,7 @@ void gf_forward(int m, int nnz, int h, int f,
   //     nblks, nthrs, (f + m) * sizeof(float), m, nnz, h, f, row_ptr, col_ind, val,
   //     Q, K, V, edge_max, edge_sum, edge_mask, out_feat, seed);
   fused_forward_kernel<<<dim3(m, h, 1), dim3(32, (f + 31) / 32, 1),
-                         (2 * f + m) * sizeof(float)>>>(
+                         (2 * f + 100) * sizeof(float)>>>(
       m, nnz, h, f, row_ptr, col_ind, val,
       Q, K, V, out_feat);
   cudaEventRecord(stop, 0);

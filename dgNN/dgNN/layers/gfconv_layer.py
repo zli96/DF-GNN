@@ -81,4 +81,4 @@ class SparseMHA(nn.Module):
             # pdb.set_trace()
 
         # return self.out_proj(out.reshape(N, -1))
-        return out.reshape(N, -1), elapsed_time
+        return out.reshape(N, -1), elapsed_time * 1000
