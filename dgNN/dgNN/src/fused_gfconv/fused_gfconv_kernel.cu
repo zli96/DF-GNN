@@ -7,6 +7,8 @@
 
 using namespace std;
 
+const int WARP_SIZE = 32;
+
 #define CUDA_KERNEL_CALL(kernel, nblks, nthrs, shmem, ...)          \
   {                                                                 \
     {                                                               \
@@ -17,20 +19,19 @@ using namespace std;
     }                                                               \
   }
 
-__device__ void warpReduce(volatile float *sdata, int tid, int blockSize)
+__device__ __forceinline__ float warpReduceSum(float sum, int blockSize)
 {
-  if (blockSize >= 64)
-    sdata[tid] += sdata[tid + 32];
   if (blockSize >= 32)
-    sdata[tid] += sdata[tid + 16];
+    sum += __shfl_down_sync(0xffffffff, sum, 16);
   if (blockSize >= 16)
-    sdata[tid] += sdata[tid + 8];
+    sum += __shfl_down_sync(0xffffffff, sum, 8);
   if (blockSize >= 8)
-    sdata[tid] += sdata[tid + 4];
+    sum += __shfl_down_sync(0xffffffff, sum, 4);
   if (blockSize >= 4)
-    sdata[tid] += sdata[tid + 2];
+    sum += __shfl_down_sync(0xffffffff, sum, 2);
   if (blockSize >= 2)
-    sdata[tid] += sdata[tid + 1];
+    sum += __shfl_down_sync(0xffffffff, sum, 1);
+  return sum;
 }
 
 __global__ void fused_forward_kernel(const int m, const int nnz, const int h, const int f,
@@ -38,20 +39,20 @@ __global__ void fused_forward_kernel(const int m, const int nnz, const int h, co
                                      const float *Q, const float *K, const float *V,
                                      float *out_feat)
 {
-  int rid = blockIdx.x;                     // loop over row of adj matrix
-  int hid = blockIdx.y;                     // loop over heads
-  int fid = threadIdx.y * 32 + threadIdx.x; // loop over feature dim
+  const int rid = blockIdx.x;                     // loop over row of adj matrix
+  const int hid = blockIdx.y;                     // loop over heads
+  const int fid = threadIdx.y * 32 + threadIdx.x; // loop over feature dim
 
-  int lb = row_ptr[rid]; // row rid elements
-  int hb = row_ptr[rid + 1];
+  const int lb = row_ptr[rid]; // row rid elements
+  const int hb = row_ptr[rid + 1];
 
-  int threads_x = blockDim.x; // 32
-  int threads_y = blockDim.y; // f/32
-  int num_neighbor = hb - lb;
+  const int threads_x = blockDim.x; // 32
+  const int threads_y = blockDim.y; // f/32
+  const int blockSize = threads_x * threads_y;
+  const int num_neighbor = hb - lb;
   extern __shared__ float smem[];
   float *curr_node_feature = smem;
-  float *feat_prod_result = (float *)&curr_node_feature[f];
-  float *neigh_nodes_weight = (float *)&feat_prod_result[threads_x * threads_y];
+  float *neigh_nodes_weight = (float *)&curr_node_feature[f];
   float weightMax = -1e38;
 
   // init the shared memory
@@ -63,24 +64,27 @@ __global__ void fused_forward_kernel(const int m, const int nnz, const int h, co
   // compute the attention weight
   for (int j = 0; j < num_neighbor; j++)
   {
-    float weight;
+    float weight = 0;
     float weight_partial = 0;
     if (fid < f)
     {
       int cid = col_ind[lb + j];
       weight_partial = curr_node_feature[fid] * K[cid * h * f + hid * f + fid];
-      feat_prod_result[fid] = weight_partial;
     }
     __syncthreads();
-    if (fid < 32)
-    {
-      volatile float *sdata = feat_prod_result;
-      warpReduce(sdata, fid, f);
-      __syncwarp();
-    }
+    static __shared__ float warpLevelSums[WARP_SIZE];
+    const int laneId = fid % WARP_SIZE;
+    const int warpId = fid / WARP_SIZE;
+    weight_partial = warpReduceSum(weight_partial, blockSize);
+    if (laneId == 0)
+      warpLevelSums[warpId] = weight_partial;
+    __syncthreads();
+    weight_partial = (fid < blockSize / WARP_SIZE) ? warpLevelSums[laneId] : 0;
+    if (warpId == 0)
+      weight_partial = warpReduceSum(weight_partial, blockSize / WARP_SIZE);
     if (fid == 0)
     {
-      neigh_nodes_weight[j] = feat_prod_result[0];
+      neigh_nodes_weight[j] = weight_partial;
     }
     __syncthreads();
     weight = neigh_nodes_weight[j];
@@ -134,7 +138,6 @@ void gf_forward(int m, int nnz, int h, int f,
                 const float *Q, const float *K, const float *V,
                 float *out_feat)
 {
-  // float rt;
   cudaEvent_t start, stop;
   cudaEventCreate(&start);
   cudaEventCreate(&stop);
@@ -142,27 +145,15 @@ void gf_forward(int m, int nnz, int h, int f,
 
   const dim3 nblks(m, h, 1);
   const dim3 nthrs(32, (f + 31) / 32, 1);
-  // printf("start kernel\n");
-  // CUDA_KERNEL_CALL(
-  //     (fused_forward_kernel),
-  //     nblks, nthrs, (f + m) * sizeof(float), m, nnz, h, f, row_ptr, col_ind, val,
-  //     Q, K, V, edge_max, edge_sum, edge_mask, out_feat, seed);
-  fused_forward_kernel<<<dim3(m, h, 1), dim3(32, (f + 31) / 32, 1),
-                         (2 * f + 100) * sizeof(float)>>>(
-      m, nnz, h, f, row_ptr, col_ind, val,
+  CUDA_KERNEL_CALL(
+      (fused_forward_kernel),
+      nblks, nthrs, (f + 100) * sizeof(float), m, nnz, h, f, row_ptr, col_ind, val,
       Q, K, V, out_feat);
   cudaEventRecord(stop, 0);
   cudaEventSynchronize(stop);
   float elapsedTime;
   cudaEventElapsedTime(&elapsedTime, start, stop);
   printf("Time of fused kernel: %f \n", elapsedTime);
-
-  cudaError_t errSync = cudaGetLastError();
-  cudaError_t errAsync = cudaDeviceSynchronize();
-  if (errSync != cudaSuccess)
-    printf("Sync kernel error: %s\n", cudaGetErrorString(errSync));
-  if (errAsync != cudaSuccess)
-    printf("Async kernel error: %s\n", cudaGetErrorString(errAsync));
 }
 
 std::vector<torch::Tensor>
