@@ -89,7 +89,7 @@ if __name__ == "__main__":
                         print(logits_fuse[i])
                         pdb.set_trace()
 
-            if i == 50:
+            if i == 100:
                 break
     print("----------------------Result------------------------")
     print("no-fuse average time {:.4f} ms".format(sum(time_no_fuse) / len(time_no_fuse)))
