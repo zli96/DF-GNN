@@ -13,3 +13,4 @@ dist/
 *dgNN.egg-info
 *.so
 test/
+dataset
