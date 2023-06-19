@@ -147,7 +147,7 @@ void gf_forward(int m, int nnz, int h, int f,
   const dim3 nthrs(32, (f + 31) / 32, 1);
   CUDA_KERNEL_CALL(
       (fused_forward_kernel),
-      nblks, nthrs, (f + 100) * sizeof(float), m, nnz, h, f, row_ptr, col_ind, val,
+      nblks, nthrs, (f + 512) * sizeof(float), m, nnz, h, f, row_ptr, col_ind, val,
       Q, K, V, out_feat);
   cudaEventRecord(stop, 0);
   cudaEventSynchronize(stop);
