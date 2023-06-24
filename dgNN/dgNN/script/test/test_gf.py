@@ -1,5 +1,4 @@
 import argparse
-
 import pdb
 
 import dgl
@@ -8,13 +7,12 @@ import dgl.sparse as dglsp
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
 from dgl.data import AsGraphPredDataset
 from dgl.dataloading import GraphDataLoader
+from ogb.graphproppred import DglGraphPropPredDataset, Evaluator, collate_dgl
+from ogb.graphproppred.mol_encoder import AtomEncoder
 
 from dgNN.layers import SparseMHA
-from ogb.graphproppred import collate_dgl, DglGraphPropPredDataset, Evaluator
-from ogb.graphproppred.mol_encoder import AtomEncoder
 
 
 class GTLayer(nn.Module):
@@ -36,7 +34,7 @@ class GTLayer(nn.Module):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="GAT")
+    parser = argparse.ArgumentParser(description="GF")
     parser.add_argument("--dim", type=int, default=64)
     parser.add_argument("--heads", type=int, default=8)
     parser.add_argument("--batch-size", type=int, default=256)

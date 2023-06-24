@@ -2,12 +2,10 @@ import argparse
 import time
 
 import dgl
-
 # from dgNN.operators.tile_balance_scheduler import TileBalanceScheduler
 import scipy.sparse as sp
 import torch
 from numpy import absolute, tile
-
 from torch.utils.cpp_extension import load
 
 fused_gatconv = load(

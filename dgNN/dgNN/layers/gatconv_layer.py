@@ -2,7 +2,7 @@ import torch
 from torch import nn
 from torch.nn.modules.linear import Identity
 
-from ..operators.fused_gatconv import GATConvFuse, GATConvFuse_inference
+from dgNN.operators.fused_gatconv import GATConvFuse, GATConvFuse_inference
 
 
 class GATConv(nn.Module):  # our gat layer
