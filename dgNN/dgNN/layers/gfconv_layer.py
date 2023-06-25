@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from dgNN.operators.fused_gfconv import GFConvFuse_ELL
+from dgNN.operators.fused_gfconv import GFConvFuse_ELL, GFConvFuse
 
 
 class SparseMHA(nn.Module):
@@ -105,7 +105,7 @@ class SparseMHA_ELL(nn.Module):
         q *= self.scaling
         k = self.k_proj(h).reshape(N, self.head_dim, self.num_heads)
         v = self.v_proj(h).reshape(N, self.head_dim, self.num_heads)
-        A, row_ptr, col_ind, val, row_index, mask = params
+        A, row_ptr, col_ind, row_index, rows_per_tb, val = params
         ######################################################################
         # (HIGHLIGHT) Compute the multi-head attention with Sparse Matrix API
         ######################################################################
@@ -113,44 +113,19 @@ class SparseMHA_ELL(nn.Module):
             q = q.transpose(1, 2).contiguous()
             k = k.transpose(1, 2).contiguous()
             v = v.transpose(1, 2).contiguous()
-            # print("fuse kernel start")
-            # print(f"q {q.shape}, k {k.shape}, v {v.shape}")
-            # print(f"row_ptr {row_ptr.shape} col_ind {col_ind.shape} val {val.shape}")
-            # pdb.set_trace()
             torch.cuda.synchronize()
             start = time.time()
-            out = GFConvFuse_ELL(row_ptr, col_ind, row_index, mask, val, q, k, v)
+            out = GFConvFuse_ELL(row_ptr, col_ind, row_index, rows_per_tb, val, q, k, v)
             torch.cuda.synchronize()
             elapsed_time = time.time() - start
             out = out.transpose(1, 2)
-            # print("fuse kernel end")
-            # print(out.shape)
-            # for i in range(5):
-            #     print("output", out[i].flatten())
-            # pdb.set_trace()
         else:
             torch.cuda.synchronize()
             start = time.time()
             attn = dglsp.bsddmm(A, q, k.transpose(1, 0))  # [N, N, nh]
             attn = attn.softmax()
-            # print("------------(q@k)*A-------------")
-            # print(A.row)
-            # print(A.col)
-            # csr_val = [attn.val[i] for i in val_idx]
+
             out = dglsp.bspmm(attn, v)
             torch.cuda.synchronize()
             elapsed_time = time.time() - start
-            # for i in range(5):
-            #     for head in range(self.num_heads):
-            #         cols = col_ind[row_ptr[i]:row_ptr[i+1]]
-            #         vals = torch.tensor([torch.dot(q.transpose(1,2)[i][head],k.transpose(1,2)[col][head]).item() for col in cols])
-            #         vals_softmax = torch.softmax(vals, dim=0)
-            #         print(f"node {i} head {head}")
-            #         print("val ", vals)
-            #         print("softmax ",vals_softmax)
-            #         print([elem[head].item() for elem in csr_val[row_ptr[i]:row_ptr[i+1]]])
-            #     print("output", out[i])
-            # pdb.set_trace()
-
-        # return self.out_proj(out.reshape(N, -1))
         return out.reshape(N, -1), elapsed_time * 1000
