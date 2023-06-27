@@ -25,6 +25,13 @@ cd dgNN
 python dgNN/script/test/test_gf.py
 ```
 
+run graph transformer in ell format example 
+
+```python
+cd dgNN
+python dgNN/script/test/test_gf_ell.py
+```
+
 ## support dim & heads
 
 |        | dim=64 |  bs=32  |

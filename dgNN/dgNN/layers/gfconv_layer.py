@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from ..operators.fused_gfconv import GFConvFuse
+from dgNN.operators.fused_gfconv import GFConvFuse_ELL, GFConvFuse
 
 
 class SparseMHA(nn.Module):
@@ -50,7 +50,7 @@ class SparseMHA(nn.Module):
             out = GFConvFuse(row_ptr, col_ind, val, q, k, v)
             torch.cuda.synchronize()
             elapsed_time = time.time() - start
-            out = out.transpose(1,2)
+            out = out.transpose(1, 2)
             # print("fuse kernel end")
             # print(out.shape)
             # for i in range(5):
@@ -81,4 +81,51 @@ class SparseMHA(nn.Module):
             # pdb.set_trace()
 
         # return self.out_proj(out.reshape(N, -1))
+        return out.reshape(N, -1), elapsed_time * 1000
+
+
+class SparseMHA_ELL(nn.Module):
+    """Sparse Multi-head Attention Module"""
+
+    def __init__(self, hidden_size, num_heads):
+        super().__init__()
+        self.hidden_size = hidden_size
+        self.num_heads = num_heads
+        self.head_dim = hidden_size // num_heads
+        self.scaling = self.head_dim**-0.5
+
+        self.q_proj = nn.Linear(hidden_size, hidden_size)
+        self.k_proj = nn.Linear(hidden_size, hidden_size)
+        self.v_proj = nn.Linear(hidden_size, hidden_size)
+        self.out_proj = nn.Linear(hidden_size, hidden_size)
+
+    def forward(self, params, h, ell=False):
+        N = len(h)
+        q = self.q_proj(h).reshape(N, self.head_dim, self.num_heads)
+        q *= self.scaling
+        k = self.k_proj(h).reshape(N, self.head_dim, self.num_heads)
+        v = self.v_proj(h).reshape(N, self.head_dim, self.num_heads)
+        A, row_ptr, col_ind, row_index, rows_per_tb, val = params
+        ######################################################################
+        # (HIGHLIGHT) Compute the multi-head attention with Sparse Matrix API
+        ######################################################################
+        if ell:
+            q = q.transpose(1, 2).contiguous()
+            k = k.transpose(1, 2).contiguous()
+            v = v.transpose(1, 2).contiguous()
+            torch.cuda.synchronize()
+            start = time.time()
+            out = GFConvFuse_ELL(row_ptr, col_ind, row_index, rows_per_tb, val, q, k, v)
+            torch.cuda.synchronize()
+            elapsed_time = time.time() - start
+            out = out.transpose(1, 2)
+        else:
+            torch.cuda.synchronize()
+            start = time.time()
+            attn = dglsp.bsddmm(A, q, k.transpose(1, 0))  # [N, N, nh]
+            attn = attn.softmax()
+
+            out = dglsp.bspmm(attn, v)
+            torch.cuda.synchronize()
+            elapsed_time = time.time() - start
         return out.reshape(N, -1), elapsed_time * 1000

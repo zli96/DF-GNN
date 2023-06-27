@@ -1,6 +1,6 @@
 from torch import nn
 
-from ..operators.fused_edgeconv import EdgeConvFuse
+from dgNN.operators.fused_edgeconv import EdgeConvFuse
 
 
 class EdgeConv(nn.Module):

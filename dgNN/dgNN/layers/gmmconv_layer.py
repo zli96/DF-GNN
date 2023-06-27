@@ -4,7 +4,7 @@ import torch as th
 from torch import nn
 from torch.nn import init
 
-from ..operators.fused_gmmconv import GmmConvFuse
+from dgNN.operators.fused_gmmconv import GmmConvFuse
 
 
 class GMMConv(nn.Module):

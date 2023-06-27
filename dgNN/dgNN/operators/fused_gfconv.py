@@ -4,6 +4,7 @@ import torch
 from torch.utils.cpp_extension import load
 import pdb
 
+
 def GFConvFuse(
     row_ptr,
     col_ind,
@@ -105,3 +106,51 @@ class FusedGFFunction(torch.autograd.Function):
     #         grad_feat,
     #         None,
     #     )
+
+
+def GFConvFuse_ELL(
+    row_ptr,
+    col_ind,
+    row_index,
+    rows_per_tb,
+    val,
+    Q,
+    K,
+    V,
+):
+    return FusedGFFunction_ELL.apply(
+        row_ptr,
+        col_ind,
+        row_index,
+        rows_per_tb,
+        val,
+        Q,
+        K,
+        V,
+    )
+
+
+class FusedGFFunction_ELL(torch.autograd.Function):
+    @staticmethod
+    def forward(
+        ctx,
+        row_ptr,
+        col_ind,
+        row_index,
+        rows_per_tb,
+        val,
+        Q,
+        K,
+        V,
+    ):
+        out_feat = fused_gf.gf_ell_forward(
+            row_ptr,
+            col_ind,
+            row_index,
+            rows_per_tb,
+            val,
+            Q,
+            K,
+            V,
+        )
+        return out_feat[0]
