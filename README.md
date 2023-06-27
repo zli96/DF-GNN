@@ -1,41 +1,104 @@
-# Fuse attention
-
 ## dgNN
 
-build dgNN
+dgNN is a high-performance backend for GNN layers with DFG (Data Flow Graph) level optimization. dgNN project is based on [PyTorch](https://github.com/pytorch/pytorch).
 
-```bash
+### How to install
+
+**through pip**
+
+```
+pip install dgNN
+```
+
+If pip couldn't build dgNN, we recommend you to build dgNN from source.
+
+```shell
+git clone git@github.com:dgSPARSE/dgNN.git
 cd dgNN
 bash install.sh
-##############
-python -W ignore setup.py develop
 ```
 
-run gat example
+### Requirement
+
+```
+CUDA toolkit >= 10.0
+pytorch >= 1.7.0
+scipy
+dgl >= 0.7 (We use dgl's dataset)
+ninja
+```
+
+We prepare a docker to run our implementation. You could run our dgNN in a docker container.
+
+```shell
+cd docker
+docker build -t dgNN:v1 -f Dockerfile .
+docker run -it dgNN:v1 /bin/bash
+```
+
+### Examples
+
+Our training script is modified from [DGL](https://github.com/dmlc/dgl). Now we implements three popular GNN models.
+
+**Run GAT**
+
+[DGL Code](https://github.com/dmlc/dgl/tree/master/examples/pytorch/gat)
 
 ```python
-cd dgNN/dgNN/script/train
-python train_gatconv.py --n-hidden=64 --n-heads=4 --dataset cora --gpu 0
+cd dgNN/script/train
+python train_gatconv.py --num-hidden=64 --num-heads=4 --dataset cora --gpu 0
 ```
 
-run graph transformer example
+**Run Monet**
+
+[DGL Code](https://github.com/dmlc/dgl/tree/master/examples/pytorch/monet)
 
 ```python
-cd dgNN
-python dgNN/script/test/test_gf.py
+cd dgNN/script/train
+python train_gmmconv.py --n-kernels 3 --pseudo-dim 2 --dataset cora --gpu 0
 ```
 
-run graph transformer in ell format example 
+**Run PointCloud**
+
+We use modelnet40-sampled-2048 data in our PointNet. [DGL Code](https://github.com/dmlc/dgl/tree/master/examples/pytorch/pointcloud)
 
 ```python
-cd dgNN
-python dgNN/script/test/test_gf_ell.py
+cd dgNN/script/train
+python train_edgeconv.py
 ```
 
-## support dim & heads
+### Collaborative Projects
 
-|        | dim=64 |  bs=32  |
-| :-----: | :-----: | :-----: |
-| heads=1 | support | support |
-| heads=2 | support | support |
-| heads=8 | support |    /    |
+[CogDL](https://github.com/THUDM/cogdl) is a flexible and efficient graph-learning framework that uses GE-SpMM to accelerate GNN algorithms. This repo is implemented in CogDL as a submodule.
+
+### LICENSE
+
+This project is projected by [Apache-2.0](https://github.com/dgSPARSE/dgNN/blob/main/LICENSE) License.
+If you use our dgNN project in your research, please cite the following bib:
+
+```bibtex
+@misc{zhang2021understanding,
+    title={Understanding GNN Computational Graph: A Coordinated Computation, IO, and Memory Perspective},
+    author={Hengrui Zhang and Zhongming Yu and Guohao Dai and Guyue Huang and Yufei Ding and Yuan Xie and Yu Wang},
+    year={2021},
+    eprint={2110.09524},
+    archivePrefix={arXiv},
+    primaryClass={cs.LG}
+}
+```
+
+This project also implements part of algorithms from [GNN-computing](https://github.com/xxcclong/GNN-Computing), especially method of neighbor grouping in SpMM. If you use our dgNN project in your research, please also cite the following bib:
+
+```bibtex
+@inproceedings{huang2021understanding,
+  title={Understanding and bridging the gaps in current GNN performance optimizations},
+  author={Huang, Kezhao and Zhai, Jidong and Zheng, Zhen and Yi, Youngmin and Shen, Xipeng},
+  booktitle={Proceedings of the 26th ACM SIGPLAN Symposium on Principles and Practice of Parallel Programming},
+  pages={119--132},
+  year={2021}
+}
+```
+
+---
+
+If you meet any problems in this repo, fill free to write issues or contact us by e-mail (yzm18@mails.tsinghua.edu.cn, hengrui-18@mails.tsinghua.edu.cn).
