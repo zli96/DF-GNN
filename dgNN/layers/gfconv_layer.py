@@ -1,11 +1,12 @@
 import pdb
 import time
+
 import dgl.sparse as dglsp
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from dgNN.operators.fused_gfconv import GFConvFuse_ELL, GFConvFuse
+from dgNN.operators.fused_gfconv import GFConvFuse, GFConvFuse_ELL
 
 
 class SparseMHA(nn.Module):
@@ -23,20 +24,17 @@ class SparseMHA(nn.Module):
         self.v_proj = nn.Linear(hidden_size, hidden_size)
         self.out_proj = nn.Linear(hidden_size, hidden_size)
 
-    def forward(self, A, h, fuse=False):
+    def forward(self, params, h, fuse=False):
         N = len(h)
         q = self.q_proj(h).reshape(N, self.head_dim, self.num_heads)
         q *= self.scaling
         k = self.k_proj(h).reshape(N, self.head_dim, self.num_heads)
         v = self.v_proj(h).reshape(N, self.head_dim, self.num_heads)
+        A, row_ptr, col_ind, val = params
 
         ######################################################################
         # (HIGHLIGHT) Compute the multi-head attention with Sparse Matrix API
         ######################################################################
-        row_ptr, col_ind, val_idx = A.csr()
-        row_ptr = row_ptr.int()
-        col_ind = col_ind.int()
-        val = torch.tensor([A.val[i] for i in val_idx]).float()
         if fuse:
             q = q.transpose(1, 2).contiguous()
             k = k.transpose(1, 2).contiguous()

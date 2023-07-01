@@ -20,4 +20,4 @@ fi
 
 python setup.py develop
 python -u dgNN/script/test/test_gf.py --dim $dim --heads $heads --batch-size $bs --data-dir ${data_dir}
-# python -u dgNN/script/test/test_gf_ell.py --dim $dim --heads $heads --batch-size $bs
+# python -u dgNN/script/test/test_gf_ell.py --dim $dim --heads $heads --batch-size $bs --data-dir ${data_dir}

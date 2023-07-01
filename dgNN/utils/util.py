@@ -1,10 +1,16 @@
+import dgl.sparse as dglsp
+import format_conversion
 import matplotlib.pyplot as plt
 import numpy as np
+import ScheduleProfiler
+import torch
+from dgl.data import CiteseerGraphDataset, CoraGraphDataset, PubmedGraphDataset
 from dgl.dataloading import GraphDataLoader
-from ogb.graphproppred import DglGraphPropPredDataset, collate_dgl
+from ogb.graphproppred import collate_dgl, DglGraphPropPredDataset
 from ogb.lsc import DglPCQM4Mv2Dataset
-from dgl.data import CoraGraphDataset, CiteseerGraphDataset, PubmedGraphDataset
 from ogb.nodeproppred import DglNodePropPredDataset
+
+profiler = ScheduleProfiler.ScheduleProfiler()
 
 
 def load_data_batch(dataset_name, batch_size):
@@ -92,3 +98,130 @@ def figure_nodes_neigh(dataset_name, num_neigh_per_node):
     )
     plt.savefig(f"figure/{dataset_name}_nodes_neigh.png")
     fig.clear()
+
+
+def preprocess_CSR(g):
+    indices = torch.stack(g.edges())
+    N = g.num_nodes()
+    A = dglsp.spmatrix(indices, shape=(N, N))
+    row_ptr, col_ind, val_idx = A.csr()
+    row_ptr = row_ptr.int()
+    col_ind = col_ind.int()
+    val = torch.tensor([A.val[i] for i in val_idx]).float()
+    return A, row_ptr, col_ind, val
+
+
+def preprocess_ELL(
+    g,
+    bucket_sizes=[],
+    num_col_parts=1,
+):
+    indices = torch.stack(g.edges())
+    N = g.num_nodes()
+    A = dglsp.spmatrix(indices, shape=(N, N))
+    row_ptr, col_ind, val_idx = A.csr()
+
+    row_ptr = row_ptr.int()
+    col_ind = col_ind.int()
+    val = torch.tensor([A.val[i] for i in val_idx]).float()
+
+    # cluster the rows into diff buckets based on its num of neighbors
+    row_col_ind, _, _ = format_conversion.csr2ell(
+        N, N, row_ptr, col_ind, num_col_parts, bucket_sizes
+    )
+
+    # num of elements each tb need to process
+    elements_per_tb = 4
+    rows_per_tb = []
+    row_col_ind = row_col_ind[0]
+
+    # calculate the num of elements each tb need to process
+    for i, bucket_size in enumerate(bucket_sizes):
+        num_elements = len(row_col_ind[i])
+        num_rows = elements_per_tb // bucket_size
+        rows_per_tb = rows_per_tb + [num_rows] * (num_elements // num_rows)
+        res = num_elements % num_rows
+        if res != 0:
+            rows_per_tb = rows_per_tb + [res]
+    row_index = torch.cat(row_col_ind, 0).int()
+    rows_per_tb = torch.cat(
+        (torch.tensor([0]), torch.cumsum(torch.tensor(rows_per_tb), 0))
+    ).int()
+
+    return A, row_ptr, col_ind, row_index, rows_per_tb, val
+
+
+def train(process_func, layer, train_dataloader, dev, **arg):
+    print("----------------------Forward------------------------")
+    time_no_fuse = []
+    time_fuse = []
+    warmup = 5
+    for i, (batched_g, labels) in enumerate(train_dataloader):
+        # print("----------------------without fuse--------------------------")
+        params = process_func(batched_g, **arg)
+        params = [param.to(dev) for param in params]
+        batched_g, labels = batched_g.to(dev), labels.to(dev)
+        logits, elapsed_time = layer(params, batched_g.ndata["feat"])
+        print(f"epoch {i} non-fused time %.4f" % elapsed_time)
+        if i > warmup:
+            time_no_fuse.append(elapsed_time)
+            # print("----------------------with fuse--------------------------")
+            logits_fuse, elapsed_time = layer(
+                params, batched_g.ndata["feat"], fuse=True
+            )
+            time_fuse.append(elapsed_time)
+            # pdb.set_trace()
+            print(f"epoch {i} fused time %.4f" % elapsed_time)
+            if all(torch.isclose(logits, logits_fuse, atol=0.001).flatten()):
+                print("the results are the same, success!!!!!!!!!!")
+            else:
+                for i in range(logits.shape[0]):
+                    if not all(
+                        torch.isclose(logits[i], logits_fuse[i], atol=0.001).flatten()
+                    ):
+                        print(f"error node {i} mismatch")
+                        # print("neighbor nodes", col_ind[row_ptr[i]:row_ptr[i+1]])
+                        print(logits[i])
+                        print(logits_fuse[i])
+            if i == 30:
+                break
+    return time_no_fuse, time_fuse
+
+
+def train_profile(process_func, layer, train_dataloader, dev, **arg):
+    print("----------------------Forward------------------------")
+    time_no_fuse = []
+    time_fuse = []
+    warmup = 5
+    for i, (batched_g, labels) in enumerate(train_dataloader):
+        # print("----------------------without fuse--------------------------")
+        params = process_func(batched_g, **arg)
+        params = [param.to(dev) for param in params]
+        batched_g, labels = batched_g.to(dev), labels.to(dev)
+        profiler.start()
+        logits, elapsed_time = layer(params, batched_g.ndata["feat"])
+        profiler.stop()
+        print(f"epoch {i} non-fused time %.4f" % elapsed_time)
+        if i > warmup:
+            time_no_fuse.append(elapsed_time)
+            # print("----------------------with fuse--------------------------")
+            logits_fuse, elapsed_time = layer(
+                params, batched_g.ndata["feat"], fuse=True
+            )
+            time_fuse.append(elapsed_time)
+            # pdb.set_trace()
+            print(f"epoch {i} fused time %.4f" % elapsed_time)
+            if all(torch.isclose(logits, logits_fuse, atol=0.001).flatten()):
+                print("the results are the same, success!!!!!!!!!!")
+            else:
+                for i in range(logits.shape[0]):
+                    if not all(
+                        torch.isclose(logits[i], logits_fuse[i], atol=0.001).flatten()
+                    ):
+                        print(f"error node {i} mismatch")
+                        # print("neighbor nodes", col_ind[row_ptr[i]:row_ptr[i+1]])
+                        print(logits[i])
+                        print(logits_fuse[i])
+            if i == 30:
+                break
+    return time_no_fuse, time_fuse
