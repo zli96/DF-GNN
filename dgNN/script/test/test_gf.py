@@ -38,6 +38,7 @@ if __name__ == "__main__":
     parser.add_argument("--dim", type=int, default=64)
     parser.add_argument("--heads", type=int, default=8)
     parser.add_argument("--batch-size", type=int, default=256)
+    parser.add_argument("--data-dir", type=str, default="./data/OGB")
     args = parser.parse_args()
     print("hidden dim", args.dim)
     print("num heads", args.heads)
@@ -47,7 +48,7 @@ if __name__ == "__main__":
     dev = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     # load dataset
-    dataset = AsGraphPredDataset(DglGraphPropPredDataset("ogbg-molhiv", "./data/OGB"))
+    dataset = AsGraphPredDataset(DglGraphPropPredDataset("ogbg-molhiv", f"{args.data_dir}"))
     evaluator = Evaluator("ogbg-molhiv")
     train_dataloader = GraphDataLoader(
         dataset[dataset.train_idx],
@@ -63,14 +64,13 @@ if __name__ == "__main__":
     time_no_fuse = []
     time_fuse = []
     warmup = 5
-    # iter = 10 
     for i, (batched_g, labels) in enumerate(train_dataloader):
         batched_g, labels = batched_g.to(dev), labels.to(dev)
         # print("----------------------without fuse--------------------------")
         logits, elapsed_time = layer(batched_g, batched_g.ndata["feat"])
+        print(f"epoch {i} non-fused time %.4f" % elapsed_time)
         if i > warmup:
             time_no_fuse.append(elapsed_time)
-            print(f"epoch {i} non-fused time %.4f" % elapsed_time)
             # print("----------------------with fuse--------------------------")
             logits_fuse, elapsed_time = layer(batched_g, batched_g.ndata["feat"], fuse=True)
             time_fuse.append(elapsed_time)

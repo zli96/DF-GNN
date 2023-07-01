@@ -108,18 +108,19 @@ if __name__ == "__main__":
         "--dataset", "-d", type=str, default="cora", help="dataset name"
     )
     parser.add_argument("--dim", type=int, default=64)
-    parser.add_argument("--heads", type=int, default=1)
-    parser.add_argument("--batch-size", type=int, default=1)
+    parser.add_argument("--heads", type=int, default=8)
+    parser.add_argument("--batch-size", type=int, default=256)
+    parser.add_argument("--data-dir", type=str, default="./data/OGB")
     args = parser.parse_args()
     print("hidden dim", args.dim)
     print("num heads", args.heads)
     print("batch size", args.batch_size)
-    print("a")
-    
+    # If CUDA is available, use GPU to accelerate the training, use CPU
+    # otherwise.
     dev = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     name = args.dataset
     layer = GTLayer(hidden_size=args.dim, num_heads=args.heads).to(dev)
-    dataset = AsGraphPredDataset(DglGraphPropPredDataset("ogbg-molhiv", "./data/OGB"))
+    dataset = AsGraphPredDataset(DglGraphPropPredDataset("ogbg-molhiv", f"{args.data_dir}"))
     train_dataloader = GraphDataLoader(
         dataset[dataset.train_idx],
         batch_size=args.batch_size,
@@ -127,10 +128,10 @@ if __name__ == "__main__":
         shuffle=False,
     )
     
+    print("----------------------Forward------------------------")
     time_no_fuse = []
     time_fuse = []
     warmup = 5
-    
     for i, (batched_g, labels) in enumerate(train_dataloader):
         params = preprocess(
             batched_g,
@@ -140,9 +141,9 @@ if __name__ == "__main__":
         params = [param.to(dev) for param in params]
         batched_g, labels = batched_g.to(dev), labels.to(dev)
         logits, elapsed_time = layer(params, batched_g.ndata["feat"])
+        print(f"epoch {i} non-fused time %.4f" % elapsed_time)
         if i > warmup:
             time_no_fuse.append(elapsed_time)
-            print(f"epoch {i} non-fused time %.4f" % elapsed_time)
             # print("----------------------with fuse--------------------------")
             logits_fuse, elapsed_time = layer(params, batched_g.ndata["feat"], ell=True)
             time_fuse.append(elapsed_time)
@@ -151,8 +152,7 @@ if __name__ == "__main__":
             if all(torch.isclose(logits, logits_fuse, atol=0.001).flatten()):
                 print("the results are the same, success!!!!!!!!!!")
             if i == 30:
-                    break
+                break
     print("----------------------Result------------------------")
     print("no-fuse average time {:.4f} ms".format(sum(time_no_fuse) / len(time_no_fuse)))
     print("fuse average time {:.4f} ms".format(sum(time_fuse) / len(time_fuse)))
-
