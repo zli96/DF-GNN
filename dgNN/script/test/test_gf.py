@@ -36,6 +36,8 @@ if __name__ == "__main__":
     parser.add_argument("--heads", type=int, default=8)
     parser.add_argument("--batch-size", type=int, default=256)
     parser.add_argument("--data-dir", type=str, default="./data/OGB")
+    parser.add_argument("--dataset", type=str, default="ogbg-molhiv")
+
     args = parser.parse_args()
     print("hidden dim", args.dim)
     print("num heads", args.heads)
@@ -46,9 +48,9 @@ if __name__ == "__main__":
 
     # load dataset
     dataset = AsGraphPredDataset(
-        DglGraphPropPredDataset("ogbg-molhiv", f"{args.data_dir}")
+        DglGraphPropPredDataset(f"{args.dataset}", f"{args.data_dir}")
     )
-    evaluator = Evaluator("ogbg-molhiv")
+    evaluator = Evaluator(f"{args.dataset}")
     train_dataloader = GraphDataLoader(
         dataset[dataset.train_idx],
         batch_size=args.batch_size,

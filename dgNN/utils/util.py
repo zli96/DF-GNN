@@ -26,15 +26,15 @@ def load_data_batch(dataset_name, batch_size):
     return train_dataloader
 
 
-def load_data_full_graph(dataset_name):
+def load_data_full_graph(dataset_name, dataset_dir):
     if dataset_name == "cora":
-        dataset = CoraGraphDataset()
+        dataset = CoraGraphDataset(dataset_dir)
     elif dataset_name == "arxiv":
         dataset = DglNodePropPredDataset("ogbn-arxiv")[0]
     elif dataset_name == "cite":
-        dataset = CiteseerGraphDataset()
+        dataset = CiteseerGraphDataset(dataset_dir)
     elif dataset_name == "pubmed":
-        dataset = PubmedGraphDataset()
+        dataset = PubmedGraphDataset(dataset_dir)
     else:
         raise ValueError(f"Unsupport dataset {dataset_name}")
     return dataset
@@ -176,6 +176,8 @@ def train(process_func, layer, train_dataloader, dev, **arg):
                 if all(torch.isclose(logits, logits_fuse, atol=0.001).flatten()):
                     print("the results are the same, success!!!!!!!!!!")
                 else:
+                    row_ptr = params[1]
+                    col_ind = params[2]
                     for i in range(logits.shape[0]):
                         if not all(
                             torch.isclose(
@@ -183,9 +185,18 @@ def train(process_func, layer, train_dataloader, dev, **arg):
                             ).flatten()
                         ):
                             print(f"error node {i} mismatch")
-                            # print("neighbor nodes", col_ind[row_ptr[i]:row_ptr[i+1]])
+                            print(
+                                "neighbor nodes", col_ind[row_ptr[i] : row_ptr[i + 1]]
+                            )
                             print(logits[i])
                             print(logits_fuse[i])
+                        else:
+                            print("----------------pass------------------")
+                            print(
+                                "neighbor nodes", col_ind[row_ptr[i] : row_ptr[i + 1]]
+                            )
+                            print("")
+                    exit()
             if i == 30:
                 break
     return time_no_fuse, time_fuse

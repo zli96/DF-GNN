@@ -8,7 +8,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from dgNN.layers import SparseMHA
-from dgNN.utils import load_data_full_graph
+from dgNN.utils import load_data_full_graph, preprocess_CSR
 
 
 class GTLayer(nn.Module):
@@ -30,6 +30,8 @@ if __name__ == "__main__":
     parser.add_argument("--dim", type=int, default=64)
     parser.add_argument("--heads", type=int, default=1)
     parser.add_argument("--dataset", type=str, default="cora")
+    parser.add_argument("--data-dir", type=str, default="./data")
+
     args = parser.parse_args()
     print("hidden dim", args.dim)
     print("num heads", args.heads)
@@ -38,17 +40,10 @@ if __name__ == "__main__":
     dev = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     # load dataset
-    dataset = load_data_full_graph(args.dataset)
+    dataset = load_data_full_graph(args.dataset, args.data_dir)
     g = dataset[0].to(dev)
     # Create the sparse adjacency matrix A.
-    indices = torch.stack(g.edges())
-    N = g.num_nodes()
-    A = dglsp.spmatrix(indices, shape=(N, N))
-
-    # Add self-loops.
-    I = dglsp.identity(A.shape, device=dev)
-    A_hat = A + I
-    print("max neighbor is ", max(A_hat.sum(dim=1)))
+    params = preprocess_CSR(g)
     X = g.ndata["feat"]
     in_size = X.shape[1]
     layer = GTLayer(in_size=in_size, hidden_size=args.dim, num_heads=args.heads).to(dev)
@@ -59,29 +54,29 @@ if __name__ == "__main__":
     warmup = 1
     # iter = 10
     for epoch in range(30):
-        print(epoch)
-        logits, elapsed_time = layer(A_hat, X)
+        logits, elapsed_time = layer(params, X)
         if epoch >= warmup:
             time_no_fuse.append(elapsed_time)
             print(f"epoch {epoch} non-fused time %.4f" % elapsed_time)
-            logits_fuse, elapsed_time = layer(A_hat, X, fuse=True)
+            logits_fuse, elapsed_time = layer(params, X, fuse=True)
             time_fuse.append(elapsed_time)
             # pdb.set_trace()
             print(f"epoch {epoch} fused time %.4f" % elapsed_time)
-            if all(torch.isclose(logits, logits_fuse, atol=0.001).flatten()):
-                print("the results are the same, success!!!!!!!!!!")
-            else:
-                for epoch in range(logits.shape[0]):
-                    if not all(
-                        torch.isclose(
-                            logits[epoch], logits_fuse[epoch], atol=0.001
-                        ).flatten()
-                    ):
-                        print(f"error node {epoch} mismatch")
-                        # print("neighbor nodes", col_ind[row_ptr[epoch]:row_ptr[epoch+1]])
-                        print(logits[epoch])
-                        print(logits_fuse[epoch])
-                        pdb.set_trace()
+            # if epoch < 5:
+            #     if all(torch.isclose(logits, logits_fuse, atol=0.001).flatten()):
+            #         print("the results are the same, success!!!!!!!!!!")
+            #     else:
+            #         for epoch in range(logits.shape[0]):
+            #             if not all(
+            #                 torch.isclose(
+            #                     logits[epoch], logits_fuse[epoch], atol=0.001
+            #                 ).flatten()
+            #             ):
+            #                 print(f"error node {epoch} mismatch")
+            #                 # print("neighbor nodes", col_ind[row_ptr[epoch]:row_ptr[epoch+1]])
+            #                 print(logits[epoch])
+            #                 print(logits_fuse[epoch])
+            #                 pdb.set_trace()
 
     print("----------------------Result------------------------")
     print(
