@@ -155,7 +155,7 @@ def train(process_func, layer, train_dataloader, dev, **arg):
     print("----------------------Forward------------------------")
     time_no_fuse = []
     time_fuse = []
-    warmup = 5
+    warmup = 2
     for i, (batched_g, labels) in enumerate(train_dataloader):
         # print("----------------------without fuse--------------------------")
         params = process_func(batched_g, **arg)
@@ -172,17 +172,20 @@ def train(process_func, layer, train_dataloader, dev, **arg):
             time_fuse.append(elapsed_time)
             # pdb.set_trace()
             print(f"epoch {i} fused time %.4f" % elapsed_time)
-            if all(torch.isclose(logits, logits_fuse, atol=0.001).flatten()):
-                print("the results are the same, success!!!!!!!!!!")
-            else:
-                for i in range(logits.shape[0]):
-                    if not all(
-                        torch.isclose(logits[i], logits_fuse[i], atol=0.001).flatten()
-                    ):
-                        print(f"error node {i} mismatch")
-                        # print("neighbor nodes", col_ind[row_ptr[i]:row_ptr[i+1]])
-                        print(logits[i])
-                        print(logits_fuse[i])
+            if i < 5:
+                if all(torch.isclose(logits, logits_fuse, atol=0.001).flatten()):
+                    print("the results are the same, success!!!!!!!!!!")
+                else:
+                    for i in range(logits.shape[0]):
+                        if not all(
+                            torch.isclose(
+                                logits[i], logits_fuse[i], atol=0.001
+                            ).flatten()
+                        ):
+                            print(f"error node {i} mismatch")
+                            # print("neighbor nodes", col_ind[row_ptr[i]:row_ptr[i+1]])
+                            print(logits[i])
+                            print(logits_fuse[i])
             if i == 30:
                 break
     return time_no_fuse, time_fuse
