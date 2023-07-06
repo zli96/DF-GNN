@@ -388,10 +388,10 @@ void gf_forward(int m, int nnz, int h, int f,
                 const float *Q, const float *K, const float *V,
                 float *out_feat)
 {
-  cudaEvent_t start, stop;
-  cudaEventCreate(&start);
-  cudaEventCreate(&stop);
-  cudaEventRecord(start, 0);
+  // cudaEvent_t start, stop;
+  // cudaEventCreate(&start);
+  // cudaEventCreate(&stop);
+  // cudaEventRecord(start, 0);
 
   const dim3 nblks(m, h, 1);
   const dim3 nthrs(32, (f + 31) / 32, 1);
@@ -399,11 +399,11 @@ void gf_forward(int m, int nnz, int h, int f,
       (fused_forward_kernel),
       nblks, nthrs, (f + 512) * sizeof(float), m, nnz, h, f, row_ptr, col_ind, val,
       Q, K, V, out_feat);
-  cudaEventRecord(stop, 0);
-  cudaEventSynchronize(stop);
-  float elapsedTime;
-  cudaEventElapsedTime(&elapsedTime, start, stop);
-  printf("Time of fused kernel: %f \n", elapsedTime);
+  // cudaEventRecord(stop, 0);
+  // cudaEventSynchronize(stop);
+  // float elapsedTime;
+  // cudaEventElapsedTime(&elapsedTime, start, stop);
+  // printf("Time of fused kernel: %f \n", elapsedTime);
 }
 
 void gf_ell_forward(int m, int nnz, int h, int f, int num_tb,
@@ -412,10 +412,10 @@ void gf_ell_forward(int m, int nnz, int h, int f, int num_tb,
                     const float *Q, const float *K, const float *V,
                     float *out_feat)
 {
-  cudaEvent_t start, stop;
-  cudaEventCreate(&start);
-  cudaEventCreate(&stop);
-  cudaEventRecord(start, 0);
+  // cudaEvent_t start, stop;
+  // cudaEventCreate(&start);
+  // cudaEventCreate(&stop);
+  // cudaEventRecord(start, 0);
 
   const dim3 nblks(num_tb, h, 1);
   const dim3 nthrs(32, (f + 31) / 32, 1);
@@ -423,11 +423,11 @@ void gf_ell_forward(int m, int nnz, int h, int f, int num_tb,
       (fused_forward_ell_kernel),
       nblks, nthrs, (f + 512) * sizeof(float), m, nnz, h, f, row_ptr, col_ind, row_index, rows_per_tb, val,
       Q, K, V, out_feat);
-  cudaEventRecord(stop, 0);
-  cudaEventSynchronize(stop);
-  float elapsedTime;
-  cudaEventElapsedTime(&elapsedTime, start, stop);
-  printf("Time of fused kernel: %f \n", elapsedTime);
+  // cudaEventRecord(stop, 0);
+  // cudaEventSynchronize(stop);
+  // float elapsedTime;
+  // cudaEventElapsedTime(&elapsedTime, start, stop);
+  // printf("Time of fused kernel: %f \n", elapsedTime);
 }
 
 std::vector<torch::Tensor>
