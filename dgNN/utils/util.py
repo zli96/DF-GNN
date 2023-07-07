@@ -204,7 +204,6 @@ def train_profile(process_func, layer, train_dataloader, dev, **arg):
     print("----------------------Forward------------------------")
     time_no_fuse = []
     time_fuse = []
-    warmup = 5
     for i, (batched_g, labels) in enumerate(train_dataloader):
         # print("----------------------without fuse--------------------------")
         params = process_func(batched_g, **arg)
@@ -225,8 +224,8 @@ def train_profile(process_func, layer, train_dataloader, dev, **arg):
         #     print(f"epoch {i} fused time %.4f" % elapsed_time)
         #     # if i < 5:
         #     #     check_correct(logits, logits_fuse, params)
-        #     if i == 30:
-        #         break
+        if i == 3:
+            break
     return time_no_fuse, time_fuse
 
 
