@@ -1,7 +1,6 @@
 #include "../util/computeUtil.h"
 #include <cuda.h>
 #include <torch/types.h>
-
 #include <unistd.h>
 #include <stdio.h>
 
@@ -10,6 +9,19 @@ using namespace std;
 const int WARP_SIZE = 32;
 
 extern "C" bool isPow2(unsigned int x) { return ((x & (x - 1)) == 0); }
+
+#define CUDA_CALL(func)                                      \
+  {                                                          \
+    cudaError_t e = (func);                                  \
+    CHECK(e == cudaSuccess || e == cudaErrorCudartUnloading) \
+        << "CUDA: " << cudaGetErrorString(e);                \
+  }
+
+#define CUSPARSE_CALL(func)                                         \
+  {                                                                 \
+    cusparseStatus_t e = (func);                                    \
+    CHECK(e == CUSPARSE_STATUS_SUCCESS) << "CUSPARSE ERROR: " << e; \
+  }
 
 #define CUDA_KERNEL_CALL(kernel, nblks, nthrs, shmem, ...)          \
   {                                                                 \
@@ -45,149 +57,6 @@ __device__ __forceinline__ float warpReduceSum(float sum, int blockSize)
 //   return mySum;
 // }
 
-__global__ void fused_forward_kernel_multiwarp(const int m, const int nnz, const int h, const int f,
-                                               const int *row_ptr, const int *col_ind, const float *val,
-                                               const float *Q, const float *K, const float *V,
-                                               float *out_feat)
-{
-  const int rid = blockIdx.x;                     // loop over row of adj matrix
-  const int hid = blockIdx.y;                     // loop over heads
-  const int fid = threadIdx.y * 32 + threadIdx.x; // loop over feature dim
-
-  const int lb = row_ptr[rid]; // row rid elements
-  const int hb = row_ptr[rid + 1];
-
-  const int threads_x = blockDim.x; // 32
-  const int threads_y = blockDim.y; // f/32
-  const int blockSize = threads_x * threads_y;
-  const int num_neighbor = hb - lb;
-  extern __shared__ float smem[];
-  float *curr_node_feature = smem;
-  float *neigh_nodes_weight = (float *)&curr_node_feature[f];
-  float weightMax = -1e38;
-  const int laneId = fid % WARP_SIZE;
-  const int warpId = fid / WARP_SIZE;
-
-  // init the shared memory
-  if (fid < f)
-  {
-    curr_node_feature[fid] = Q[rid * h * f + hid * f + fid];
-  }
-
-  // compute the attention weight
-  for (int j = 0; j < num_neighbor / 2; j++)
-  {
-    float weight_partial1 = 0;
-    float weight_partial2 = 0;
-    if (fid < f)
-    {
-      int cid1 = col_ind[lb + 2 * j];
-      int cid2 = col_ind[lb + 2 * j + 1];
-      float Q_i = curr_node_feature[fid];
-      weight_partial1 = Q_i * K[cid1 * h * f + hid * f + fid];
-      weight_partial2 = Q_i * K[cid2 * h * f + hid * f + fid];
-      // if(blockIdx.x == 1){
-      //   printf("val %f %f \n", weight_partial1, weight_partial2);
-      // }
-    }
-    __syncthreads();
-    static __shared__ float warpLevelSums1[WARP_SIZE];
-    static __shared__ float warpLevelSums2[WARP_SIZE];
-
-    weight_partial1 = warpReduceSum(weight_partial1, blockSize);
-    weight_partial2 = warpReduceSum(weight_partial2, blockSize);
-
-    if (laneId == 0)
-      warpLevelSums1[warpId] = weight_partial1;
-    warpLevelSums2[warpId] = weight_partial2;
-    __syncthreads();
-    weight_partial1 = (fid < blockSize / WARP_SIZE) ? warpLevelSums1[laneId] : 0;
-    weight_partial2 = (fid < blockSize / WARP_SIZE) ? warpLevelSums2[laneId] : 0;
-
-    if (warpId == 0)
-      weight_partial1 = warpReduceSum(weight_partial1, blockSize / WARP_SIZE);
-    weight_partial2 = warpReduceSum(weight_partial2, blockSize / WARP_SIZE);
-
-    if (fid == 0)
-    {
-      neigh_nodes_weight[2 * j] = weight_partial1;
-      neigh_nodes_weight[2 * j + 1] = weight_partial2;
-      // printf("rid %d neigh %d val %f %f \n", blockIdx.x, num_neighbor, weight_partial1, weight_partial2);
-    }
-    __syncthreads();
-    float weight = MAX(neigh_nodes_weight[2 * j], neigh_nodes_weight[2 * j + 1]);
-    weightMax = MAX(weight, weightMax);
-  }
-  __syncthreads();
-
-  if (num_neighbor % 2)
-  {
-    float weight_partial = 0;
-    if (fid < f)
-    {
-      int cid = col_ind[hb - 1];
-      weight_partial = curr_node_feature[fid] * K[cid * h * f + hid * f + fid];
-    }
-    __syncthreads();
-    static __shared__ float warpLevelSums[WARP_SIZE];
-    weight_partial = warpReduceSum(weight_partial, blockSize);
-    if (laneId == 0)
-      warpLevelSums[warpId] = weight_partial;
-    __syncthreads();
-    weight_partial = (fid < blockSize / WARP_SIZE) ? warpLevelSums[laneId] : 0;
-    if (warpId == 0)
-      weight_partial = warpReduceSum(weight_partial, blockSize / WARP_SIZE);
-    if (fid == 0)
-    {
-      neigh_nodes_weight[num_neighbor - 1] = weight_partial;
-      // printf("rid %d cid: %d \n", blockIdx.x, col_ind[hb - 1]);
-      // printf("rid %d val %f \n", blockIdx.x, weight_partial);
-    }
-    __syncthreads();
-    float weight = neigh_nodes_weight[num_neighbor - 1];
-    weightMax = MAX(weight, weightMax);
-  }
-  __syncthreads();
-
-  // compute the sum of exp
-  int loop = (num_neighbor + 31) / 32;
-  float expAll = 0;
-  for (int j = 0; j < loop; j++)
-  {
-    int pid = threadIdx.x + (j << 5); // node need to process in loop j
-    float exptmp = 0;
-    if (pid < num_neighbor)
-    {
-      float weight = neigh_nodes_weight[pid];
-      exptmp = exp(weight - weightMax);
-    }
-    __syncwarp();
-    for (int stride = 16; stride > 0; stride >>= 1)
-    {
-      exptmp += __shfl_xor_sync(0xffffffff, exptmp, stride, 32);
-    }
-    __syncwarp();
-    expAll += exptmp;
-  }
-  __syncthreads();
-
-  // compute the output
-  float acc = 0;
-  for (int j = 0; j < num_neighbor; j++)
-  {
-    float attn_val;
-    int cid = col_ind[lb + j];
-    if (fid < f)
-    {
-      float weight = neigh_nodes_weight[j];
-      attn_val = exp(weight - weightMax) / expAll;
-      acc += attn_val * V[cid * h * f + hid * f + fid];
-    }
-    __syncthreads();
-  }
-  if (fid < f)
-    out_feat[rid * h * f + hid * f + fid] = acc;
-}
 
 template <unsigned int blockSize>
 __global__ void fused_forward_kernel_pow2(const int m, const int nnz, const int h, const int f,
@@ -206,9 +75,8 @@ __global__ void fused_forward_kernel_pow2(const int m, const int nnz, const int 
   extern __shared__ float smem[];
   float *neigh_nodes_weight = smem;
   float weightMax = -1e38;
-  const unsigned int mask = 0xffffffff;
   static __shared__ float warpLevelSums[WARP_SIZE];
-  const int hf = h*f;
+  const int hf = h * f;
   const int hfid = hid * f + fid;
   const int laneId = fid % WARP_SIZE;
   const int warpId = fid / WARP_SIZE;
@@ -223,7 +91,6 @@ __global__ void fused_forward_kernel_pow2(const int m, const int nnz, const int 
     weight_partial = Q_i * K[cid * hf + hfid];
 
     __syncthreads();
-    static __shared__ float warpLevelSums[WARP_SIZE];
     weight_partial = warpReduceSum(weight_partial, blockSize);
     if (laneId == 0)
       warpLevelSums[warpId] = weight_partial;
@@ -233,7 +100,7 @@ __global__ void fused_forward_kernel_pow2(const int m, const int nnz, const int 
       weight_partial = warpReduceSum(weight_partial, blockSize / WARP_SIZE);
     if (fid == 0)
     {
-      neigh_nodes_weight[j] = weight_partial;
+      neigh_nodes_weight[j] = weight_partial * val[lb + j];
     }
     __syncthreads();
     weight = neigh_nodes_weight[j];
