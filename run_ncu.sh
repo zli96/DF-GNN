@@ -32,6 +32,6 @@ mkdir log/ncu/day_${day}
 logtime=$(date +%m_%d_%H_%M_%S)
 for bs in ${batch_sizes[@]};
 do
-name=ncu_gf_nofuse_dim${dim}_head${heads}_bs${bs}_${logtime}
+name=ncu_fuse_gf_dim${dim}_head${heads}_bs${bs}_${logtime}
 ncu --set full --import-source yes -c 10 -o log/ncu/day_${day}/${name} -k "fused_forward_kernel_pow2" python -u dgNN/script/test/test_gf_ncu.py --dim $dim --heads $heads --batch-size $bs --dataset ${dataset} --data-dir ${data_dir} > log/ncu/day_${day}/${name}.log 2>&1 
 done
