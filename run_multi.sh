@@ -22,11 +22,10 @@ fi
 
 # batch_sizes=(1024 2048 4096)
 batch_sizes=(32 64 128 256 512 1024 2048 4096)
-
-
-
 day=$(date +%m_%d)
 Time=$(date +%H_%M_%S)
+
+set -e
 python setup.py develop
 mkdir log/day_${day}
 for bs in ${batch_sizes[@]};

@@ -20,7 +20,7 @@ if [ -z "${dataset}" ];then
 	dataset="ogbg-molhiv"
 fi
 
-
+set -e
 
 python setup.py develop
 python -u dgNN/script/test/test_gf.py --dim $dim --heads $heads --batch-size $bs --data-dir ${data_dir} --dataset ${dataset}
