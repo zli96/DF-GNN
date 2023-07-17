@@ -7,6 +7,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from dgNN.operators.fused_gfconv import GFConvFuse, GFConvFuse_ELL
+from dgNN.utils import benchmark, Timer
 
 
 class SparseMHA(nn.Module):
@@ -43,11 +44,13 @@ class SparseMHA(nn.Module):
             # print(f"q {q.shape}, k {k.shape}, v {v.shape}")
             # print(f"row_ptr {row_ptr.shape} col_ind {col_ind.shape} val {val.shape}")
             # pdb.set_trace()
-            torch.cuda.synchronize()
-            start = time.time()
-            out = GFConvFuse(row_ptr, col_ind, val, q, k, v)
-            torch.cuda.synchronize()
-            elapsed_time = time.time() - start
+            # torch.cuda.synchronize()
+            # start = time.time()
+
+            out, elapsed_time = benchmark(GFConvFuse, row_ptr, col_ind, val, q, k, v)
+            # out = GFConvFuse(row_ptr, col_ind, val, q, k, v)
+            # torch.cuda.synchronize()
+            # elapsed_time = t.elapsed_secs / 100
             out = out.transpose(1, 2)
             # print("fuse kernel end")
             # print(out.shape)
@@ -55,17 +58,22 @@ class SparseMHA(nn.Module):
             #     print("output", out[i].flatten())
             # pdb.set_trace()
         else:
-            torch.cuda.synchronize()
-            start = time.time()
-            attn = dglsp.bsddmm(A, q, k.transpose(1, 0))  # [N, N, nh]
-            attn = attn.softmax()
+            for i in range(3):
+                attn = dglsp.bsddmm(A, q, k.transpose(1, 0))  # [N, N, nh]
+                attn = attn.softmax()
+                out = dglsp.bspmm(attn, v)
+
+            with Timer() as t:
+                for i in range(100):
+                    attn = dglsp.bsddmm(A, q, k.transpose(1, 0))  # [N, N, nh]
+                    attn = attn.softmax()
+                    out = dglsp.bspmm(attn, v)
             # print("------------(q@k)*A-------------")
             # print(A.row)
             # print(A.col)
             # csr_val = [attn.val[i] for i in val_idx]
-            out = dglsp.bspmm(attn, v)
-            torch.cuda.synchronize()
-            elapsed_time = time.time() - start
+            # torch.cuda.synchronize()
+            elapsed_time = t.elapsed_secs / 100
             # for i in range(5):
             #     for head in range(self.num_heads):
             #         cols = col_ind[row_ptr[i]:row_ptr[i+1]]
@@ -111,19 +119,34 @@ class SparseMHA_ELL(nn.Module):
             q = q.transpose(1, 2).contiguous()
             k = k.transpose(1, 2).contiguous()
             v = v.transpose(1, 2).contiguous()
-            torch.cuda.synchronize()
-            start = time.time()
-            out = GFConvFuse_ELL(row_ptr, col_ind, row_index, rows_per_tb, val, q, k, v)
-            torch.cuda.synchronize()
-            elapsed_time = time.time() - start
+            # torch.cuda.synchronize()
+            # start = time.time()
+            # out = GFConvFuse_ELL(row_ptr, col_ind, row_index, rows_per_tb, val, q, k, v)
+            # torch.cuda.synchronize()
+            # elapsed_time = time.time() - start
+            out, elapsed_time = benchmark(
+                GFConvFuse_ELL, row_ptr, col_ind, row_index, rows_per_tb, val, q, k, v
+            )
             out = out.transpose(1, 2)
         else:
-            torch.cuda.synchronize()
-            start = time.time()
-            attn = dglsp.bsddmm(A, q, k.transpose(1, 0))  # [N, N, nh]
-            attn = attn.softmax()
+            # torch.cuda.synchronize()
+            # start = time.time()
+            # attn = dglsp.bsddmm(A, q, k.transpose(1, 0))  # [N, N, nh]
+            # attn = attn.softmax()
 
-            out = dglsp.bspmm(attn, v)
-            torch.cuda.synchronize()
-            elapsed_time = time.time() - start
+            # out = dglsp.bspmm(attn, v)
+            # torch.cuda.synchronize()
+            # elapsed_time = time.time() - start
+            for i in range(3):
+                attn = dglsp.bsddmm(A, q, k.transpose(1, 0))  # [N, N, nh]
+                attn = attn.softmax()
+                out = dglsp.bspmm(attn, v)
+
+            with Timer() as t:
+                for i in range(100):
+                    attn = dglsp.bsddmm(A, q, k.transpose(1, 0))  # [N, N, nh]
+                    attn = attn.softmax()
+                    out = dglsp.bspmm(attn, v)
+            elapsed_time = t.elapsed_secs / 100
+
         return out.reshape(N, -1), elapsed_time * 1000

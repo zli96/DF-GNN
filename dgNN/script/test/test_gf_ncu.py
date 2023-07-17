@@ -9,9 +9,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 from dgl.data import AsGraphPredDataset
 from dgl.dataloading import GraphDataLoader
-
 from dgNN.layers import SparseMHA
-from dgNN.utils import preprocess_CSR, train
+
+from dgNN.utils import preprocess_CSR, train_profile
 from ogb.graphproppred import collate_dgl, DglGraphPropPredDataset, Evaluator
 from ogb.graphproppred.mol_encoder import AtomEncoder
 
@@ -24,7 +24,7 @@ class GTLayer(nn.Module):
         self.MHA = SparseMHA(hidden_size=hidden_size, num_heads=num_heads)
         self.atom_encoder = AtomEncoder(hidden_size)
 
-    def forward(self, params, X, fuse=False):
+    def forward(self, params, X, fuse=True):
         h = self.atom_encoder(X)
         h = self.MHA(params, h, fuse)
         return h
@@ -37,7 +37,6 @@ if __name__ == "__main__":
     parser.add_argument("--batch-size", type=int, default=256)
     parser.add_argument("--data-dir", type=str, default="./data/OGB")
     parser.add_argument("--dataset", type=str, default="ogbg-molhiv")
-
     args = parser.parse_args()
     print("hidden dim", args.dim)
     print("num heads", args.heads)
@@ -60,14 +59,4 @@ if __name__ == "__main__":
 
     out_size = dataset.num_tasks
     layer = GTLayer(hidden_size=args.dim, num_heads=args.heads).to(dev)
-    time_no_fuse, time_fuse = train(preprocess_CSR, layer, train_dataloader, dev)
-
-    print("----------------------Result------------------------")
-    print(
-        "no-fuse average time {:.4f} ms".format(
-            sum(time_no_fuse[:-1]) / (len(time_no_fuse) - 1)
-        )
-    )
-    print(
-        "fuse average time {:.4f} ms".format(sum(time_fuse[:-1]) / (len(time_fuse) - 1))
-    )
+    train_profile(preprocess_CSR, layer, train_dataloader, dev)

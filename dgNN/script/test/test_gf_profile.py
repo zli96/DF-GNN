@@ -40,9 +40,10 @@ class SparseMHA(nn.Module):
         ######################################################################
         # (HIGHLIGHT) Compute the multi-head attention with Sparse Matrix API
         ######################################################################
-        attn = dglsp.bsddmm(A, q, k.transpose(1, 0))  # [N, N, nh]
-        attn = attn.softmax()
-        out = dglsp.bspmm(attn, v)
+        for i in range(20):
+            attn = dglsp.bsddmm(A, q, k.transpose(1, 0))  # [N, N, nh]
+            attn = attn.softmax()
+            out = dglsp.bspmm(attn, v)
         # torch.cuda.synchronize()
         # elapsed_time = time.time() - start
         elapsed_time = 0
@@ -57,13 +58,10 @@ class GTLayer(nn.Module):
         self.MHA = SparseMHA(hidden_size=hidden_size, num_heads=num_heads)
         self.atom_encoder = AtomEncoder(hidden_size)
 
-    def forward(self, g, X, fuse=False):
-        indices = torch.stack(g.edges())
-        N = g.num_nodes()
-        A = dglsp.spmatrix(indices, shape=(N, N))
+    def forward(self, params, X, fuse=False):
+        A = params[0]
         h = self.atom_encoder(X)
         h = self.MHA(A, h, fuse)
-
         return h
 
 
@@ -72,6 +70,8 @@ if __name__ == "__main__":
     parser.add_argument("--dim", type=int, default=64)
     parser.add_argument("--heads", type=int, default=8)
     parser.add_argument("--batch-size", type=int, default=256)
+    parser.add_argument("--data-dir", type=str, default="./data/OGB")
+    parser.add_argument("--dataset", type=str, default="ogbg-molhiv")
     args = parser.parse_args()
     print("hidden dim", args.dim)
     print("num heads", args.heads)
@@ -81,8 +81,10 @@ if __name__ == "__main__":
     dev = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     # load dataset
-    dataset = AsGraphPredDataset(DglGraphPropPredDataset("ogbg-molhiv", "./data/OGB"))
-    evaluator = Evaluator("ogbg-molhiv")
+    dataset = AsGraphPredDataset(
+        DglGraphPropPredDataset(f"{args.dataset}", f"{args.data_dir}")
+    )
+    evaluator = Evaluator(f"{args.dataset}")
     train_dataloader = GraphDataLoader(
         dataset[dataset.train_idx],
         batch_size=args.batch_size,

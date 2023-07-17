@@ -1,3 +1,5 @@
+from timeit import default_timer
+
 import dgl.sparse as dglsp
 import format_conversion
 import matplotlib.pyplot as plt
@@ -26,15 +28,15 @@ def load_data_batch(dataset_name, batch_size):
     return train_dataloader
 
 
-def load_data_full_graph(dataset_name):
+def load_data_full_graph(dataset_name, dataset_dir):
     if dataset_name == "cora":
-        dataset = CoraGraphDataset()
+        dataset = CoraGraphDataset(dataset_dir)
     elif dataset_name == "arxiv":
         dataset = DglNodePropPredDataset("ogbn-arxiv")[0]
     elif dataset_name == "cite":
-        dataset = CiteseerGraphDataset()
+        dataset = CiteseerGraphDataset(dataset_dir)
     elif dataset_name == "pubmed":
-        dataset = PubmedGraphDataset()
+        dataset = PubmedGraphDataset(dataset_dir)
     else:
         raise ValueError(f"Unsupport dataset {dataset_name}")
     return dataset
@@ -151,6 +153,25 @@ def preprocess_ELL(
     return A, row_ptr, col_ind, row_index, rows_per_tb, val
 
 
+def check_correct(logits, logits_fuse, params):
+    if all(torch.isclose(logits, logits_fuse, atol=0.001).flatten()):
+        print("the results are the same, success!!!!!!!!!!")
+    else:
+        row_ptr = params[1]
+        col_ind = params[2]
+        for i in range(logits.shape[0]):
+            if not all(torch.isclose(logits[i], logits_fuse[i], atol=0.001).flatten()):
+                print(f"error node {i} mismatch")
+                print("neighbor nodes", col_ind[row_ptr[i] : row_ptr[i + 1]])
+                print(logits[i])
+                print(logits_fuse[i])
+            else:
+                print("----------------pass------------------")
+                print("neighbor nodes", col_ind[row_ptr[i] : row_ptr[i + 1]])
+                print("")
+        exit()
+
+
 def train(process_func, layer, train_dataloader, dev, **arg):
     print("----------------------Forward------------------------")
     time_no_fuse = []
@@ -173,19 +194,7 @@ def train(process_func, layer, train_dataloader, dev, **arg):
             # pdb.set_trace()
             print(f"epoch {i} fused time %.4f" % elapsed_time)
             if i < 5:
-                if all(torch.isclose(logits, logits_fuse, atol=0.001).flatten()):
-                    print("the results are the same, success!!!!!!!!!!")
-                else:
-                    for i in range(logits.shape[0]):
-                        if not all(
-                            torch.isclose(
-                                logits[i], logits_fuse[i], atol=0.001
-                            ).flatten()
-                        ):
-                            print(f"error node {i} mismatch")
-                            # print("neighbor nodes", col_ind[row_ptr[i]:row_ptr[i+1]])
-                            print(logits[i])
-                            print(logits_fuse[i])
+                check_correct(logits, logits_fuse, params)
             if i == 30:
                 break
     return time_no_fuse, time_fuse
@@ -195,7 +204,6 @@ def train_profile(process_func, layer, train_dataloader, dev, **arg):
     print("----------------------Forward------------------------")
     time_no_fuse = []
     time_fuse = []
-    warmup = 5
     for i, (batched_g, labels) in enumerate(train_dataloader):
         # print("----------------------without fuse--------------------------")
         params = process_func(batched_g, **arg)
@@ -205,26 +213,52 @@ def train_profile(process_func, layer, train_dataloader, dev, **arg):
         logits, elapsed_time = layer(params, batched_g.ndata["feat"])
         profiler.stop()
         print(f"epoch {i} non-fused time %.4f" % elapsed_time)
-        if i > warmup:
-            time_no_fuse.append(elapsed_time)
-            # print("----------------------with fuse--------------------------")
-            logits_fuse, elapsed_time = layer(
-                params, batched_g.ndata["feat"], fuse=True
-            )
-            time_fuse.append(elapsed_time)
-            # pdb.set_trace()
-            print(f"epoch {i} fused time %.4f" % elapsed_time)
-            if all(torch.isclose(logits, logits_fuse, atol=0.001).flatten()):
-                print("the results are the same, success!!!!!!!!!!")
-            else:
-                for i in range(logits.shape[0]):
-                    if not all(
-                        torch.isclose(logits[i], logits_fuse[i], atol=0.001).flatten()
-                    ):
-                        print(f"error node {i} mismatch")
-                        # print("neighbor nodes", col_ind[row_ptr[i]:row_ptr[i+1]])
-                        print(logits[i])
-                        print(logits_fuse[i])
-            if i == 30:
-                break
+        # if i > warmup:
+        #     time_no_fuse.append(elapsed_time)
+        #     # print("----------------------with fuse--------------------------")
+        #     logits_fuse, elapsed_time = layer(
+        #         params, batched_g.ndata["feat"], fuse=True
+        #     )
+        #     time_fuse.append(elapsed_time)
+        #     # pdb.set_trace()
+        #     print(f"epoch {i} fused time %.4f" % elapsed_time)
+        #     # if i < 5:
+        #     #     check_correct(logits, logits_fuse, params)
+        if i == 3:
+            break
     return time_no_fuse, time_fuse
+
+
+class Timer:
+    def __init__(self):
+        self.timer = default_timer
+        self.device = "cuda:0"
+
+    def __enter__(self):
+        if self.device == "cuda:0":
+            self.start_event = torch.cuda.Event(enable_timing=True)
+            self.end_event = torch.cuda.Event(enable_timing=True)
+            self.start_event.record()  # type: ignore
+        else:
+            self.tic = self.timer()
+        return self
+
+    def __exit__(self, type, value, traceback):
+        if self.device == "cuda:0":
+            self.end_event.record()  # type: ignore
+            torch.cuda.synchronize()  # Wait for the events to be recorded!
+            self.elapsed_secs = self.start_event.elapsed_time(self.end_event) / 1e3
+        else:
+            self.elapsed_secs = self.timer() - self.tic
+
+
+def benchmark(function, *args):
+    # dry run
+    for i in range(3):
+        out = function(*args)
+
+    with Timer() as t:
+        for i in range(100):
+            out = function(*args)
+
+    return out, t.elapsed_secs / 100
