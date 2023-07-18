@@ -16,11 +16,11 @@ from ogb.nodeproppred import DglNodePropPredDataset
 # profiler = ScheduleProfiler.ScheduleProfiler()
 
 
-def load_data_batch(dataset_name, batch_size):
+def load_data_batch(dataset_name, batch_size, data_dir):
     if dataset_name == "PCQM4Mv2-full":
-        dataset = DglPCQM4Mv2Dataset(root="./data")
+        dataset = DglPCQM4Mv2Dataset(root=data_dir)
     else:
-        dataset = DglGraphPropPredDataset(dataset_name, "./data/OGB")
+        dataset = DglGraphPropPredDataset(dataset_name, data_dir)
     split_idx = dataset.get_idx_split()
     train_idx = split_idx["train"]
     train_dataloader = GraphDataLoader(

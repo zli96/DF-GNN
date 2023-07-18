@@ -5,7 +5,13 @@ from dgl.data import AsGraphPredDataset
 from dgl.dataloading import GraphDataLoader
 
 from dgNN.layers import GTlayer_mol, SparseMHA, SparseMHA_ELL, SparseMHA_hyper
-from dgNN.utils import preprocess_CSR, preprocess_ELL, preprocess_Hyper, train
+from dgNN.utils import (
+    load_data_batch,
+    preprocess_CSR,
+    preprocess_ELL,
+    preprocess_Hyper,
+    train,
+)
 from ogb.graphproppred import collate_dgl, DglGraphPropPredDataset, Evaluator
 
 
@@ -38,18 +44,7 @@ if __name__ == "__main__":
     dev = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     # load dataset
-    dataset = AsGraphPredDataset(
-        DglGraphPropPredDataset(f"{args.dataset}", f"{args.data_dir}")
-    )
-    evaluator = Evaluator(f"{args.dataset}")
-    train_dataloader = GraphDataLoader(
-        dataset[dataset.train_idx],
-        batch_size=args.batch_size,
-        collate_fn=collate_dgl,
-        shuffle=False,
-    )
-
-    out_size = dataset.num_tasks
+    train_dataloader = load_data_batch(args.dataset, args.batch_size, args.data_dir)
     GTlayer = GTlayer_mol(layer=layer, hidden_size=args.dim, num_heads=args.heads).to(
         dev
     )
