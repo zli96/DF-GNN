@@ -19,7 +19,7 @@ class GTlayer_fullgraph(nn.Module):
 
 
 # For dataset: ogbg-molhiv, ogbg-molpcba
-class GTlayer(nn.Module):
+class GTlayer_mol(nn.Module):
     """Graph Transformer Layer"""
 
     def __init__(self, layer, hidden_size=2, num_heads=1):
