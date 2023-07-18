@@ -5,6 +5,15 @@
 #include <cuda_runtime.h>
 #include <cuda_runtime_api.h>
 
+#define WARP_SIZE 32
+
+#define CUDA_MAX_NUM_BLOCKS_X 0x7FFFFFFF
+#define CUDA_MAX_NUM_BLOCKS_Y 0xFFFF
+#define CUDA_MAX_NUM_BLOCKS_Z 0xFFFF
+// The max number of threads per block
+#define CUDA_MAX_NUM_THREADS 256
+
+constexpr unsigned int full_mask = 0xffffffff;
 
 #define CEIL(x, y) (((x) + (y)-1) / (y))
 
@@ -158,4 +167,39 @@ __device__ __forceinline__ void AllReduce(data multi, int stride,
     multi += __shfl_xor_sync(0xffffffff, multi, stride, warpSize);
   }
 }
+
+inline int FindNumThreads(int dim, int max_nthrs = CUDA_MAX_NUM_THREADS) {
+  // CHECK_GE(dim, 0);
+  if (dim == 0) return 1;
+  int ret = max_nthrs;
+  while (ret > dim) {
+    ret = ret >> 1;
+  }
+  return ret;
+}
+
+/**
+ * @brief Find number of blocks is smaller than nblks and max_nblks
+ * on the given axis ('x', 'y' or 'z').
+ */
+template <char axis>
+inline int FindNumBlocks(int nblks, int max_nblks = -1) {
+  int default_max_nblks = -1;
+  switch (axis) {
+    case 'x':
+      default_max_nblks = CUDA_MAX_NUM_BLOCKS_X;
+      break;
+    case 'y':
+      default_max_nblks = CUDA_MAX_NUM_BLOCKS_Y;
+      break;
+    case 'z':
+      default_max_nblks = CUDA_MAX_NUM_BLOCKS_Z;
+      break;
+  }
+  if (max_nblks == -1) max_nblks = default_max_nblks;
+  // CHECK_NE(nblks, 0);
+  if (nblks < max_nblks) return nblks;
+  return max_nblks;
+}
+
 #endif // computeUtil_H
