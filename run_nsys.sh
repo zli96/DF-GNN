@@ -22,7 +22,7 @@ fi
 if [ -z "${dataset}" ];then
 	dataset="ogbg-molhiv"
 fi
-
+set -e
 python setup.py develop
 
 batch_sizes=(32 64 128 256 512 1024 2048 4096)

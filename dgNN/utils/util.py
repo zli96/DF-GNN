@@ -113,6 +113,19 @@ def preprocess_CSR(g):
     return A, row_ptr, col_ind, val
 
 
+def preprocess_Hyper(g):
+    indices = torch.stack(g.edges())
+    N = g.num_nodes()
+    A = dglsp.spmatrix(indices, shape=(N, N))
+    rows = A.row.int()
+    rows = torch.sort(rows).values
+    row_ptr, col_ind, val_idx = A.csr()
+    row_ptr = row_ptr.int()
+    col_ind = col_ind.int()
+    val = torch.tensor([A.val[i] for i in val_idx]).float()
+    return A, row_ptr, col_ind, rows, val
+
+
 def preprocess_ELL(
     g,
     bucket_sizes=[],

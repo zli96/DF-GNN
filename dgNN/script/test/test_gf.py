@@ -1,33 +1,12 @@
 import argparse
-import pdb
 
-import dgl
-import dgl.nn as dglnn
-import dgl.sparse as dglsp
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
 from dgl.data import AsGraphPredDataset
 from dgl.dataloading import GraphDataLoader
 
-from dgNN.layers import SparseMHA
-from dgNN.utils import preprocess_CSR, train
+from dgNN.layers import GTlayer_mol, SparseMHA, SparseMHA_ELL, SparseMHA_hyper
+from dgNN.utils import preprocess_CSR, preprocess_ELL, preprocess_Hyper, train
 from ogb.graphproppred import collate_dgl, DglGraphPropPredDataset, Evaluator
-from ogb.graphproppred.mol_encoder import AtomEncoder
-
-
-class GTLayer(nn.Module):
-    """Graph Transformer Layer"""
-
-    def __init__(self, hidden_size=2, num_heads=1):
-        super().__init__()
-        self.MHA = SparseMHA(hidden_size=hidden_size, num_heads=num_heads)
-        self.atom_encoder = AtomEncoder(hidden_size)
-
-    def forward(self, params, X, fuse=False):
-        h = self.atom_encoder(X)
-        h = self.MHA(params, h, fuse)
-        return h
 
 
 if __name__ == "__main__":
@@ -37,11 +16,23 @@ if __name__ == "__main__":
     parser.add_argument("--batch-size", type=int, default=256)
     parser.add_argument("--data-dir", type=str, default="./data/OGB")
     parser.add_argument("--dataset", type=str, default="ogbg-molhiv")
+    parser.add_argument("--format", type=str, default="csr")
 
     args = parser.parse_args()
     print("hidden dim", args.dim)
     print("num heads", args.heads)
     print("batch size", args.batch_size)
+    print("format: ", args.format)
+
+    if args.format == "csr":
+        layer = SparseMHA
+        preprocess_func = preprocess_CSR
+    elif args.format == "hyper":
+        layer = SparseMHA_hyper
+        preprocess_func = preprocess_Hyper
+    else:
+        raise ValueError(f"Unsupported format {args.format}")
+
     # If CUDA is available, use GPU to accelerate the training, use CPU
     # otherwise.
     dev = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -59,8 +50,10 @@ if __name__ == "__main__":
     )
 
     out_size = dataset.num_tasks
-    layer = GTLayer(hidden_size=args.dim, num_heads=args.heads).to(dev)
-    time_no_fuse, time_fuse = train(preprocess_CSR, layer, train_dataloader, dev)
+    GTlayer = GTlayer_mol(layer=layer, hidden_size=args.dim, num_heads=args.heads).to(
+        dev
+    )
+    time_no_fuse, time_fuse = train(preprocess_func, GTlayer, train_dataloader, dev)
 
     print("----------------------Result------------------------")
     print(

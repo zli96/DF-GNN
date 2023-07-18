@@ -1,21 +1,66 @@
 # import dgNN
+import pdb
+
 import fused_gfconv as fused_gf
 import torch
 from torch.utils.cpp_extension import load
-import pdb
+
+
+def GFConvFuse_hyper(
+    indptr,
+    indices,
+    rows,
+    val,
+    Q,
+    K,
+    V,
+):
+    return FusedGFFunction_hyper.apply(
+        indptr,
+        indices,
+        rows,
+        val,
+        Q,
+        K,
+        V,
+    )
+
+
+class FusedGFFunction_hyper(torch.autograd.Function):
+    @staticmethod
+    def forward(
+        ctx,
+        indptr,
+        indices,
+        rows,
+        val,
+        Q,
+        K,
+        V,
+    ):
+        out_feat = fused_gf.gf_hyper_forward(
+            indptr,
+            indices,
+            rows,
+            val,
+            Q,
+            K,
+            V,
+        )
+        return out_feat[0]
 
 
 def GFConvFuse(
-    row_ptr,
-    col_ind,
+    indptr,
+    indices,
     val,
     Q,
     K,
     V,
 ):
     return FusedGFFunction.apply(
-        row_ptr,
-        col_ind,
+        indptr,
+        indices,
         val,
         Q,
         K,
@@ -27,24 +72,24 @@ class FusedGFFunction(torch.autograd.Function):
     @staticmethod
     def forward(
         ctx,
-        row_ptr,
-        col_ind,
+        indptr,
+        indices,
         val,
         Q,
         K,
         V,
     ):
         out_feat = fused_gf.gf_forward(
-            row_ptr,
-            col_ind,
+            indptr,
+            indices,
             val,
             Q,
             K,
             V,
         )
         # ctx.save_for_backward(
-        #     row_ptr,
-        #     col_ind,
+        #     indptr,
+        #     indices,
         #     col_ptr,
         #     row_ind,
         #     permute,
@@ -60,8 +105,8 @@ class FusedGFFunction(torch.autograd.Function):
     # @staticmethod
     # def backward(ctx, grad_out):
     #     (
-    #         row_ptr,
-    #         col_ind,
+    #         indptr,
+    #         indices,
     #         col_ptr,
     #         row_ind,
     #         permute,
@@ -77,8 +122,8 @@ class FusedGFFunction(torch.autograd.Function):
     #     grad_feat, grad_attn_row, grad_attn_col = fused_gat.gat_backward(
     #         ctx.negative_slope,
     #         ctx.attn_drop,
-    #         row_ptr,
-    #         col_ind,
+    #         indptr,
+    #         indices,
     #         col_ptr,
     #         row_ind,
     #         permute,
@@ -109,8 +154,8 @@ class FusedGFFunction(torch.autograd.Function):
 
 
 def GFConvFuse_ELL(
-    row_ptr,
-    col_ind,
+    indptr,
+    indices,
     row_index,
     rows_per_tb,
     val,
@@ -119,8 +164,8 @@ def GFConvFuse_ELL(
     V,
 ):
     return FusedGFFunction_ELL.apply(
-        row_ptr,
-        col_ind,
+        indptr,
+        indices,
         row_index,
         rows_per_tb,
         val,
@@ -134,8 +179,8 @@ class FusedGFFunction_ELL(torch.autograd.Function):
     @staticmethod
     def forward(
         ctx,
-        row_ptr,
-        col_ind,
+        indptr,
+        indices,
         row_index,
         rows_per_tb,
         val,
@@ -144,8 +189,8 @@ class FusedGFFunction_ELL(torch.autograd.Function):
         V,
     ):
         out_feat = fused_gf.gf_ell_forward(
-            row_ptr,
-            col_ind,
+            indptr,
+            indices,
             row_index,
             rows_per_tb,
             val,

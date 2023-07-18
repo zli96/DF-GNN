@@ -23,7 +23,8 @@ fi
 day=$(date +%m_%d)
 Time=$(date +%H_%M_%S)
 
-# python setup.py develop
+set -e
+python setup.py develop
 mkdir log/day_${day}
 # python -u dgNN/script/test/test_gf.py --dim $dim --heads $heads --batch-size $bs --data-dir ${data_dir} | tee log/day_${day}/gf_${dim}_${heads}_${bs}_${comment}_${Time}.log
 python -u dgNN/script/test/test_gf_ell.py --dim $dim --heads $heads --batch-size $bs --data-dir ${data_dir} | tee log/day_${day}/gf_ell_${dim}_${heads}_${bs}_${comment}_${Time}.log
