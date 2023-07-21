@@ -29,6 +29,6 @@ for dataset in ${datasets[@]};
 do
 for format in ${formats[@]};
 do
-python -u dgNN/script/test/test_gf_full_graph.py --dim $dim --heads $heads --dataset ${dataset} --data-dir ${data_dir} --format ${format} | tee log/day_${day}/gf_${dataset}_${format}_dim${dim}_h${heads}_${Time}.log
+python -u dgNN/script/test/test_gf_full_graph.py --dim $dim --heads $heads --dataset ${dataset} --data-dir ${data_dir} --format ${format} | tee log/day_${day}/gf_csr_nofuse_${dataset}_${format}_dim${dim}_h${heads}_${Time}.log
 done
 done

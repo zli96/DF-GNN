@@ -99,46 +99,52 @@ __global__ void sddmmCooKernel(const int lhs_len, const int rhs_len, const int o
       }
     }
   }
+}
 
-  // const int edge_id = blockIdx.x;                  // loop over all edges of adj matrix
-  // const int hid = blockIdx.y;                     // loop over heads
-  // const int fid = threadIdx.y * 32 + threadIdx.x; // loop over feature dim
 
-  // const int lb = indptr[rid]; // row rid elements
-  // const int hb = indptr[rid + 1];
+__global__ void sddmmCsrKernel(const int m, const int nnz, const int h, const int f,
+                                          const int *indptr, const int *indices, const float *val,
+                                          const float *Q, const float *K, float *attn_edge)
+{
+  const int rid = blockIdx.x;                     // loop over row of adj matrix
+  const int hid = blockIdx.y;                     // loop over heads
+  const int fid = threadIdx.y * 32 + threadIdx.x; // loop over feature dim
 
-  // const int num_neighbor = hb - lb;
-  // extern __shared__ float smem[];
-  // float *neigh_nodes_weight = smem;
-  // float weightMax = -1e38;
-  // static __shared__ float warpLevelSums[WARP_SIZE];
-  // const int hf = h * f;
-  // const int hfid = hid * f + fid;
-  // const int laneId = fid % WARP_SIZE;
-  // const int warpId = fid / WARP_SIZE;
-  // float Q_i = Q[edge_id * hf + hfid];
+  const int lb = indptr[rid]; // row rid elements
+  const int hb = indptr[rid + 1];
 
-  // float weight = 0;
-  // float weight_partial = 0;
-  // int curr_neighbor = ; // current processed neighbor
-  // int cid = indices[curr_neighbor];
-  // weight_partial = Q_i * K[cid * hf + hfid];
+  const int num_neighbor = hb - lb;
+  static __shared__ float warpLevelSums[WARP_SIZE];
+  const int hf = h * f;
+  const int hfid = hid * f + fid;
+  const int laneId = fid % WARP_SIZE;
+  const int warpId = fid / WARP_SIZE;
+  const int blockSize = blockDim.x * blockDim.y;
 
-  // __syncthreads();
-  // weight_partial = warpReduceSum(weight_partial, blockSize);
-  // if (laneId == 0)
-  //   warpLevelSums[warpId] = weight_partial;
-  // __syncthreads();
-  // weight_partial = (fid < blockSize / WARP_SIZE) ? warpLevelSums[laneId] : 0;
-  // if (warpId == 0)
-  //   weight_partial = warpReduceSum(weight_partial, blockSize / WARP_SIZE);
-  // if (fid == 0)
-  // {
-  //   attn_edge[curr_neighbor] = weight_partial * val[curr_neighbor];
-  // }
-  // weight = attn_edge[curr_neighbor];
-  // weightMax = MAX(weight, weightMax);
-  // __syncthreads();
+  float Q_i = Q[rid * hf + hfid];
+
+  for (int j = 0; j < num_neighbor; j++)
+  {
+    float weight = 0;
+    float weight_partial = 0;
+
+    int cid = indices[lb + j];
+    weight_partial = Q_i * K[cid * hf + hfid];
+
+    __syncthreads();
+    weight_partial = warpReduceSum(weight_partial, blockSize);
+    if (laneId == 0)
+      warpLevelSums[warpId] = weight_partial;
+    __syncthreads();
+    weight_partial = (fid < blockSize / WARP_SIZE) ? warpLevelSums[laneId] : 0;
+    if (warpId == 0)
+      weight_partial = warpReduceSum(weight_partial, blockSize / WARP_SIZE);
+    if (fid == 0)
+    {
+      attn_edge[lb+j] = weight_partial * val[lb + j];
+    }
+  }
+  __syncthreads();
 }
 
 __global__ void softMax_SPMM(const int m, const int nnz, const int h, const int f,
@@ -532,20 +538,27 @@ void gf_forward_nofuse(int m, int nnz, int h, int f,
                        const float *Q, const float *K, const float *V,
                        float *attn_edge, float *out_feat)
 {
-  const int ntx = 32; // on feature dimension
-  const int nty = 8;  // on out dimension
-  const int nbx = (nnz + nty - 1) / nty;
-  const int nby = FindNumBlocks<'y'>(h);
-  const dim3 nblks(nbx, nby);
-  const dim3 nthrs(ntx, nty);
+  // const int ntx = 32; // on feature dimension
+  // const int nty = 8;  // on out dimension
+  // const int nbx = (nnz + nty - 1) / nty;
+  // const int nby = FindNumBlocks<'y'>(h);
+  // const dim3 nblks(nbx, nby);
+  // const dim3 nthrs(ntx, nty);
 
-  CUDA_KERNEL_CALL(
-      (sddmmCooKernel<float>),
-      nblks, nthrs, 0, f * h, f * h, h, nnz, f, rows, indices, val,
-      Q, K, attn_edge);
+  // CUDA_KERNEL_CALL(
+  //     (sddmmCooKernel<float>),
+  //     nblks, nthrs, 0, f * h, f * h, h, nnz, f, rows, indices, val,
+  //     Q, K, attn_edge);
 
   const dim3 nblks2(m, h, 1);
   const dim3 nthrs2(32, (f + 31) / 32, 1);
+  CUDA_KERNEL_CALL(
+      (sddmmCsrKernel),
+      nblks2, nthrs2, (f + 512) * sizeof(float), m, nnz, h, f, indptr, indices, val,
+      Q, K, attn_edge);
+
+  // const dim3 nblks2(m, h, 1);
+  // const dim3 nthrs2(32, (f + 31) / 32, 1);
   CUDA_KERNEL_CALL(
       (softMax_SPMM),
       nblks2, nthrs2, (f + 512) * sizeof(float), m, nnz, h, f, indptr, indices, val,
