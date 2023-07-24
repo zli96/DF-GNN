@@ -4,6 +4,9 @@ read -p "Enter heads(default=1): " heads
 read -p "Enter data dir(default=/workspace2/dataset): " data_dir
 read -p "Enter dataset(default=ogbg-molhiv, ogbg-molpcba): " dataset
 
+if [ -z "${format}" ];then
+	format=csr
+fi
 if [ -z "${dim}" ];then
     dim=64
 fi
@@ -26,7 +29,7 @@ set -e
 python setup.py develop
 for bs in ${batch_sizes[@]};
 do
-    python -u dgNN/script/test/test_gf.py --dim $dim --heads $heads --batch-size $bs --data-dir ${data_dir} --dataset ${dataset} --format ${format}| tee log/day_${day}/gf_csr_nofuse_${dataset}_${format}_dim${dim}_h${heads}_bs${bs}_${Time}.log
+    python -u dgNN/script/test/test_gf.py --dim $dim --heads $heads --batch-size $bs --data-dir ${data_dir} --dataset ${dataset} --format ${format}| tee log/day_${day}/gf_${dataset}_${format}_dim${dim}_h${heads}_bs${bs}_${Time}.log
     # python -u dgNN/script/test/test_gf_ell.py --dim $dim --heads $heads --batch-size $bs --data-dir ${data_dir} | tee log/day_${day}/gf_ell_dim${dim}_h${heads}_bs${bs}_${comment}_${Time}.log
     
     # echo "nohup python -u dgNN/script/test/test_gf.py --dim $dim --heads $heads --batch-size $bs  > log/day_${day}/gf_${dim}_${heads}_${bs}_${comment}_${Time}.log 2>&1 &" | bash;

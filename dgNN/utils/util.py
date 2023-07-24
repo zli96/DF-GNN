@@ -5,7 +5,7 @@ import dgl.sparse as dglsp
 # import format_conversion
 import matplotlib.pyplot as plt
 
-# import ScheduleProfiler
+import ScheduleProfiler
 import torch
 from dgl.data import CiteseerGraphDataset, CoraGraphDataset, PubmedGraphDataset
 from dgl.dataloading import GraphDataLoader
@@ -13,7 +13,7 @@ from ogb.graphproppred import collate_dgl, DglGraphPropPredDataset
 from ogb.lsc import DglPCQM4Mv2Dataset
 from ogb.nodeproppred import DglNodePropPredDataset
 
-# profiler = ScheduleProfiler.ScheduleProfiler()
+profiler = ScheduleProfiler.ScheduleProfiler()
 
 
 def load_data_batch(dataset_name, batch_size, data_dir):
@@ -217,17 +217,14 @@ def train(process_func, layer, train_dataloader, dev, **arg):
 
 def train_profile(process_func, layer, train_dataloader, dev, **arg):
     print("----------------------Forward------------------------")
-    time_no_fuse = []
-    time_fuse = []
     for i, (batched_g, labels) in enumerate(train_dataloader):
         # print("----------------------without fuse--------------------------")
-        params = process_func(batched_g, **arg)
+        params = process_func(batched_g)
         params = [param.to(dev) for param in params]
         batched_g, labels = batched_g.to(dev), labels.to(dev)
-        # profiler.start()
-        logits, elapsed_time = layer(params, batched_g.ndata["feat"])
-        # profiler.stop()
-        print(f"epoch {i} non-fused time %.4f" % elapsed_time)
+        profiler.start()
+        logits, elapsed_time = layer(params, batched_g.ndata["feat"], **arg)
+        profiler.stop()
         # if i > warmup:
         #     time_no_fuse.append(elapsed_time)
         #     # print("----------------------with fuse--------------------------")
@@ -239,9 +236,7 @@ def train_profile(process_func, layer, train_dataloader, dev, **arg):
         #     print(f"epoch {i} fused time %.4f" % elapsed_time)
         #     # if i < 5:
         #     #     check_correct(logits, logits_fuse, params)
-        if i == 3:
-            break
-    return time_no_fuse, time_fuse
+    return
 
 
 class Timer:
@@ -277,3 +272,19 @@ def benchmark(function, *args):
             out = function(*args)
 
     return out, t.elapsed_secs / 100
+
+
+def parser_argument(parser):
+    parser.add_argument("--format", type=str, default="csr")
+    parser.add_argument("--dim", type=int, default=64)
+    parser.add_argument("--heads", type=int, default=8)
+    parser.add_argument("--batch-size", type=int, default=256)
+    parser.add_argument("--data-dir", type=str, default="./data/OGB")
+    parser.add_argument("--dataset", type=str, default="ogbg-molhiv")
+
+    args = parser.parse_args()
+    print("format: ", args.format)
+    print("hidden dim", args.dim)
+    print("num heads", args.heads)
+    print("batch size", args.batch_size)
+    return args

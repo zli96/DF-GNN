@@ -22,7 +22,7 @@ class GTlayer_fullgraph(nn.Module):
 class GTlayer_mol(nn.Module):
     """Graph Transformer Layer"""
 
-    def __init__(self, layer, hidden_size=2, num_heads=1):
+    def __init__(self, layer, hidden_size=64, num_heads=1):
         super().__init__()
         self.MHA = layer(hidden_size=hidden_size, num_heads=num_heads)
         self.atom_encoder = AtomEncoder(hidden_size)

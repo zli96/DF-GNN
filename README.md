@@ -27,7 +27,25 @@ bash install.sh
 We provide serval bash examples to run the model
 
 ```shell
-bash run_nolog.sh
+// format: nofuse(dglsparse benchmark) 
+// csr(one kernel in csr format)
+// hyper (sddmm in coo + spmm in csr format)
+
+// test bash, run the code on the molhiv dataset without the log
+bash run_nolog.sh 
+
+// run the code on the different bs and print the log
+bash run_multi.sh 
+
+// run the code on the full-graph dataset like cora and print the log
+bash run_full_graph.sh 
+
+// profile the code by the nsight system tool
+bash run_nsys.sh 
+
+// profile the code by the nsight compute tool
+bash run_ncu.sh 
+
 ```
 
 <!-- Our training script is modified from [DGL](https://github.com/dmlc/dgl). Now we implements three popular GNN models.

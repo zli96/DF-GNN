@@ -1,34 +1,22 @@
 import argparse
 
 import torch
-from dgl.data import AsGraphPredDataset
-from dgl.dataloading import GraphDataLoader
 
 from dgNN.layers import GTlayer_mol, SparseMHA, SparseMHA_ELL, SparseMHA_hyper
 from dgNN.utils import (
     load_data_batch,
+    parser_argument,
     preprocess_CSR,
     preprocess_ELL,
     preprocess_Hyper,
     train,
 )
-from ogb.graphproppred import collate_dgl, DglGraphPropPredDataset, Evaluator
 
 
 if __name__ == "__main__":
+    # parse argument
     parser = argparse.ArgumentParser(description="GF")
-    parser.add_argument("--dim", type=int, default=64)
-    parser.add_argument("--heads", type=int, default=8)
-    parser.add_argument("--batch-size", type=int, default=256)
-    parser.add_argument("--data-dir", type=str, default="./data/OGB")
-    parser.add_argument("--dataset", type=str, default="ogbg-molhiv")
-    parser.add_argument("--format", type=str, default="csr")
-
-    args = parser.parse_args()
-    print("hidden dim", args.dim)
-    print("num heads", args.heads)
-    print("batch size", args.batch_size)
-    print("format: ", args.format)
+    args = parser_argument(parser)
 
     if args.format == "csr":
         layer = SparseMHA
