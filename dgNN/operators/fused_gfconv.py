@@ -6,6 +6,50 @@ import torch
 from torch.utils.cpp_extension import load
 
 
+def GFConvFuse_subgraph(
+    nodes_subgraph,
+    indptr,
+    indices,
+    val,
+    Q,
+    K,
+    V,
+):
+    return FusedGFFunction_subgraph.apply(
+        nodes_subgraph,
+        indptr,
+        indices,
+        val,
+        Q,
+        K,
+        V,
+    )
+
+
+class FusedGFFunction_subgraph(torch.autograd.Function):
+    @staticmethod
+    def forward(
+        ctx,
+        nodes_subgraph,
+        indptr,
+        indices,
+        val,
+        Q,
+        K,
+        V,
+    ):
+        out_feat = fused_gf.gf_subgraph_forward(
+            nodes_subgraph,
+            indptr,
+            indices,
+            val,
+            Q,
+            K,
+            V,
+        )
+        return out_feat[0]
+
+
 def GFConvFuse_hyper(
     indptr,
     indices,

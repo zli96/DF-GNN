@@ -1,3 +1,4 @@
+import pdb
 from timeit import default_timer
 
 import dgl.sparse as dglsp
@@ -127,6 +128,24 @@ def preprocess_Hyper(g):
     return A, row_ptr, col_ind, rows, val
 
 
+def preprocess_SubGraph(g):
+    nodes = g.batch_num_nodes()
+    print("max num of nodes", max(nodes).item())
+    if max(nodes).item() > 50:
+        return
+    nodes_subgraph = torch.cat(
+        (torch.tensor([0]), torch.cumsum(torch.tensor(nodes), 0))
+    ).int()
+    indices = torch.stack(g.edges())
+    N = g.num_nodes()
+    A = dglsp.spmatrix(indices, shape=(N, N))
+    row_ptr, col_ind, val_idx = A.csr()
+    row_ptr = row_ptr.int()
+    col_ind = col_ind.int()
+    val = torch.tensor([A.val[i] for i in val_idx]).float()
+    return A, nodes_subgraph, row_ptr, col_ind, val
+
+
 def preprocess_ELL(
     g,
     bucket_sizes=[],
@@ -172,8 +191,12 @@ def check_correct(logits, logits_fuse, params):
     if all(torch.isclose(logits, logits_fuse, atol=0.001).flatten()):
         print("the results are the same, success!!!!!!!!!!")
     else:
-        row_ptr = params[1]
-        col_ind = params[2]
+        if len(params) == 6:
+            row_ptr = params[2]
+            col_ind = params[3]
+        else:
+            row_ptr = params[1]
+            col_ind = params[2]
         for i in range(logits.shape[0]):
             if not all(torch.isclose(logits[i], logits_fuse[i], atol=0.001).flatten()):
                 print(f"error node {i} mismatch")
@@ -195,6 +218,8 @@ def train(process_func, layer, train_dataloader, dev, **arg):
     for i, (batched_g, labels) in enumerate(train_dataloader):
         # print("----------------------without fuse--------------------------")
         params = process_func(batched_g, **arg)
+        if params == None:
+            continue
         params = [param.to(dev) for param in params]
         batched_g, labels = batched_g.to(dev), labels.to(dev)
         logits, elapsed_time = layer(params, batched_g.ndata["feat"])
