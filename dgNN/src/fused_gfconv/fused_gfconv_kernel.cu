@@ -66,8 +66,8 @@ struct Dot
 template <typename DType>
 __global__ void sddmmCooKernel(const int lhs_len, const int rhs_len, const int out_len,
                                const int nnz, const int reduce_size,
-                               const int *row, const int *col, const float *data,
-                               const float *lhs, const float *rhs, float *out)
+                               const int *row, const int *col, const DType *data,
+                               const DType *lhs, const DType *rhs, DType *out)
 {
   int ty = blockIdx.x * blockDim.y + threadIdx.y;
   if (ty < nnz)
@@ -79,7 +79,7 @@ __global__ void sddmmCooKernel(const int lhs_len, const int rhs_len, const int o
     const DType *rhsoff = rhs + dst * rhs_len;
     DType *outoff = out + eid * out_len;
     int tx = threadIdx.x; // tx < 32
-    for (int i = blockIdx.y; i < out_len; i += gridDim.y)
+    for (int i = blockIdx.y; i < out_len; i += blockIdx.y)
     { // over output feature dimension
       DType val = 0;
       for (int j = tx; j < reduce_size; j += 64)
@@ -93,18 +93,17 @@ __global__ void sddmmCooKernel(const int lhs_len, const int rhs_len, const int o
 #pragma unroll
       for (int offset = 16; offset > 0; offset /= 2)
         val += __shfl_down_sync(full_mask, val, offset);
-      if (tx == 0){
+      if (tx == 0)
+      {
         outoff[i] = val;
-        // printf("%f\n",val );
       }
     }
   }
 }
 
-
 __global__ void sddmmCsrKernel(const int m, const int nnz, const int h, const int f,
-                                          const int *indptr, const int *indices, const float *val,
-                                          const float *Q, const float *K, float *attn_edge)
+                               const int *indptr, const int *indices, const float *val,
+                               const float *Q, const float *K, float *attn_edge)
 {
   const int rid = blockIdx.x;                     // loop over row of adj matrix
   const int hid = blockIdx.y;                     // loop over heads
@@ -125,7 +124,6 @@ __global__ void sddmmCsrKernel(const int m, const int nnz, const int h, const in
 
   for (int j = 0; j < num_neighbor; j++)
   {
-    float weight = 0;
     float weight_partial = 0;
 
     int cid = indices[lb + j];
@@ -141,7 +139,7 @@ __global__ void sddmmCsrKernel(const int m, const int nnz, const int h, const in
       weight_partial = warpReduceSum(weight_partial, blockSize / WARP_SIZE);
     if (fid == 0)
     {
-      attn_edge[lb+j] = weight_partial * val[lb + j];
+      attn_edge[lb + j] = weight_partial * val[lb + j];
     }
   }
   __syncthreads();
@@ -177,8 +175,6 @@ __global__ void softMax_SPMM(const int m, const int nnz, const int h, const int 
     weight = neigh_nodes_weight[j];
     weightMax = MAX(weight, weightMax);
   }
-  __syncthreads();
-
   // compute the sum of exp
   int loop = (num_neighbor + 31) / 32;
   float expAll = 0;
@@ -214,6 +210,158 @@ __global__ void softMax_SPMM(const int m, const int nnz, const int h, const int 
   }
 
   out_feat[rid * hf + hfid] = acc;
+}
+
+template <typename DType, int blockSize>
+__global__ void fused_forward_kernel_subgraph(const int h, const int f,
+                                              const int *node_num_ptr, const int *indptr, const int *indices, const DType *val,
+                                              const DType *Q, const DType *K, const DType *V,
+                                              DType *out_feat)
+{
+  // grid: 4096*h  block: 32 * 8 each tb processes one graph
+  // blockSize = blockDim.y
+  const int gid = blockIdx.x;   // index of subgraph
+  const int hid = blockIdx.y;   // index of head
+  const int tidx = threadIdx.x; // index of WARP
+  const int tidy = threadIdx.y;
+  const int node_lb = node_num_ptr[gid];
+  const int node_hb = node_num_ptr[gid + 1]; // Offset of nodes in the subgraph on the full graph
+  const int num_nodes = node_hb - node_lb;   // num of nodes in this subgraph
+
+  const int hf = h * f;
+  extern __shared__ DType smem[];
+  DType *K_SMEM = smem;
+  DType *V_SMEM = (DType *)&K_SMEM[num_nodes * hf];
+  DType *neigh_nodes_weight = (DType *)&V_SMEM[num_nodes * hf];
+
+  int loops_node = (num_nodes + blockSize - 1) / blockSize;
+  int loops_feat = (f + WARP_SIZE - 1) / WARP_SIZE;
+  // Put the K and V into smem
+  for (int j = 0; j < loops_node; j++)
+  {
+    int curr_node = j * blockSize + tidy;
+    if (curr_node + node_lb < node_hb)
+    {
+
+      for (int i = 0; i < loops_feat; i += 1)
+      {
+        int curr_feat = tidx + (i << 5);
+        if (curr_feat < f)
+        {
+          K_SMEM[curr_node * hf + hid * f + curr_feat] = K[(node_lb + curr_node) * hf + hid * f + curr_feat];
+          V_SMEM[curr_node * hf + hid * f + curr_feat] = V[(node_lb + curr_node) * hf + hid * f + curr_feat];
+        }
+      }
+    }
+  }
+
+  __syncthreads();
+
+  for (int j = 0; j < loops_node; j++)
+  {
+    int curr_node = tidy + j * blockSize;
+    if (curr_node + node_lb < node_hb)
+    {
+      DType weight = 0;
+      DType weightMax = -1e38;
+      const int lb = indptr[node_lb + curr_node]; // row rid elements
+      const int hb = indptr[node_lb + curr_node + 1];
+      const int num_neighbor = hb - lb;
+      for (int k = 0; k < num_neighbor; k++)
+      {
+        int cid = indices[lb + k] - node_lb;
+        DType weight_partial = 0;
+        for (int i = 0; i < loops_feat; i += 1)
+        {
+          int curr_feat = tidx + (i << 5);
+          if (curr_feat < f)
+          {
+            DType Q_i = Q[(node_lb + curr_node) * hf + hid * f + curr_feat];
+            weight_partial += Q_i * K_SMEM[cid * hf + hid * f + curr_feat];
+          }
+        }
+        __syncthreads();
+        // weight_partial = warpReduceSum(weight_partial, WARP_SIZE);
+        for (int stride = 16; stride > 0; stride >>= 1)
+        {
+          weight_partial += __shfl_xor_sync(0xffffffff, weight_partial, stride, 32);
+        }
+        __syncwarp();
+        if (tidx == 0)
+        {
+          neigh_nodes_weight[tidy + (k << 3)] = weight_partial * val[node_lb + curr_node];
+          // printf("sddmm result src %d dst %d %f \n", curr_node, cid, neigh_nodes_weight[tidy + (k << 3)]);
+        }
+        __syncthreads();
+        // weight = neigh_nodes_weight[tidy + (k << 3)];
+        weightMax = MAX(weight_partial, weightMax);
+      }
+      // if (tidx == 0)
+      // {
+      //   printf("weightMax src %d %f \n", curr_node, weightMax);
+      // }
+      __syncthreads();
+
+      // const int lb = indptr[curr_node]; // row rid elements
+      // const int hb = indptr[curr_node + 1];
+      // const int num_neighbor = hb - lb;
+      int loop_WARP_neigh = (num_neighbor + WARP_SIZE - 1) / WARP_SIZE;
+      DType expAll = 0;
+      for (int k = 0; k < loop_WARP_neigh; k++)
+      {
+        DType exptmp = 0;
+        int pid = tidx + (k << 5);
+        if (pid < num_neighbor)
+        {
+          DType weight = neigh_nodes_weight[tidy + (pid << 3)];
+          int cid = indices[lb + pid] - node_lb;
+
+          // float weightMax = weightMax_SMEM[lb + tidx];
+          exptmp = exp(weight - weightMax);
+          // printf("expsum src %d dst %d %f %f %f \n", curr_node, cid, weight, weightMax, exptmp);
+
+        }
+        __syncwarp();
+        for (int stride = 16; stride > 0; stride >>= 1)
+        {
+          exptmp += __shfl_xor_sync(0xffffffff, exptmp, stride, 32);
+        }
+        __syncwarp();
+        expAll += exptmp;
+      }
+      __syncthreads();
+      
+      // if (tidx == 0)
+      // {
+      //   printf("expsum src %d %f \n", curr_node, expAll);
+      // }
+      // compute the output
+      for (int i = 0; i < loops_feat; i += 1)
+      {
+        DType acc = 0;
+        DType attn_val;
+        int curr_feat = tidx + (i << 5);
+        if (curr_feat < f)
+        {
+          for (int k = 0; k < num_neighbor; k++)
+          {
+            int cid = indices[lb + k] - node_lb;
+            DType weight = neigh_nodes_weight[tidy + (k << 3)];
+            attn_val = exp(weight - weightMax) / expAll;
+            // if (tidx == 0)
+            // {
+            // printf("attn_val src %d dst %d %f \n", curr_node, cid, attn_val);
+            // }
+            acc += attn_val * V_SMEM[cid * hf + hid * f + curr_feat];
+          }
+        }
+        __syncthreads();
+        out_feat[(node_lb + curr_node) * hf + hid * f + curr_feat] = acc;
+      }
+    }
+    __syncthreads();
+
+  }
 }
 
 template <unsigned int blockSize>
@@ -533,29 +681,47 @@ void gf_forward(int m, int nnz, int h, int f,
   // printf("Time of fused kernel: %f \n", elapsedTime);
 }
 
+void gf_forward_subgraph(int num_subgraph, int h, int f, const int *nodes_subgraph,
+                         const int *indptr, const int *indices, const float *val,
+                         const float *Q, const float *K, const float *V,
+                         float *out_feat)
+{
+  const int ntx = 32; // on feature dimension
+  const int nty = 8;  // on out dimension
+  const int nbx = num_subgraph;
+  const int nby = h;
+  const dim3 nblks(nbx, nby);
+  const dim3 nthrs(ntx, nty);
+  // printf("launch dim %d %d \n", num_subgraph, h);
+  CUDA_KERNEL_CALL(
+      (fused_forward_kernel_subgraph<float, 8>),
+      nblks, nthrs, 2 * 50 * h * f * 4 + 64 * 4, h, f, nodes_subgraph, indptr, indices, val,
+      Q, K, V, out_feat);
+}
+
 void gf_forward_nofuse(int m, int nnz, int h, int f,
                        const int *indptr, const int *indices, const int *rows, const float *val,
                        const float *Q, const float *K, const float *V,
                        float *attn_edge, float *out_feat)
 {
-  // const int ntx = 32; // on feature dimension
-  // const int nty = 8;  // on out dimension
-  // const int nbx = (nnz + nty - 1) / nty;
-  // const int nby = FindNumBlocks<'y'>(h);
-  // const dim3 nblks(nbx, nby);
-  // const dim3 nthrs(ntx, nty);
+  const int ntx = 32; // on feature dimension
+  const int nty = 8;  // on out dimension
+  const int nbx = (nnz + nty - 1) / nty;
+  const int nby = FindNumBlocks<'y'>(h);
+  const dim3 nblks(nbx, nby);
+  const dim3 nthrs(ntx, nty);
 
-  // CUDA_KERNEL_CALL(
-  //     (sddmmCooKernel<float>),
-  //     nblks, nthrs, 0, f * h, f * h, h, nnz, f, rows, indices, val,
-  //     Q, K, attn_edge);
+  CUDA_KERNEL_CALL(
+      (sddmmCooKernel<float>),
+      nblks, nthrs, 0, f * h, f * h, h, nnz, f, rows, indices, val,
+      Q, K, attn_edge);
 
   const dim3 nblks2(m, h, 1);
   const dim3 nthrs2(32, (f + 31) / 32, 1);
-  CUDA_KERNEL_CALL(
-      (sddmmCsrKernel),
-      nblks2, nthrs2, (f + 512) * sizeof(float), m, nnz, h, f, indptr, indices, val,
-      Q, K, attn_edge);
+  // CUDA_KERNEL_CALL(
+  //     (sddmmCsrKernel),
+  //     nblks2, nthrs2, (f + 512) * sizeof(float), m, nnz, h, f, indptr, indices, val,
+  //     Q, K, attn_edge);
 
   // const dim3 nblks2(m, h, 1);
   // const dim3 nthrs2(32, (f + 31) / 32, 1);
@@ -690,6 +856,31 @@ gf_forward_cuda(torch::Tensor indptr,
 }
 
 std::vector<torch::Tensor>
+gf_subgraph_forward_cuda(torch::Tensor nodes_subgraph,
+                         torch::Tensor indptr,
+                         torch::Tensor indices,
+                         torch::Tensor val, torch::Tensor Q,
+                         torch::Tensor K, torch::Tensor V)
+{
+  // Q: torch.Size([6248, 10, 8])
+  const auto num_subgraph = nodes_subgraph.size(0) - 1;
+  const auto m = indptr.size(0) - 1; // num of nodes
+  // const auto nnz = indices.size(0);  // num of edges
+  const auto h = Q.size(1); // num of heads
+  const auto f = Q.size(2); // num of feats
+  auto devid = indptr.device().index();
+  auto options =
+      torch::TensorOptions().dtype(torch::kFloat32).device(torch::kCUDA, devid);
+  auto out_feat = torch::zeros({m, h, f}, options);
+  gf_forward_subgraph(num_subgraph, h, f, nodes_subgraph.data_ptr<int>(),
+                      indptr.data_ptr<int>(), indices.data_ptr<int>(), val.data_ptr<float>(),
+                      Q.data_ptr<float>(), K.data_ptr<float>(), V.data_ptr<float>(),
+                      out_feat.data_ptr<float>());
+
+  return {out_feat};
+}
+
+std::vector<torch::Tensor>
 gf_hyper_forward_cuda(torch::Tensor indptr,
                       torch::Tensor indices, torch::Tensor rows,
                       torch::Tensor val, torch::Tensor Q,
@@ -709,7 +900,7 @@ gf_hyper_forward_cuda(torch::Tensor indptr,
                     indptr.data_ptr<int>(), indices.data_ptr<int>(), rows.data_ptr<int>(), val.data_ptr<float>(),
                     Q.data_ptr<float>(), K.data_ptr<float>(), V.data_ptr<float>(),
                     attn_edge.data_ptr<float>(), out_feat.data_ptr<float>());
-  
+
   return {out_feat};
 }
 

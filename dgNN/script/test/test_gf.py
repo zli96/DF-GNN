@@ -2,13 +2,20 @@ import argparse
 
 import torch
 
-from dgNN.layers import GTlayer_mol, SparseMHA, SparseMHA_ELL, SparseMHA_hyper
+from dgNN.layers import (
+    GTlayer_mol,
+    SparseMHA,
+    SparseMHA_ELL,
+    SparseMHA_hyper,
+    SparseMHA_subgraph,
+)
 from dgNN.utils import (
     load_data_batch,
     parser_argument,
     preprocess_CSR,
     preprocess_ELL,
     preprocess_Hyper,
+    preprocess_SubGraph,
     train,
 )
 
@@ -24,6 +31,9 @@ if __name__ == "__main__":
     elif args.format == "hyper":
         layer = SparseMHA_hyper
         preprocess_func = preprocess_Hyper
+    elif args.format == "subgraph":
+        layer = SparseMHA_subgraph
+        preprocess_func = preprocess_SubGraph
     else:
         raise ValueError(f"Unsupported format {args.format}")
 
