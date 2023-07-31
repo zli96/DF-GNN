@@ -8,26 +8,61 @@ import matplotlib.pyplot as plt
 
 import ScheduleProfiler
 import torch
-from dgl.data import CiteseerGraphDataset, CoraGraphDataset, PubmedGraphDataset
+from data.data import LoadData
+from dgl.data import (
+    CiteseerGraphDataset,
+    CLUSTERDataset,
+    CoraGraphDataset,
+    PATTERNDataset,
+    PubmedGraphDataset,
+)
 from dgl.dataloading import GraphDataLoader
 from ogb.graphproppred import collate_dgl, DglGraphPropPredDataset
 from ogb.lsc import DglPCQM4Mv2Dataset
 from ogb.nodeproppred import DglNodePropPredDataset
 
+from torch.utils.data import DataLoader
+
 profiler = ScheduleProfiler.ScheduleProfiler()
 
 
 def load_data_batch(dataset_name, batch_size, data_dir):
-    if dataset_name == "PCQM4Mv2-full":
-        dataset = DglPCQM4Mv2Dataset(root=data_dir)
+    train_fn = train
+
+    if dataset_name == "PCQM4Mv2-full" or dataset_name == "ogbg-molhiv":
+        if dataset_name == "PCQM4Mv2-full":
+            dataset = DglPCQM4Mv2Dataset(root=data_dir)
+        else:
+            dataset = DglGraphPropPredDataset(dataset_name, data_dir)
+        split_idx = dataset.get_idx_split()
+        train_idx = split_idx["train"]
+        train_dataloader = GraphDataLoader(
+            dataset[train_idx],
+            batch_size=batch_size,
+            shuffle=False,
+            collate_fn=collate_dgl,
+        )
+    elif dataset_name == "MNIST" or dataset_name == "CIFAR10":
+        dataset = LoadData(dataset_name)
+        trainset, _, _ = dataset.train, dataset.val, dataset.test
+        train_dataloader = DataLoader(
+            trainset, batch_size=batch_size, shuffle=False, collate_fn=dataset.collate
+        )
+    elif dataset_name == "PATTERN":
+        train_fn = train_SBM
+        dataset = PATTERNDataset(mode="train", raw_dir=data_dir)
+        train_dataloader = GraphDataLoader(
+            dataset, batch_size=batch_size, shuffle=False
+        )
+    elif dataset_name == "CLUSTER":
+        train_fn = train_SBM
+        dataset = CLUSTERDataset(mode="train", raw_dir=data_dir)
+        train_dataloader = GraphDataLoader(
+            dataset, batch_size=batch_size, shuffle=False
+        )
     else:
-        dataset = DglGraphPropPredDataset(dataset_name, data_dir)
-    split_idx = dataset.get_idx_split()
-    train_idx = split_idx["train"]
-    train_dataloader = GraphDataLoader(
-        dataset[train_idx], batch_size=batch_size, shuffle=False, collate_fn=collate_dgl
-    )
-    return train_dataloader
+        raise ValueError(f"unknown dataset {dataset_name}")
+    return train_dataloader, train_fn
 
 
 def load_data_full_graph(dataset_name, dataset_dir):
@@ -240,6 +275,34 @@ def train(process_func, layer, train_dataloader, dev, **arg):
     return time_no_fuse, time_fuse
 
 
+def train_SBM(process_func, layer, train_dataloader, dev, **arg):
+    print("----------------------Forward------------------------")
+    time_no_fuse = []
+    time_fuse = []
+    warmup = 2
+    for i, (batched_g) in enumerate(train_dataloader):
+        params = process_func(batched_g, **arg)
+        if params == None:
+            continue
+        params = [param.to(dev) for param in params]
+        batched_g = batched_g.to(dev)
+        logits, elapsed_time = layer(params, batched_g.ndata["feat"])
+        print(f"epoch {i} non-fused time %.4f" % elapsed_time)
+        if i > warmup:
+            time_no_fuse.append(elapsed_time)
+            logits_fuse, elapsed_time = layer(
+                params, batched_g.ndata["feat"], fuse=True
+            )
+            time_fuse.append(elapsed_time)
+            # pdb.set_trace()
+            print(f"epoch {i} fused time %.4f" % elapsed_time)
+            if i < 5:
+                check_correct(logits, logits_fuse, params)
+            if i == 30:
+                break
+    return time_no_fuse, time_fuse
+
+
 def train_profile(process_func, layer, train_dataloader, dev, **arg):
     print("----------------------Forward------------------------")
     for i, (batched_g, labels) in enumerate(train_dataloader):
@@ -308,6 +371,7 @@ def parser_argument(parser):
     parser.add_argument("--dataset", type=str, default="ogbg-molhiv")
 
     args = parser.parse_args()
+    print("Dataset", args.dataset)
     print("format: ", args.format)
     print("hidden dim", args.dim)
     print("num heads", args.heads)

@@ -1,9 +1,16 @@
 source/build
 .vscode
-__pycache__
 log
 *__pycache__
-data/
+
+/data/*
+!/data/data.py
+!/data/SBMs.py
+!/data/superpixels.py
+!/data/script_download_SBMs.sh
+!/data/script_download_superpixels.sh
+
+
 *.txt
 *.json
 build/
@@ -13,4 +20,4 @@ dist/
 *dgNN.egg-info
 *.so
 /test
-dataset
+/dataset
