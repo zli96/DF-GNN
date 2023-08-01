@@ -1,9 +1,9 @@
+read -p "Enter dataset(default=ogbg-molhiv): " dataset
 read -p "Enter format(default=csr): " format
 read -p "Enter dim(default=64): " dim  
 read -p "Enter heads(default=1): " heads 
 read -p "Enter batch size(default=256): " bs
 read -p "Enter data dir(default=/workspace2/dataset): " data_dir
-read -p "Enter dataset(default=ogbg-molhiv): " dataset
 
 if [ -z "${dim}" ];then
 	dim=64

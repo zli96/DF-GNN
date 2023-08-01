@@ -3,7 +3,7 @@ import argparse
 import torch
 
 from dgNN.layers import (
-    GTlayer_mol,
+    choose_GTlayer,
     SparseMHA,
     SparseMHA_ELL,
     SparseMHA_hyper,
@@ -42,11 +42,15 @@ if __name__ == "__main__":
     dev = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     # load dataset
-    train_dataloader = load_data_batch(args.dataset, args.batch_size, args.data_dir)
-    GTlayer = GTlayer_mol(layer=layer, hidden_size=args.dim, num_heads=args.heads).to(
-        dev
+    train_dataloader, train_fn = load_data_batch(
+        args.dataset, args.batch_size, args.data_dir
     )
-    time_no_fuse, time_fuse = train(preprocess_func, GTlayer, train_dataloader, dev)
+    GTlayer = choose_GTlayer(
+        args.dataset, MHAlayer=layer, hidden_size=args.dim, num_heads=args.heads
+    )
+    GTlayer = GTlayer.to(dev)
+    print("GTlayer", GTlayer)
+    time_no_fuse, time_fuse = train_fn(preprocess_func, GTlayer, train_dataloader, dev)
 
     print("----------------------Result------------------------")
     print(

@@ -3,7 +3,7 @@ import pdb
 
 import torch
 
-from dgNN.layers import GTlayer_fullgraph, SparseMHA, SparseMHA_hyper
+from dgNN.layers import GTlayer, SparseMHA, SparseMHA_hyper
 from dgNN.utils import load_data_full_graph, preprocess_CSR, preprocess_Hyper
 
 
@@ -42,7 +42,7 @@ if __name__ == "__main__":
     params = [param.to(dev) for param in params]
     X = g.ndata["feat"]
     in_size = X.shape[1]
-    GTlayer = GTlayer_fullgraph(
+    GTlayer = GTlayer(
         layer, in_size=in_size, hidden_size=args.dim, num_heads=args.heads
     ).to(dev)
 
