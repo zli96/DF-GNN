@@ -79,7 +79,7 @@ __global__ void sddmmCooKernel(const int lhs_len, const int rhs_len, const int o
     const DType *rhsoff = rhs + dst * rhs_len;
     DType *outoff = out + eid * out_len;
     int tx = threadIdx.x; // tx < 32
-    for (int i = blockIdx.y; i < out_len; i += blockIdx.y)
+    for (int i = blockIdx.y; i < out_len; i += gridDim.y)
     { // over output feature dimension
       DType val = 0;
       for (int j = tx; j < reduce_size; j += 64)
@@ -243,7 +243,7 @@ __global__ void fused_forward_kernel_subgraph(const int h, const int f,
     if (curr_node + node_lb < node_hb)
     {
 
-      for (int i = 0; i < loops_feat; i += 1)
+      for (int i = 0; i < loops_feat; i++)
       {
         int curr_feat = tidx + (i << 5);
         if (curr_feat < f)
@@ -262,7 +262,6 @@ __global__ void fused_forward_kernel_subgraph(const int h, const int f,
     int curr_node = tidy + j * blockSize;
     if (curr_node + node_lb < node_hb)
     {
-      DType weight = 0;
       DType weightMax = -1e38;
       const int lb = indptr[node_lb + curr_node]; // row rid elements
       const int hb = indptr[node_lb + curr_node + 1];
@@ -271,7 +270,7 @@ __global__ void fused_forward_kernel_subgraph(const int h, const int f,
       {
         int cid = indices[lb + k] - node_lb;
         DType weight_partial = 0;
-        for (int i = 0; i < loops_feat; i += 1)
+        for (int i = 0; i < loops_feat; i++)
         {
           int curr_feat = tidx + (i << 5);
           if (curr_feat < f)
@@ -289,11 +288,10 @@ __global__ void fused_forward_kernel_subgraph(const int h, const int f,
         __syncwarp();
         if (tidx == 0)
         {
-          neigh_nodes_weight[tidy + (k << 3)] = weight_partial * val[node_lb + curr_node];
-          // printf("sddmm result src %d dst %d %f \n", curr_node, cid, neigh_nodes_weight[tidy + (k << 3)]);
+          // TODO val not correct
+          neigh_nodes_weight[tidy + (k << 3)] = weight_partial * val[lb + k];
         }
         __syncthreads();
-        // weight = neigh_nodes_weight[tidy + (k << 3)];
         weightMax = MAX(weight_partial, weightMax);
       }
       // if (tidx == 0)
@@ -302,9 +300,6 @@ __global__ void fused_forward_kernel_subgraph(const int h, const int f,
       // }
       __syncthreads();
 
-      // const int lb = indptr[curr_node]; // row rid elements
-      // const int hb = indptr[curr_node + 1];
-      // const int num_neighbor = hb - lb;
       int loop_WARP_neigh = (num_neighbor + WARP_SIZE - 1) / WARP_SIZE;
       DType expAll = 0;
       for (int k = 0; k < loop_WARP_neigh; k++)
@@ -314,12 +309,7 @@ __global__ void fused_forward_kernel_subgraph(const int h, const int f,
         if (pid < num_neighbor)
         {
           DType weight = neigh_nodes_weight[tidy + (pid << 3)];
-          int cid = indices[lb + pid] - node_lb;
-
-          // float weightMax = weightMax_SMEM[lb + tidx];
           exptmp = exp(weight - weightMax);
-          // printf("expsum src %d dst %d %f %f %f \n", curr_node, cid, weight, weightMax, exptmp);
-
         }
         __syncwarp();
         for (int stride = 16; stride > 0; stride >>= 1)
@@ -330,13 +320,9 @@ __global__ void fused_forward_kernel_subgraph(const int h, const int f,
         expAll += exptmp;
       }
       __syncthreads();
-      
-      // if (tidx == 0)
-      // {
-      //   printf("expsum src %d %f \n", curr_node, expAll);
-      // }
+
       // compute the output
-      for (int i = 0; i < loops_feat; i += 1)
+      for (int i = 0; i < loops_feat; i++)
       {
         DType acc = 0;
         DType attn_val;
@@ -348,10 +334,6 @@ __global__ void fused_forward_kernel_subgraph(const int h, const int f,
             int cid = indices[lb + k] - node_lb;
             DType weight = neigh_nodes_weight[tidy + (k << 3)];
             attn_val = exp(weight - weightMax) / expAll;
-            // if (tidx == 0)
-            // {
-            // printf("attn_val src %d dst %d %f \n", curr_node, cid, attn_val);
-            // }
             acc += attn_val * V_SMEM[cid * hf + hid * f + curr_feat];
           }
         }
@@ -360,7 +342,6 @@ __global__ void fused_forward_kernel_subgraph(const int h, const int f,
       }
     }
     __syncthreads();
-
   }
 }
 
