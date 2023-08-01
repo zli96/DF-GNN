@@ -48,35 +48,18 @@ bash run_ncu.sh
 
 ```
 
-<!-- Our training script is modified from [DGL](https://github.com/dmlc/dgl). Now we implements three popular GNN models.
+### Datasets
 
-**Run GAT**
+Current support dataset
 
-[DGL Code](https://github.com/dmlc/dgl/tree/master/examples/pytorch/gat)
+Batch dataset: 
+* mol: ogbg-molhiv, PCQM4Mv2-full
+* SBM: PATTERN, CLUSTER
+* superpixel： CIFAR10, MNIST
 
-```python
-cd dgNN/script/train
-python train_gatconv.py --num-hidden=64 --num-heads=4 --dataset cora --gpu 0
-```
+For Batch datasets, you can run it by [dgNN/script/test/test_gf.py](dgNN/script/test/test_gf.py)
 
-**Run Monet**
+Full dataset: (only one graph)
+* cora, arxiv, pumbed, cite
 
-[DGL Code](https://github.com/dmlc/dgl/tree/master/examples/pytorch/monet)
-
-```python
-cd dgNN/script/train
-python train_gmmconv.py --n-kernels 3 --pseudo-dim 2 --dataset cora --gpu 0
-```
-
-**Run PointCloud**
-
-We use modelnet40-sampled-2048 data in our PointNet. [DGL Code](https://github.com/dmlc/dgl/tree/master/examples/pytorch/pointcloud)
-
-```python
-cd dgNN/script/train
-python train_edgeconv.py
-```
-
-### Collaborative Projects
-
-[CogDL](https://github.com/THUDM/cogdl) is a flexible and efficient graph-learning framework that uses GE-SpMM to accelerate GNN algorithms. This repo is implemented in CogDL as a submodule. -->
+For full datasets, you can run it by [dgNN/script/test/test_gf_full_graph.py](dgNN/script/test/test_gf_full_graph.py)
