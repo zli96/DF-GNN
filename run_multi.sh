@@ -1,14 +1,14 @@
+read -p "Enter dataset(default=ogbg-molhiv, ogbg-molpcba): " dataset
 read -p "Enter format(default=csr): " format
 read -p "Enter dim(default=64): " dim
 read -p "Enter heads(default=1): " heads
 read -p "Enter data dir(default=/workspace2/dataset): " data_dir
-read -p "Enter dataset(default=ogbg-molhiv, ogbg-molpcba): " dataset
 
 if [ -z "${format}" ];then
 	format=csr
 fi
 if [ -z "${dim}" ];then
-    dim=64
+    dim=32
 fi
 if [ -z "${heads}" ];then
     heads=1
@@ -20,7 +20,9 @@ if [ -z "${dataset}" ];then
 	dataset="ogbg-molhiv"
 fi
 
-batch_sizes=(32 64 128 256 512 1024 2048 4096)
+batch_sizes=(16 32 64 128 256 512 1024 2048)
+# batch_sizes=(1024 2048 4096)
+
 day=$(date +%m_%d)
 Time=$(date +%H_%M_%S)
 mkdir log/day_${day}

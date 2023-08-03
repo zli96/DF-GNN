@@ -1,5 +1,6 @@
 ## dgNN
 
+graph statistics [figure/graph_statistics.md](figure/graph_statistics.md)
 
 ### How to build
 
