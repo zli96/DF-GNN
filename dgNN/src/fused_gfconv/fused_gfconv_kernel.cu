@@ -294,10 +294,6 @@ __global__ void fused_forward_kernel_subgraph(const int h, const int f,
         __syncthreads();
         weightMax = MAX(weight_partial, weightMax);
       }
-      // if (tidx == 0)
-      // {
-      //   printf("weightMax src %d %f \n", curr_node, weightMax);
-      // }
       __syncthreads();
 
       int loop_WARP_neigh = (num_neighbor + WARP_SIZE - 1) / WARP_SIZE;
@@ -674,9 +670,10 @@ void gf_forward_subgraph(int num_subgraph, int h, int f, const int *nodes_subgra
   const dim3 nblks(nbx, nby);
   const dim3 nthrs(ntx, nty);
   // printf("launch dim %d %d \n", num_subgraph, h);
+  cudaFuncSetAttribute(fused_forward_kernel_subgraph<float, 8>,cudaFuncAttributeMaxDynamicSharedMemorySize, 65536);
   CUDA_KERNEL_CALL(
       (fused_forward_kernel_subgraph<float, 8>),
-      nblks, nthrs, 2 * 50 * h * f * 4 + 64 * 4, h, f, nodes_subgraph, indptr, indices, val,
+      nblks, nthrs, 1024 * 64, h, f, nodes_subgraph, indptr, indices, val,
       Q, K, V, out_feat);
 }
 

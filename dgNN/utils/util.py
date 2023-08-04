@@ -165,11 +165,9 @@ def preprocess_Hyper(g):
 
 def preprocess_SubGraph(g):
     nodes = g.batch_num_nodes()
-    print("max num of nodes", max(nodes).item())
-    if max(nodes).item() > 50:
-        return
+    # print("max num of nodes", max(nodes).item())
     nodes_subgraph = torch.cat(
-        (torch.tensor([0]), torch.cumsum(torch.tensor(nodes), 0))
+        (torch.tensor([0]), torch.cumsum(nodes.clone(), 0))
     ).int()
     indices = torch.stack(g.edges())
     N = g.num_nodes()
