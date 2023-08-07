@@ -10,6 +10,7 @@ from dgl.data import (
     CoraGraphDataset,
     PATTERNDataset,
     PubmedGraphDataset,
+    Subset,
 )
 from dgl.dataloading import GraphDataLoader
 
@@ -34,7 +35,6 @@ def load_dataset(dataset_name, data_dir):
         dataset = dataset[train_idx]
     elif dataset_name == "MNIST" or dataset_name == "CIFAR10":
         dataset = LoadData(dataset_name)
-        dataset = dataset.train
     elif dataset_name == "PATTERN":
         train_fn = train_SBM
         dataset = PATTERNDataset(mode="train", raw_dir=data_dir)
@@ -72,7 +72,15 @@ if __name__ == "__main__":
 
     # load dataset
     dataset, train_fn = load_dataset(args.dataset, args.data_dir)
-    num_nodes = torch.tensor([subgraph.num_nodes() for (subgraph) in dataset])
+    if args.dataset == "CLUSTER" or args.dataset == "PATTERN":
+        num_nodes = torch.tensor([subgraph.num_nodes() for (subgraph) in dataset])
+    elif args.dataset == "MNIST" or args.dataset == "CIFAR10":
+        num_nodes = torch.tensor(
+            [subgraph.num_nodes() for (subgraph, _) in dataset.train]
+        )
+    else:
+        num_nodes = torch.tensor([subgraph.num_nodes() for (subgraph, _) in dataset])
+
     GTlayer = choose_GTlayer(
         args.dataset,
         MHAlayer=SparseMHA_subgraph,
@@ -82,18 +90,18 @@ if __name__ == "__main__":
     GTlayer = GTlayer.to(dev)
     max_nodes = cal_available_node(args.dim / args.heads)
     subgraph_index = torch.nonzero(num_nodes < max_nodes).squeeze().long()
-    pdb.set_trace()
-    dataset = dataset[subgraph_index]
-
     dataset_name = args.dataset
     if dataset_name == "MNIST" or dataset_name == "CIFAR10":
+        collate_fn = dataset.collate
+        dataset = Subset(dataset.train, subgraph_index.cpu())
         train_dataloader = DataLoader(
             dataset,
             batch_size=args.batch_size,
             shuffle=False,
-            collate_fn=dataset.collate,
+            collate_fn=collate_fn,
         )
     else:
+        dataset = dataset[subgraph_index]
         train_dataloader = GraphDataLoader(
             dataset, batch_size=args.batch_size, shuffle=False
         )
