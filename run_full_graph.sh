@@ -25,10 +25,19 @@ mkdir log/day_${day}
 set -e
 python setup.py develop
 
-for dataset in ${datasets[@]};
-do
+# for dataset in ${datasets[@]};
+# do
+# for format in ${formats[@]};
+# do
+# python -u dgNN/script/test/test_gf_full_graph.py --dim $dim --heads $heads --dataset ${dataset} --data-dir ${data_dir} --format ${format} | tee log/day_${day}/gf_${dataset}_${format}_dim${dim}_h${heads}_${Time}.log
+# done
+# done
+
+num_neighs=(2 4 8 16 32 64 128)
 for format in ${formats[@]};
 do
-python -u dgNN/script/test/test_gf_full_graph.py --dim $dim --heads $heads --dataset ${dataset} --data-dir ${data_dir} --format ${format} | tee log/day_${day}/gf_${dataset}_${format}_dim${dim}_h${heads}_${Time}.log
+for num_neigh in ${num_neighs[@]};
+do
+python -u dgNN/utils/graph_generate.py --format ${format} --num-neigh ${num_neigh} | tee log/day_${day}/gf_constant_degree_${format}_neigh${num_neigh}_${Time}.log
 done
 done
