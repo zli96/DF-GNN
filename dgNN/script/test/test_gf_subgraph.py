@@ -48,7 +48,7 @@ def load_dataset(dataset_name, data_dir):
 
 def cal_available_node(dim, MAX_LIMIT=64 * 1024 / 4):
     MAX_NEIGH = 192
-    return (MAX_LIMIT - MAX_NEIGH * 8) / (dim * 2)
+    return (MAX_LIMIT - MAX_NEIGH * 32) / (dim * 2)
 
 
 if __name__ == "__main__":
@@ -109,7 +109,6 @@ if __name__ == "__main__":
     print(subgraph_index.squeeze(), subgraph_index.dtype)
     print("max nodes support in subgraph", max_nodes)
     print("num of satisfy subgraphs", subgraph_index.shape[0])
-    print("dataset", dataset)
 
     print("GTlayer", GTlayer)
     time_no_fuse, time_fuse = train_fn(

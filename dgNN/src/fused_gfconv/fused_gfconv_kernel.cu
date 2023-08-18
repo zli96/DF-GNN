@@ -6,9 +6,9 @@
 
 using namespace std;
 
-extern "C" bool isPow2(unsigned int x)
+extern "C" bool isMul32(int x)
 {
-  return ((x & (x - 1)) == 0 && x >= 32);
+  return (x >= 0 && x % 32 == 0);
 }
 
 #define CUDA_CALL(func)                                      \
@@ -48,20 +48,6 @@ __device__ __forceinline__ float warpReduceSum(float sum, int blockSize)
     sum += __shfl_down_sync(0xffffffff, sum, 1);
   return sum;
 }
-
-struct Dot
-{
-  static __device__ __forceinline__ float
-  Call(const float *lhs, const float *rhs, int len = 1)
-  {
-    float rst = static_cast<float>(0.0f);
-    for (int i = 0; i < len; ++i)
-    {
-      rst += lhs[i] * rhs[i];
-    }
-    return rst;
-  }
-};
 
 template <typename DType>
 __global__ void sddmmCooKernel(const int lhs_len, const int rhs_len, const int out_len,
@@ -212,7 +198,7 @@ __global__ void softMax_SPMM(const int m, const int nnz, const int h, const int 
   out_feat[rid * hf + hfid] = acc;
 }
 
-template <typename DType, int blockSize>
+template <typename DType, int blockSize, int LOG_BLOCK_SIZE>
 __global__ void fused_forward_kernel_subgraph(const int h, const int f,
                                               const int *node_num_ptr, const int *indptr, const int *indices, const DType *val,
                                               const DType *Q, const DType *K, const DType *V,
@@ -288,8 +274,7 @@ __global__ void fused_forward_kernel_subgraph(const int h, const int f,
         __syncwarp();
         if (tidx == 0)
         {
-          // TODO val not correct
-          neigh_nodes_weight[tidy + (k << 3)] = weight_partial * val[lb + k];
+          neigh_nodes_weight[tidy + (k << LOG_BLOCK_SIZE)] = weight_partial * val[lb + k];
         }
         __syncthreads();
         weightMax = MAX(weight_partial, weightMax);
@@ -304,7 +289,7 @@ __global__ void fused_forward_kernel_subgraph(const int h, const int f,
         int pid = tidx + (k << 5);
         if (pid < num_neighbor)
         {
-          DType weight = neigh_nodes_weight[tidy + (pid << 3)];
+          DType weight = neigh_nodes_weight[tidy + (pid << LOG_BLOCK_SIZE)];
           exptmp = exp(weight - weightMax);
         }
         __syncwarp();
@@ -328,7 +313,7 @@ __global__ void fused_forward_kernel_subgraph(const int h, const int f,
           for (int k = 0; k < num_neighbor; k++)
           {
             int cid = indices[lb + k] - node_lb;
-            DType weight = neigh_nodes_weight[tidy + (k << 3)];
+            DType weight = neigh_nodes_weight[tidy + (k << LOG_BLOCK_SIZE)];
             attn_val = exp(weight - weightMax) / expAll;
             acc += attn_val * V_SMEM[cid * hf + hid * f + curr_feat];
           }
@@ -341,11 +326,10 @@ __global__ void fused_forward_kernel_subgraph(const int h, const int f,
   }
 }
 
-template <unsigned int blockSize>
-__global__ void fused_forward_kernel_pow2(const int m, const int nnz, const int h, const int f,
-                                          const int *indptr, const int *indices, const float *val,
-                                          const float *Q, const float *K, const float *V,
-                                          float *out_feat)
+__global__ void fused_forward_kernel_mul32(const int m, const int nnz, const int h, const int f,
+                                           const int *indptr, const int *indices, const float *val,
+                                           const float *Q, const float *K, const float *V,
+                                           float *out_feat)
 {
   const int rid = blockIdx.x;                     // loop over row of adj matrix
   const int hid = blockIdx.y;                     // loop over heads
@@ -374,13 +358,13 @@ __global__ void fused_forward_kernel_pow2(const int m, const int nnz, const int 
     weight_partial = Q_i * K[cid * hf + hfid];
 
     __syncthreads();
-    weight_partial = warpReduceSum(weight_partial, blockSize);
+    weight_partial = warpReduceSum(weight_partial, f);
     if (laneId == 0)
       warpLevelSums[warpId] = weight_partial;
     __syncthreads();
-    weight_partial = (fid < blockSize / WARP_SIZE) ? warpLevelSums[laneId] : 0;
+    weight_partial = (fid < f / WARP_SIZE) ? warpLevelSums[laneId] : 0;
     if (warpId == 0)
-      weight_partial = warpReduceSum(weight_partial, blockSize / WARP_SIZE);
+      weight_partial = warpReduceSum(weight_partial, f / WARP_SIZE);
     if (fid == 0)
     {
       neigh_nodes_weight[j] = weight_partial * val[lb + j];
@@ -453,7 +437,6 @@ __global__ void fused_forward_kernel(const int m, const int nnz, const int h, co
   if (fid < f)
   {
     Q_i = Q[rid * h * f + hid * f + fid];
-    // curr_node_feature[fid] = Q[rid * h * f + hid * f + fid];
   }
 
   // compute the attention weight
@@ -663,18 +646,33 @@ void gf_forward_subgraph(int num_subgraph, int h, int f, const int *nodes_subgra
                          const float *Q, const float *K, const float *V,
                          float *out_feat)
 {
-  const int ntx = 32; // on feature dimension
-  const int nty = 8;  // on out dimension
+  const int BLOCK_SIZE = atoi(getenv("BLOCK_SIZE"));
+
+  const int ntx = 32;         // on feature dimension
+  const int nty = BLOCK_SIZE; // on out dimension
   const int nbx = num_subgraph;
   const int nby = h;
   const dim3 nblks(nbx, nby);
   const dim3 nthrs(ntx, nty);
-  // printf("launch dim %d %d \n", num_subgraph, h);
-  cudaFuncSetAttribute(fused_forward_kernel_subgraph<float, 8>,cudaFuncAttributeMaxDynamicSharedMemorySize, 65536);
-  CUDA_KERNEL_CALL(
-      (fused_forward_kernel_subgraph<float, 8>),
-      nblks, nthrs, 1024 * 64, h, f, nodes_subgraph, indptr, indices, val,
-      Q, K, V, out_feat);
+  switch (BLOCK_SIZE)
+  {
+  case 8:
+    cudaFuncSetAttribute(fused_forward_kernel_subgraph<float, 8, 3>, cudaFuncAttributeMaxDynamicSharedMemorySize, 65536);
+    CUDA_KERNEL_CALL(
+        (fused_forward_kernel_subgraph<float, 8, 3>),
+        nblks, nthrs, 1024 * 64, h, f, nodes_subgraph, indptr, indices, val,
+        Q, K, V, out_feat);
+    break;
+  case 32:
+    cudaFuncSetAttribute(fused_forward_kernel_subgraph<float, 32, 5>, cudaFuncAttributeMaxDynamicSharedMemorySize, 65536);
+    CUDA_KERNEL_CALL(
+        (fused_forward_kernel_subgraph<float, 32, 5>),
+        nblks, nthrs, 1024 * 64, h, f, nodes_subgraph, indptr, indices, val,
+        Q, K, V, out_feat);
+    break;
+  default:
+    throw "not supported BLOCKSIZE!";
+  }
 }
 
 void gf_forward_nofuse(int m, int nnz, int h, int f,
@@ -709,72 +707,21 @@ void gf_forward_nofuse(int m, int nnz, int h, int f,
       V, attn_edge, out_feat);
 }
 
-void gf_forward_pow2(int m, int nnz, int h, int f,
-                     const int *indptr, const int *indices, const float *val,
-                     const float *Q, const float *K, const float *V,
-                     float *out_feat)
+void gf_forward_multiple32(int m, int nnz, int h, int f,
+                           const int *indptr, const int *indices, const float *val,
+                           const float *Q, const float *K, const float *V,
+                           float *out_feat)
 {
   // cudaEvent_t start, stop;
   // cudaEventCreate(&start);
   // cudaEventCreate(&stop);
   // cudaEventRecord(start, 0);
   const dim3 nblks(m, h, 1);
-  const dim3 nthrs(32, (f + 31) / 32, 1);
-  switch (f)
-  {
-  case 4096:
-    CUDA_KERNEL_CALL(
-        (fused_forward_kernel_pow2<4096>),
-        nblks, nthrs, (512) * sizeof(float), m, nnz, h, f, indptr, indices, val,
-        Q, K, V, out_feat);
-    break;
-  case 2048:
-    CUDA_KERNEL_CALL(
-        (fused_forward_kernel_pow2<2048>),
-        nblks, nthrs, (512) * sizeof(float), m, nnz, h, f, indptr, indices, val,
-        Q, K, V, out_feat);
-    break;
-  case 1024:
-    CUDA_KERNEL_CALL(
-        (fused_forward_kernel_pow2<1024>),
-        nblks, nthrs, (512) * sizeof(float), m, nnz, h, f, indptr, indices, val,
-        Q, K, V, out_feat);
-    break;
-  case 512:
-    CUDA_KERNEL_CALL(
-        (fused_forward_kernel_pow2<512>),
-        nblks, nthrs, (512) * sizeof(float), m, nnz, h, f, indptr, indices, val,
-        Q, K, V, out_feat);
-    break;
-
-  case 256:
-    CUDA_KERNEL_CALL(
-        (fused_forward_kernel_pow2<256>),
-        nblks, nthrs, (512) * sizeof(float), m, nnz, h, f, indptr, indices, val,
-        Q, K, V, out_feat);
-    break;
-
-  case 128:
-    CUDA_KERNEL_CALL(
-        (fused_forward_kernel_pow2<128>),
-        nblks, nthrs, (512) * sizeof(float), m, nnz, h, f, indptr, indices, val,
-        Q, K, V, out_feat);
-    break;
-
-  case 64:
-    CUDA_KERNEL_CALL(
-        (fused_forward_kernel_pow2<64>),
-        nblks, nthrs, (512) * sizeof(float), m, nnz, h, f, indptr, indices, val,
-        Q, K, V, out_feat);
-    break;
-
-  case 32:
-    CUDA_KERNEL_CALL(
-        (fused_forward_kernel_pow2<32>),
-        nblks, nthrs, (512) * sizeof(float), m, nnz, h, f, indptr, indices, val,
-        Q, K, V, out_feat);
-    break;
-  }
+  const dim3 nthrs(32, f / 32, 1);
+  CUDA_KERNEL_CALL(
+      (fused_forward_kernel_mul32),
+      nblks, nthrs, (512) * sizeof(float), m, nnz, h, f, indptr, indices, val,
+      Q, K, V, out_feat);
 }
 
 void gf_ell_forward(int m, int nnz, int h, int f, int num_tb,
@@ -816,12 +763,14 @@ gf_forward_cuda(torch::Tensor indptr,
   auto options =
       torch::TensorOptions().dtype(torch::kFloat32).device(torch::kCUDA, devid);
   auto out_feat = torch::zeros({m, h, f}, options);
-  if (isPow2(f))
+
+  // check whether f is multiples of 32
+  if (isMul32(f))
   {
-    gf_forward_pow2(m, nnz, h, f,
-                    indptr.data_ptr<int>(), indices.data_ptr<int>(), val.data_ptr<float>(),
-                    Q.data_ptr<float>(), K.data_ptr<float>(), V.data_ptr<float>(),
-                    out_feat.data_ptr<float>());
+    gf_forward_multiple32(m, nnz, h, f,
+                          indptr.data_ptr<int>(), indices.data_ptr<int>(), val.data_ptr<float>(),
+                          Q.data_ptr<float>(), K.data_ptr<float>(), V.data_ptr<float>(),
+                          out_feat.data_ptr<float>());
   }
   else
   {
@@ -843,9 +792,8 @@ gf_subgraph_forward_cuda(torch::Tensor nodes_subgraph,
   // Q: torch.Size([6248, 10, 8])
   const auto num_subgraph = nodes_subgraph.size(0) - 1;
   const auto m = indptr.size(0) - 1; // num of nodes
-  // const auto nnz = indices.size(0);  // num of edges
-  const auto h = Q.size(1); // num of heads
-  const auto f = Q.size(2); // num of feats
+  const auto h = Q.size(1);          // num of heads
+  const auto f = Q.size(2);          // num of feats
   auto devid = indptr.device().index();
   auto options =
       torch::TensorOptions().dtype(torch::kFloat32).device(torch::kCUDA, devid);

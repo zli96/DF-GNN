@@ -236,11 +236,11 @@ def check_correct(logits, logits_fuse, params):
                 print("neighbor nodes", col_ind[row_ptr[i] : row_ptr[i + 1]])
                 print(logits[i])
                 print(logits_fuse[i])
+                pdb.set_trace()
             else:
                 print("----------------pass------------------")
                 print("neighbor nodes", col_ind[row_ptr[i] : row_ptr[i + 1]])
                 print("")
-        exit()
 
 
 def train(process_func, layer, train_dataloader, dev, **arg):
