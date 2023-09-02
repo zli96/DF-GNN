@@ -248,8 +248,11 @@ def train(process_func, layer, train_dataloader, dev, **arg):
     time_no_fuse = []
     time_fuse = []
     warmup = 2
+    sample_start_time = 0
     for i, (batched_g, labels) in enumerate(train_dataloader):
-        # print("----------------------without fuse--------------------------")
+        print(
+            f"epoch {i} sample elapsed time {default_timer() - sample_start_time:.2f} s"
+        )
         params = process_func(batched_g, **arg)
         if params == None:
             continue
@@ -270,6 +273,7 @@ def train(process_func, layer, train_dataloader, dev, **arg):
                 check_correct(logits, logits_fuse, params)
             if i == 30:
                 break
+        sample_start_time = default_timer()
     return time_no_fuse, time_fuse
 
 
