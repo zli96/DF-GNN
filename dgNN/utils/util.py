@@ -176,7 +176,7 @@ def preprocess_SubGraph(g):
     row_ptr = row_ptr.int()
     col_ind = col_ind.int()
     val = torch.tensor([A.val[i] for i in val_idx]).float()
-    return A, nodes_subgraph, row_ptr, col_ind, val
+    return A, row_ptr, col_ind, nodes_subgraph, val
 
 
 def preprocess_ELL(
@@ -224,7 +224,7 @@ def check_correct(logits, logits_fuse, params):
     if all(torch.isclose(logits, logits_fuse, atol=0.001).flatten()):
         print("the results are the same, success!!!!!!!!!!")
     else:
-        if len(params) == 6:
+        if len(params) == 5:
             row_ptr = params[2]
             col_ind = params[3]
         else:
