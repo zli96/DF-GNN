@@ -282,7 +282,11 @@ def train_SBM(process_func, layer, train_dataloader, dev, **arg):
     time_no_fuse = []
     time_fuse = []
     warmup = 2
+    sample_start_time = 0
     for i, (batched_g) in enumerate(train_dataloader):
+        print(
+            f"epoch {i} sample elapsed time {default_timer() - sample_start_time:.2f} s"
+        )
         params = process_func(batched_g, **arg)
         if params == None:
             continue
@@ -302,6 +306,7 @@ def train_SBM(process_func, layer, train_dataloader, dev, **arg):
                 check_correct(logits, logits_fuse, params)
             if i == 30:
                 break
+        sample_start_time = default_timer()
     return time_no_fuse, time_fuse
 
 
@@ -312,6 +317,30 @@ def train_profile(process_func, layer, train_dataloader, dev, **arg):
         params = process_func(batched_g)
         params = [param.to(dev) for param in params]
         batched_g, labels = batched_g.to(dev), labels.to(dev)
+        profiler.start()
+        logits, elapsed_time = layer(params, batched_g.ndata["feat"], **arg)
+        profiler.stop()
+        # if i > warmup:
+        #     time_no_fuse.append(elapsed_time)
+        #     # print("----------------------with fuse--------------------------")
+        #     logits_fuse, elapsed_time = layer(
+        #         params, batched_g.ndata["feat"], fuse=True
+        #     )
+        #     time_fuse.append(elapsed_time)
+        #     # pdb.set_trace()
+        #     print(f"epoch {i} fused time %.4f" % elapsed_time)
+        #     # if i < 5:
+        #     #     check_correct(logits, logits_fuse, params)
+    return
+
+
+def train_profile_SBM(process_func, layer, train_dataloader, dev, **arg):
+    print("----------------------Forward------------------------")
+    for i, (batched_g) in enumerate(train_dataloader):
+        # print("----------------------without fuse--------------------------")
+        params = process_func(batched_g)
+        params = [param.to(dev) for param in params]
+        batched_g = batched_g.to(dev)
         profiler.start()
         logits, elapsed_time = layer(params, batched_g.ndata["feat"], **arg)
         profiler.stop()

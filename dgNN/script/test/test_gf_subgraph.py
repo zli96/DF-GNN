@@ -15,15 +15,24 @@ from dgl.data import (
 from dgl.dataloading import GraphDataLoader
 
 from dgNN.layers import choose_GTlayer, SparseMHA_subgraph
-from dgNN.utils import preprocess_SubGraph, train, train_SBM
+from dgNN.utils import (
+    preprocess_SubGraph,
+    train,
+    train_profile,
+    train_profile_SBM,
+    train_SBM,
+)
 from ogb.graphproppred import collate_dgl, DglGraphPropPredDataset
 from ogb.lsc import DglPCQM4Mv2Dataset
 from ogb.nodeproppred import DglNodePropPredDataset
 from torch.utils.data import DataLoader
 
 
-def load_dataset(dataset_name, data_dir):
-    train_fn = train
+def load_dataset(dataset_name, data_dir, profile=False):
+    if profile == True:
+        train_fn = train_profile
+    else:
+        train_fn = train
 
     if dataset_name == "PCQM4Mv2-full" or dataset_name == "ogbg-molhiv":
         if dataset_name == "PCQM4Mv2-full":
@@ -37,9 +46,16 @@ def load_dataset(dataset_name, data_dir):
         dataset = LoadData(dataset_name)
     elif dataset_name == "PATTERN":
         train_fn = train_SBM
+        if profile == True:
+            train_fn = train_profile_SBM
+        else:
+            train_fn = train_SBM
         dataset = PATTERNDataset(mode="train", raw_dir=data_dir)
     elif dataset_name == "CLUSTER":
-        train_fn = train_SBM
+        if profile == True:
+            train_fn = train_profile_SBM
+        else:
+            train_fn = train_SBM
         dataset = CLUSTERDataset(mode="train", raw_dir=data_dir)
     else:
         raise ValueError(f"unknown dataset {dataset_name}")
@@ -48,7 +64,7 @@ def load_dataset(dataset_name, data_dir):
 
 def cal_available_node(dim, MAX_LIMIT=64 * 1024 / 4):
     MAX_NEIGH = 192
-    return (MAX_LIMIT - MAX_NEIGH * 32 - 32 * 8) / (dim * 2)
+    return (MAX_LIMIT - MAX_NEIGH * 32 - 32 * 1024 / dim) / (dim * 2)
 
 
 if __name__ == "__main__":
@@ -59,8 +75,11 @@ if __name__ == "__main__":
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--data-dir", type=str, default="/workspace2/dataset")
     parser.add_argument("--dataset", type=str, default="ogbg-molhiv")
+    parser.add_argument("--profile", action="store_true")
 
     args = parser.parse_args()
+    if args.profile:
+        print("--------------profile mode------------------------")
     print("Dataset", args.dataset)
     print("hidden dim", args.dim)
     print("num heads", args.heads)
@@ -71,7 +90,7 @@ if __name__ == "__main__":
     dev = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     # load dataset
-    dataset, train_fn = load_dataset(args.dataset, args.data_dir)
+    dataset, train_fn = load_dataset(args.dataset, args.data_dir, args.profile)
     if args.dataset == "CLUSTER" or args.dataset == "PATTERN":
         num_nodes = torch.tensor([subgraph.num_nodes() for (subgraph) in dataset])
     elif args.dataset == "MNIST" or args.dataset == "CIFAR10":
@@ -111,10 +130,15 @@ if __name__ == "__main__":
     print("num of satisfy subgraphs", subgraph_index.shape[0])
 
     print("GTlayer", GTlayer)
-    time_no_fuse, time_fuse = train_fn(
-        preprocess_SubGraph, GTlayer, train_dataloader, dev
-    )
 
+    if args.profile:
+        time_no_fuse, time_fuse = train_fn(
+            preprocess_SubGraph, GTlayer, train_dataloader, dev, fuse=True
+        )
+    else:
+        time_no_fuse, time_fuse = train_fn(
+            preprocess_SubGraph, GTlayer, train_dataloader, dev
+        )
     # print("----------------------Forward------------------------")
     # time_no_fuse = []
     # time_fuse = []
