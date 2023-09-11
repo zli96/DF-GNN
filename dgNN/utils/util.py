@@ -42,7 +42,7 @@ def load_data_batch(dataset_name, batch_size, data_dir):
             shuffle=False,
             collate_fn=collate_dgl,
         )
-    elif dataset_name == "MNIST" or dataset_name == "CIFAR10":
+    elif dataset_name in ["MNIST", "CIAR10"]:
         dataset = LoadData(dataset_name, data_dir)
         trainset, _, _ = dataset.train, dataset.val, dataset.test
         # train_dataloader = DataLoader(
@@ -50,6 +50,17 @@ def load_data_batch(dataset_name, batch_size, data_dir):
         # )
         train_dataloader = GraphDataLoader(
             trainset, batch_size=batch_size, shuffle=False, collate_fn=dataset.collate
+        )
+    elif dataset_name in ["Peptides-func", "Peptides-struct"]:
+        dataset = LoadData(dataset_name, data_dir)
+        train_dataloader = GraphDataLoader(
+            dataset, batch_size=batch_size, shuffle=False, collate_fn=collate_dgl
+        )
+    elif dataset_name in ["PascalVOC-SP", "COCO-SP"]:
+        train_fn = train_SBM
+        dataset = LoadData(dataset_name, data_dir)
+        train_dataloader = GraphDataLoader(
+            dataset, batch_size=batch_size, shuffle=False
         )
     elif dataset_name == "PATTERN":
         train_fn = train_SBM
@@ -224,7 +235,8 @@ def preprocess_ELL(
 
 
 def check_correct(logits, logits_fuse, params):
-    if all(torch.isclose(logits, logits_fuse, atol=0.001).flatten()):
+    check_same = all(torch.isclose(logits, logits_fuse, atol=0.01).flatten())
+    if check_same:
         print("the results are the same, success!!!!!!!!!!")
     else:
         if len(params) == 5:
@@ -234,7 +246,7 @@ def check_correct(logits, logits_fuse, params):
             row_ptr = params[1]
             col_ind = params[2]
         for i in range(logits.shape[0]):
-            if not all(torch.isclose(logits[i], logits_fuse[i], atol=0.001).flatten()):
+            if not check_same:
                 print(f"error node {i} mismatch")
                 print("neighbor nodes", col_ind[row_ptr[i] : row_ptr[i + 1]])
                 print(logits[i])

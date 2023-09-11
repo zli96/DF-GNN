@@ -85,6 +85,10 @@ class PeptidesStructuralDataset_DGL(object):
             hash_md5.update(buffer)
         return hash_md5.hexdigest()
 
+    def __len__(self):
+        r"""The number of examples in the dataset."""
+        return len(self.graphs)
+
     def download(self):
         if decide_download(self.url):
             path = data.dataset.download_url(self.url, self.raw_dir)
