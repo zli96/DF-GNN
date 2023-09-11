@@ -3,7 +3,7 @@ import pdb
 
 import torch
 
-from data.data import LoadData
+from data import LoadData
 from dgl.data import (
     CiteseerGraphDataset,
     CLUSTERDataset,

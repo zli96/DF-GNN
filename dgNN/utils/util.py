@@ -1,14 +1,18 @@
+import os.path as osp
 import pdb
+
+import ssl
+import sys
+import urllib
 from timeit import default_timer
+from typing import Optional
 
 import dgl.sparse as dglsp
 
-# import format_conversion
 import matplotlib.pyplot as plt
-
 import ScheduleProfiler
 import torch
-from data.data import LoadData
+from data import LoadData
 from dgl.data import (
     CiteseerGraphDataset,
     CLUSTERDataset,
@@ -16,6 +20,8 @@ from dgl.data import (
     PATTERNDataset,
     PubmedGraphDataset,
 )
+from dgl.data.utils import makedirs
+
 from dgl.dataloading import GraphDataLoader
 from ogb.graphproppred import collate_dgl, DglGraphPropPredDataset
 from ogb.lsc import DglPCQM4Mv2Dataset
@@ -24,6 +30,47 @@ from ogb.nodeproppred import DglNodePropPredDataset
 from torch.utils.data import DataLoader
 
 profiler = ScheduleProfiler.ScheduleProfiler()
+
+
+def download_url(
+    url: str, folder: str, log: bool = True, filename: Optional[str] = None
+):
+    r"""Downloads the content of an URL to a specific folder.
+
+    Args:
+        url (str): The URL.
+        folder (str): The folder.
+        log (bool, optional): If :obj:`False`, will not print anything to the
+            console. (default: :obj:`True`)
+    """
+
+    if filename is None:
+        filename = url.rpartition("/")[2]
+        filename = filename if filename[0] == "?" else filename.split("?")[0]
+
+    path = osp.join(folder, filename)
+
+    if osp.exists(path):  # pragma: no cover
+        if log and "pytest" not in sys.modules:
+            print(f"Using existing file {filename}", file=sys.stderr)
+        return path
+
+    if log and "pytest" not in sys.modules:
+        print(f"Downloading {url}", file=sys.stderr)
+
+    makedirs(folder)
+
+    context = ssl._create_unverified_context()
+    data = urllib.request.urlopen(url, context=context)
+
+    with open(path, "wb") as f:
+        while True:
+            chunk = data.read(10 * 1024 * 1024)
+            if not chunk:
+                break
+            f.write(chunk)
+
+    return path
 
 
 def load_data_batch(dataset_name, batch_size, data_dir):
@@ -247,9 +294,10 @@ def train(process_func, layer, train_dataloader, dev, **arg):
     print("----------------------Forward------------------------")
     time_no_fuse = []
     time_fuse = []
-    warmup = 2
+    warmup = 1
     sample_start_time = 0
     for i, (batched_g, labels) in enumerate(train_dataloader):
+        pdb.set_trace()
         print(
             f"epoch {i} sample elapsed time {default_timer() - sample_start_time:.2f} s"
         )
@@ -269,9 +317,9 @@ def train(process_func, layer, train_dataloader, dev, **arg):
             time_fuse.append(elapsed_time)
             # pdb.set_trace()
             print(f"epoch {i} fused time %.4f" % elapsed_time)
-            if i < 5:
+            if i < 3:
                 check_correct(logits, logits_fuse, params)
-            if i == 30:
+            if i == 20:
                 break
         sample_start_time = default_timer()
     return time_no_fuse, time_fuse
@@ -281,7 +329,7 @@ def train_SBM(process_func, layer, train_dataloader, dev, **arg):
     print("----------------------Forward------------------------")
     time_no_fuse = []
     time_fuse = []
-    warmup = 2
+    warmup = 1
     sample_start_time = 0
     for i, (batched_g) in enumerate(train_dataloader):
         print(
@@ -302,9 +350,9 @@ def train_SBM(process_func, layer, train_dataloader, dev, **arg):
             time_fuse.append(elapsed_time)
             # pdb.set_trace()
             print(f"epoch {i} fused time %.4f" % elapsed_time)
-            if i < 5:
+            if i < 3:
                 check_correct(logits, logits_fuse, params)
-            if i == 30:
+            if i == 20:
                 break
         sample_start_time = default_timer()
     return time_no_fuse, time_fuse
