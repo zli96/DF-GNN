@@ -8,8 +8,14 @@ using namespace std;
 
 extern "C" bool isMul32(int x)
 {
-  return (x >= 0 && x % 32 == 0);
+  return (x > 0 && x % 32 == 0);
 }
+
+#define roundup(x, y) (                \
+    {                                  \
+      typeof(y) __y = y;               \
+      (((x) + (__y - 1)) / __y) * __y; \
+    })
 
 #define CUDA_CALL(func)                                      \
   {                                                          \
@@ -47,6 +53,11 @@ __device__ __forceinline__ float warpReduceSum(float sum, int blockSize)
   if (blockSize >= 2)
     sum += __shfl_down_sync(0xffffffff, sum, 1);
   return sum;
+}
+
+__device__ __forceinline__ void namedBarrierSync(int name, int numThreads)
+{
+  asm volatile("bar.sync %0, %1;" : : "r"(name), "r"(numThreads) : "memory");
 }
 
 template <typename DType>
@@ -199,10 +210,10 @@ __global__ void softMax_SPMM(const int m, const int nnz, const int h, const int 
 }
 
 template <typename DType, int BLOCK_SIZE, int LOG_BLOCK_SIZE>
-__global__ void fused_forward_kernel_subgraph(const int h, const int f,
-                                              const int *node_num_ptr, const int *indptr, const int *indices, const DType *val,
-                                              const DType *Q, const DType *K, const DType *V,
-                                              DType *out_feat)
+__global__ void fused_forward_kernel_subgraph_mul32(const int h, const int f,
+                                                    const int *node_num_ptr, const int *indptr, const int *indices, const DType *val,
+                                                    const DType *Q, const DType *K, const DType *V,
+                                                    DType *out_feat)
 {
   // grid: 4096*h  block: 32 * 8 each tb processes one graph
   // BLOCK_SIZE = blockDim.y
@@ -256,49 +267,42 @@ __global__ void fused_forward_kernel_subgraph(const int h, const int f,
       const int hb = indptr[curr_node_global + 1];
       const int num_neighbor = hb - lb; // num of neighbors
 
-      // sum of the previous edges in this subgraph
-      // const int edge_local_offset = indptr[curr_node_global] - indptr[node_lb];
-      // const int edge_local_offset = indptr[curr_node_global] - indptr[node_lb + j * BLOCK_SIZE];
-
-      // if (gid == 0 && fid == 0)
-      // {
-      //   printf("curr_node %d num_neigh %d edge_local_offset %d \n", curr_node, num_neighbor, edge_local_offset);
-      // }
+      // SPMM on Q and K
       for (int k = 0; k < num_neighbor; k++)
       {
         int cid_local = indices[lb + k] - node_lb; // node id in this subgraph
         DType weight = 0;
         DType weight_partial = 0;
         weight_partial = Q_i * K_SMEM[cid_local * f + fid];
-        __syncthreads();
+        __syncwarp();
         weight_partial = warpReduceSum(weight_partial, f);
         if (laneId == 0)
         {
           warpLevelSums[WARP_SIZE * tidy + warpId] = weight_partial;
         }
-        __syncthreads();
+        // TODO 需要再检查这种sync方案的正确性
+        // __syncwarp();
+        namedBarrierSync(tidy, f);
 
         weight_partial = (fid < f / WARP_SIZE) ? warpLevelSums[WARP_SIZE * tidy + laneId] : 0;
         if (warpId == 0)
           weight_partial = warpReduceSum(weight_partial, f / WARP_SIZE);
         if (fid == 0)
         {
-          // neigh_nodes_weight[edge_local_offset + k] = weight_partial * val[lb + k];
-          // neigh_nodes_weight[tidy * 192 + k] = weight_partial * val[lb + k];
           neigh_nodes_weight[tidy + (k << LOG_BLOCK_SIZE)] = weight_partial * val[lb + k];
         }
-        __syncthreads();
-        weight = neigh_nodes_weight[tidy + (k << LOG_BLOCK_SIZE)];
-        // weight = neigh_nodes_weight[tidy * 192 + k];
-        // weight = neigh_nodes_weight[edge_local_offset + k];
+        // __syncwarp();
+        namedBarrierSync(tidy, f);
 
+        // weight = 2;
+        weight = neigh_nodes_weight[tidy + (k << LOG_BLOCK_SIZE)];
         weightMax = MAX(weight, weightMax);
         // if(gid==0 && fid == 0){
         //   printf("1curr_node %d neigh %d wight %f %f \n", curr_node, k, weight, weightMax);
         // }
       }
-      __syncthreads();
 
+      // Calculate the sum of softmax on attention weight
       int loop_WARP_neigh = (num_neighbor + WARP_SIZE - 1) / WARP_SIZE;
       DType expAll = 0;
       for (int k = 0; k < loop_WARP_neigh; k++)
@@ -307,9 +311,8 @@ __global__ void fused_forward_kernel_subgraph(const int h, const int f,
         int pid = laneId + (k << 5);
         if (pid < num_neighbor)
         {
+          // DType weight = 2;
           DType weight = neigh_nodes_weight[tidy + (pid << LOG_BLOCK_SIZE)];
-          // DType weight = neigh_nodes_weight[edge_local_offset + pid];
-          // DType weight = neigh_nodes_weight[tidy * 192 + pid];
 
           // if(gid==0 && fid == 0){
           // printf("2curr_node %d neigh %d wightexp %f \n", curr_node, pid, weight);
@@ -324,7 +327,6 @@ __global__ void fused_forward_kernel_subgraph(const int h, const int f,
         __syncwarp();
         expAll += exptmp;
       }
-      __syncthreads();
       // if(gid==0 && tidy == 0){
       //     printf("threadidx.x %d expAll %f  \n", fid, expAll);
       // }
@@ -336,11 +338,8 @@ __global__ void fused_forward_kernel_subgraph(const int h, const int f,
       {
         int cid_local = indices[lb + k] - node_lb;
 
-        // DType weight = neigh_nodes_weight[tidy * 192 + k];
-        // DType weight = 1000;
-
+        // DType weight = 2;
         DType weight = neigh_nodes_weight[tidy + (k << LOG_BLOCK_SIZE)];
-        // DType weight = neigh_nodes_weight[edge_local_offset + k];
 
         // if(gid==0 && fid == 0){
         //   printf("3curr_node %d neigh %d wightacc %f \n", curr_node, k, weight);
@@ -348,10 +347,139 @@ __global__ void fused_forward_kernel_subgraph(const int h, const int f,
         attn_val = exp(weight - weightMax) / expAll;
         acc += attn_val * V_SMEM[cid_local * f + fid];
       }
-      // __syncthreads();
       out_feat[curr_node_global * hf + hfid] = acc;
     }
-    // __syncthreads();
+  }
+}
+
+template <typename DType, int BLOCK_SIZE, int LOG_BLOCK_SIZE>
+__global__ void fused_forward_kernel_subgraph(const int h, const int f,
+                                              const int *node_num_ptr, const int *indptr, const int *indices, const DType *val,
+                                              const DType *Q, const DType *K, const DType *V,
+                                              DType *out_feat)
+{
+  // grid: 4096*h  block: 32 * 8 each tb processes one graph
+  // BLOCK_SIZE = blockDim.y
+  const int gid = blockIdx.x;  // index of subgraph
+  const int hid = blockIdx.y;  // index of head
+  const int fid = threadIdx.x; // index of feature
+  const int tidy = threadIdx.y;
+
+  const int node_lb = node_num_ptr[gid];
+  const int node_hb = node_num_ptr[gid + 1]; // Offset of nodes in the subgraph on the full graph
+
+  // const int edge_lb = indptr[node_lb];     // the sum of edges in previous subgraph
+  const int num_nodes = node_hb - node_lb; // num of nodes in this subgraph
+
+  const int f_mul_32 = roundup(f, 32);
+  const int hf = h * f;
+  const int laneId = fid % WARP_SIZE;
+  const int warpId = fid / WARP_SIZE;
+
+  // init shared memory
+  static __shared__ DType warpLevelSums[WARP_SIZE * BLOCK_SIZE];
+  extern __shared__ DType smem[];
+  DType *K_SMEM = smem;
+  DType *V_SMEM = (DType *)&K_SMEM[num_nodes * f];
+  DType *neigh_nodes_weight = (DType *)&V_SMEM[num_nodes * f];
+
+  int loops_node = (num_nodes + BLOCK_SIZE - 1) / BLOCK_SIZE;
+
+  // Put the K and V into smem
+  for (int j = 0; j < loops_node; j++)
+  {
+    int curr_node = j * BLOCK_SIZE + tidy;
+    if (curr_node + node_lb < node_hb && fid < f)
+    {
+      K_SMEM[curr_node * f + fid] = K[(node_lb + curr_node) * hf + hid * f + fid];
+      V_SMEM[curr_node * f + fid] = V[(node_lb + curr_node) * hf + hid * f + fid];
+    }
+  }
+  __syncthreads();
+
+  for (int j = 0; j < loops_node; j++)
+  {
+    int curr_node = tidy + j * BLOCK_SIZE;
+    int curr_node_global = curr_node + node_lb;
+    if (curr_node_global < node_hb)
+    {
+      DType weightMax = -1e38;
+      DType Q_i = Q[curr_node_global * hf + hid * f + fid]; // Q of current node
+
+      const int lb = indptr[curr_node_global]; // row rid elements
+      const int hb = indptr[curr_node_global + 1];
+      const int num_neighbor = hb - lb; // num of neighbors
+
+      // SPMM on Q and K
+      for (int k = 0; k < num_neighbor; k++)
+      {
+        DType weight = 0;
+        DType weight_partial = 0;
+        if (fid < f)
+        {
+          int cid_local = indices[lb + k] - node_lb; // node id in this subgraph
+          weight_partial = Q_i * K_SMEM[cid_local * f + fid];
+        }
+        __syncwarp();
+        weight_partial = warpReduceSum(weight_partial, f_mul_32);
+        if (laneId == 0)
+        {
+          warpLevelSums[WARP_SIZE * tidy + warpId] = weight_partial;
+        }
+        namedBarrierSync(tidy, f_mul_32);
+
+        weight_partial = (fid < f_mul_32 / WARP_SIZE) ? warpLevelSums[WARP_SIZE * tidy + laneId] : 0;
+        if (warpId == 0)
+          weight_partial = warpReduceSum(weight_partial, f_mul_32 / WARP_SIZE);
+        if (fid == 0)
+        {
+          neigh_nodes_weight[tidy + (k << LOG_BLOCK_SIZE)] = weight_partial * val[lb + k];
+        }
+        namedBarrierSync(tidy, f_mul_32);
+
+        weight = neigh_nodes_weight[tidy + (k << LOG_BLOCK_SIZE)];
+        weightMax = MAX(weight, weightMax);
+      }
+
+      // Calculate the sum of softmax on attention weight
+      int loop_WARP_neigh = (num_neighbor + WARP_SIZE - 1) / WARP_SIZE;
+      DType expAll = 0;
+      for (int k = 0; k < loop_WARP_neigh; k++)
+      {
+        DType exptmp = 0;
+        int pid = laneId + (k << 5);
+        if (pid < num_neighbor)
+        {
+          DType weight = neigh_nodes_weight[tidy + (pid << LOG_BLOCK_SIZE)];
+          exptmp = exp(weight - weightMax);
+        }
+        __syncwarp();
+        for (int stride = 16; stride > 0; stride >>= 1)
+        {
+          exptmp += __shfl_xor_sync(0xffffffff, exptmp, stride, 32);
+        }
+        __syncwarp();
+        expAll += exptmp;
+      }
+
+      // compute the output
+      DType acc = 0;
+      DType attn_val;
+      for (int k = 0; k < num_neighbor; k++)
+      {
+        int cid_local = indices[lb + k] - node_lb;
+        DType weight = neigh_nodes_weight[tidy + (k << LOG_BLOCK_SIZE)];
+        attn_val = exp(weight - weightMax) / expAll;
+        if (fid < f)
+        {
+          acc += attn_val * V_SMEM[cid_local * f + fid];
+        }
+      }
+      if (fid < f)
+      {
+        out_feat[curr_node_global * hf + hid * f + fid] = acc;
+      }
+    }
   }
 }
 
@@ -529,6 +657,7 @@ __global__ void fused_forward_kernel(const int m, const int nnz, const int h, co
     int cid = indices[lb + j];
     if (fid < f)
     {
+      // TODO 把weight的计算移到if外面
       float weight = neigh_nodes_weight[j];
       attn_val = exp(weight - weightMax) / expAll;
       acc += attn_val * V[cid * h * f + hid * f + fid];
@@ -656,9 +785,12 @@ void gf_forward(int m, int nnz, int h, int f,
   // cudaEventCreate(&start);
   // cudaEventCreate(&stop);
   // cudaEventRecord(start, 0);
+  const int ntx = WARP_SIZE;
+  const int nty = (f+WARP_SIZE-1)/WARP_SIZE;
+  
+  const dim3 nblks(m, h);
+  const dim3 nthrs(ntx, nty);
 
-  const dim3 nblks(m, h, 1);
-  const dim3 nthrs(32, (f + 31) / 32, 1);
   CUDA_KERNEL_CALL(
       (fused_forward_kernel),
       nblks, nthrs, (f + 512) * sizeof(float), m, nnz, h, f, indptr, indices, val,
@@ -675,10 +807,9 @@ void gf_forward_subgraph(int num_subgraph, int h, int f, const int *nodes_subgra
                          const float *Q, const float *K, const float *V,
                          float *out_feat)
 {
-  const int BLOCK_SIZE = atoi(getenv("BLOCK_SIZE"));
+  const int ntx = roundup(f, WARP_SIZE);
+  const int nty = 1024 / ntx;
 
-  const int ntx = f;          // on feature dimension
-  const int nty = 1024/f; // on out dimension
   const int nbx = num_subgraph;
   const int nby = h;
   const dim3 nblks(nbx, nby);
@@ -705,6 +836,47 @@ void gf_forward_subgraph(int num_subgraph, int h, int f, const int *nodes_subgra
     cudaFuncSetAttribute(fused_forward_kernel_subgraph<float, 32, 5>, cudaFuncAttributeMaxDynamicSharedMemorySize, smem_size);
     CUDA_KERNEL_CALL(
         (fused_forward_kernel_subgraph<float, 32, 5>),
+        nblks, nthrs, smem_size, h, f, nodes_subgraph, indptr, indices, val,
+        Q, K, V, out_feat);
+    break;
+  default:
+    throw "not supported BLOCKSIZE!";
+  }
+}
+
+void gf_forward_subgraph_multiple32(int num_subgraph, int h, int f, const int *nodes_subgraph,
+                                    const int *indptr, const int *indices, const float *val,
+                                    const float *Q, const float *K, const float *V,
+                                    float *out_feat)
+{
+  const int ntx = f;        // on feature dimension
+  const int nty = 1024 / f; // on out dimension
+  const int nbx = num_subgraph;
+  const int nby = h;
+  const dim3 nblks(nbx, nby);
+  const dim3 nthrs(ntx, nty);
+  const int smem_size = 1024 * 64 - nty * 32 * 4;
+  // printf("launch dim %d %d %d %d \n", ntx, nty, nbx, nby);
+  switch (nty)
+  {
+  case 8:
+    cudaFuncSetAttribute(fused_forward_kernel_subgraph_mul32<float, 8, 3>, cudaFuncAttributeMaxDynamicSharedMemorySize, smem_size);
+    CUDA_KERNEL_CALL(
+        (fused_forward_kernel_subgraph_mul32<float, 8, 3>),
+        nblks, nthrs, smem_size, h, f, nodes_subgraph, indptr, indices, val,
+        Q, K, V, out_feat);
+    break;
+  case 16:
+    cudaFuncSetAttribute(fused_forward_kernel_subgraph_mul32<float, 16, 4>, cudaFuncAttributeMaxDynamicSharedMemorySize, smem_size);
+    CUDA_KERNEL_CALL(
+        (fused_forward_kernel_subgraph_mul32<float, 16, 4>),
+        nblks, nthrs, smem_size, h, f, nodes_subgraph, indptr, indices, val,
+        Q, K, V, out_feat);
+    break;
+  case 32:
+    cudaFuncSetAttribute(fused_forward_kernel_subgraph_mul32<float, 32, 5>, cudaFuncAttributeMaxDynamicSharedMemorySize, smem_size);
+    CUDA_KERNEL_CALL(
+        (fused_forward_kernel_subgraph_mul32<float, 32, 5>),
         nblks, nthrs, smem_size, h, f, nodes_subgraph, indptr, indices, val,
         Q, K, V, out_feat);
     break;
@@ -772,9 +944,11 @@ void gf_ell_forward(int m, int nnz, int h, int f, int num_tb,
   // cudaEventCreate(&start);
   // cudaEventCreate(&stop);
   // cudaEventRecord(start, 0);
-
-  const dim3 nblks(num_tb, h, 1);
-  const dim3 nthrs(32, (f + 31) / 32, 1);
+  const int ntx = WARP_SIZE;
+  const int nty = (f+WARP_SIZE-1)/WARP_SIZE;
+  
+  const dim3 nblks(num_tb, h);
+  const dim3 nthrs(ntx, nty);
   CUDA_KERNEL_CALL(
       (fused_forward_ell_kernel),
       nblks, nthrs, (f + 512) * sizeof(float), m, nnz, h, f, indptr, indices, row_index, rows_per_tb, val,
@@ -836,10 +1010,22 @@ gf_subgraph_forward_cuda(torch::Tensor nodes_subgraph,
   auto options =
       torch::TensorOptions().dtype(torch::kFloat32).device(torch::kCUDA, devid);
   auto out_feat = torch::zeros({m, h, f}, options);
-  gf_forward_subgraph(num_subgraph, h, f, nodes_subgraph.data_ptr<int>(),
-                      indptr.data_ptr<int>(), indices.data_ptr<int>(), val.data_ptr<float>(),
-                      Q.data_ptr<float>(), K.data_ptr<float>(), V.data_ptr<float>(),
-                      out_feat.data_ptr<float>());
+
+  // check whether f is multiples of 32
+  if (isMul32(f))
+  {
+    gf_forward_subgraph_multiple32(num_subgraph, h, f, nodes_subgraph.data_ptr<int>(),
+                                   indptr.data_ptr<int>(), indices.data_ptr<int>(), val.data_ptr<float>(),
+                                   Q.data_ptr<float>(), K.data_ptr<float>(), V.data_ptr<float>(),
+                                   out_feat.data_ptr<float>());
+  }
+  else
+  {
+    gf_forward_subgraph(num_subgraph, h, f, nodes_subgraph.data_ptr<int>(),
+                        indptr.data_ptr<int>(), indices.data_ptr<int>(), val.data_ptr<float>(),
+                        Q.data_ptr<float>(), K.data_ptr<float>(), V.data_ptr<float>(),
+                        out_feat.data_ptr<float>());
+  }
 
   return {out_feat};
 }
