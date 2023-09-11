@@ -513,12 +513,12 @@ __global__ void fused_forward_kernel_mul32(const int m, const int nnz, const int
 
     int cid = indices[lb + j];
     weight_partial = Q_i * K[cid * hf + hfid];
+    __syncwarp();
 
-    __syncthreads();
     weight_partial = warpReduceSum(weight_partial, f);
     if (laneId == 0)
       warpLevelSums[warpId] = weight_partial;
-    __syncthreads();
+    namedBarrierSync(0, f);
     weight_partial = (fid < f / WARP_SIZE) ? warpLevelSums[laneId] : 0;
     if (warpId == 0)
       weight_partial = warpReduceSum(weight_partial, f / WARP_SIZE);
@@ -526,11 +526,10 @@ __global__ void fused_forward_kernel_mul32(const int m, const int nnz, const int
     {
       neigh_nodes_weight[j] = weight_partial * val[lb + j];
     }
-    __syncthreads();
+    namedBarrierSync(0, f);
     weight = neigh_nodes_weight[j];
     weightMax = MAX(weight, weightMax);
   }
-  __syncthreads();
 
   // compute the sum of exp
   int loop = (num_neighbor + 31) / 32;
@@ -552,7 +551,6 @@ __global__ void fused_forward_kernel_mul32(const int m, const int nnz, const int
     __syncwarp();
     expAll += exptmp;
   }
-  __syncthreads();
 
   // compute the output
   float acc = 0;
@@ -563,7 +561,6 @@ __global__ void fused_forward_kernel_mul32(const int m, const int nnz, const int
     float weight = neigh_nodes_weight[j];
     attn_val = exp(weight - weightMax) / expAll;
     acc += attn_val * V[cid * hf + hfid];
-    __syncthreads();
   }
 
   out_feat[rid * hf + hfid] = acc;
@@ -581,14 +578,19 @@ __global__ void fused_forward_kernel(const int m, const int nnz, const int h, co
   const int lb = indptr[rid]; // row rid elements
   const int hb = indptr[rid + 1];
 
-  const int threads_x = blockDim.x; // 32
-  const int threads_y = blockDim.y; // f/32
-  const int blockSize = threads_x * threads_y;
+  const int laneId = fid % WARP_SIZE;
+  const int warpId = fid / WARP_SIZE;
+
+  const int f_mul_32 = roundup(f);
   const int num_neighbor = hb - lb;
+
+  // Allocate smem
+  static __shared__ float warpLevelSums[WARP_SIZE];
   extern __shared__ float smem[];
   float *curr_node_feature = smem;
   float *neigh_nodes_weight = (float *)&curr_node_feature[f];
   float weightMax = -1e38;
+
   // init the shared memory
   float Q_i = 0;
   if (fid < f)
@@ -606,26 +608,25 @@ __global__ void fused_forward_kernel(const int m, const int nnz, const int h, co
       int cid = indices[lb + j];
       weight_partial = Q_i * K[cid * h * f + hid * f + fid];
     }
-    __syncthreads();
-    static __shared__ float warpLevelSums[WARP_SIZE];
-    const int laneId = fid % WARP_SIZE;
-    const int warpId = fid / WARP_SIZE;
-    weight_partial = warpReduceSum(weight_partial, blockSize);
+    __syncwarp();
+
+    weight_partial = warpReduceSum(weight_partial, f_mul_32);
     if (laneId == 0)
       warpLevelSums[warpId] = weight_partial;
-    __syncthreads();
-    weight_partial = (fid < blockSize / WARP_SIZE) ? warpLevelSums[laneId] : 0;
+    namedBarrierSync(0, f_mul_32);
+
+    weight_partial = (fid < f_mul_32 / WARP_SIZE) ? warpLevelSums[laneId] : 0;
     if (warpId == 0)
-      weight_partial = warpReduceSum(weight_partial, blockSize / WARP_SIZE);
+      weight_partial = warpReduceSum(weight_partial, f_mul_32 / WARP_SIZE);
     if (fid == 0)
     {
       neigh_nodes_weight[j] = weight_partial;
     }
-    __syncthreads();
+
+    namedBarrierSync(0, f_mul_32);
     weight = neigh_nodes_weight[j];
     weightMax = MAX(weight, weightMax);
   }
-  __syncthreads();
 
   // compute the sum of exp
   int loop = (num_neighbor + 31) / 32;
@@ -647,7 +648,6 @@ __global__ void fused_forward_kernel(const int m, const int nnz, const int h, co
     __syncwarp();
     expAll += exptmp;
   }
-  __syncthreads();
 
   // compute the output
   float acc = 0;
@@ -655,14 +655,13 @@ __global__ void fused_forward_kernel(const int m, const int nnz, const int h, co
   {
     float attn_val;
     int cid = indices[lb + j];
+    float weight = neigh_nodes_weight[j];
+    attn_val = exp(weight - weightMax) / expAll;
     if (fid < f)
     {
       // TODO 把weight的计算移到if外面
-      float weight = neigh_nodes_weight[j];
-      attn_val = exp(weight - weightMax) / expAll;
       acc += attn_val * V[cid * h * f + hid * f + fid];
     }
-    __syncthreads();
   }
   if (fid < f)
     out_feat[rid * h * f + hid * f + fid] = acc;
