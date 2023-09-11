@@ -1,11 +1,6 @@
-import os.path as osp
 import pdb
 
-import ssl
-import sys
-import urllib
 from timeit import default_timer
-from typing import Optional
 
 import dgl.sparse as dglsp
 
@@ -20,7 +15,6 @@ from dgl.data import (
     PATTERNDataset,
     PubmedGraphDataset,
 )
-from dgl.data.utils import makedirs
 
 from dgl.dataloading import GraphDataLoader
 from ogb.graphproppred import collate_dgl, DglGraphPropPredDataset
@@ -30,47 +24,6 @@ from ogb.nodeproppred import DglNodePropPredDataset
 from torch.utils.data import DataLoader
 
 profiler = ScheduleProfiler.ScheduleProfiler()
-
-
-def download_url(
-    url: str, folder: str, log: bool = True, filename: Optional[str] = None
-):
-    r"""Downloads the content of an URL to a specific folder.
-
-    Args:
-        url (str): The URL.
-        folder (str): The folder.
-        log (bool, optional): If :obj:`False`, will not print anything to the
-            console. (default: :obj:`True`)
-    """
-
-    if filename is None:
-        filename = url.rpartition("/")[2]
-        filename = filename if filename[0] == "?" else filename.split("?")[0]
-
-    path = osp.join(folder, filename)
-
-    if osp.exists(path):  # pragma: no cover
-        if log and "pytest" not in sys.modules:
-            print(f"Using existing file {filename}", file=sys.stderr)
-        return path
-
-    if log and "pytest" not in sys.modules:
-        print(f"Downloading {url}", file=sys.stderr)
-
-    makedirs(folder)
-
-    context = ssl._create_unverified_context()
-    data = urllib.request.urlopen(url, context=context)
-
-    with open(path, "wb") as f:
-        while True:
-            chunk = data.read(10 * 1024 * 1024)
-            if not chunk:
-                break
-            f.write(chunk)
-
-    return path
 
 
 def load_data_batch(dataset_name, batch_size, data_dir):
@@ -90,9 +43,12 @@ def load_data_batch(dataset_name, batch_size, data_dir):
             collate_fn=collate_dgl,
         )
     elif dataset_name == "MNIST" or dataset_name == "CIFAR10":
-        dataset = LoadData(dataset_name)
+        dataset = LoadData(dataset_name, data_dir)
         trainset, _, _ = dataset.train, dataset.val, dataset.test
-        train_dataloader = DataLoader(
+        # train_dataloader = DataLoader(
+        #     trainset, batch_size=batch_size, shuffle=False, collate_fn=dataset.collate
+        # )
+        train_dataloader = GraphDataLoader(
             trainset, batch_size=batch_size, shuffle=False, collate_fn=dataset.collate
         )
     elif dataset_name == "PATTERN":
@@ -297,7 +253,6 @@ def train(process_func, layer, train_dataloader, dev, **arg):
     warmup = 1
     sample_start_time = 0
     for i, (batched_g, labels) in enumerate(train_dataloader):
-        pdb.set_trace()
         print(
             f"epoch {i} sample elapsed time {default_timer() - sample_start_time:.2f} s"
         )

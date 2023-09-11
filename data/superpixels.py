@@ -275,15 +275,15 @@ def self_loop(g):
 
 
 class SuperPixDataset(torch.utils.data.Dataset):
-    def __init__(self, name):
+    def __init__(self, name, data_dir="data"):
         """
         Loading Superpixels datasets
         """
         start = time.time()
         print("[I] Loading dataset %s..." % (name))
         self.name = name
-        data_dir = "data/superpixels/"
-        with open(data_dir + name + ".pkl", "rb") as f:
+        data_dir = os.path.join(data_dir, "superpixels")
+        with open(os.path.join(data_dir, f"{name}.pkl"), "rb") as f:
             f = pickle.load(f)
             self.train = f[0]
             self.val = f[1]

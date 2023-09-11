@@ -581,7 +581,7 @@ __global__ void fused_forward_kernel(const int m, const int nnz, const int h, co
   const int laneId = fid % WARP_SIZE;
   const int warpId = fid / WARP_SIZE;
 
-  const int f_mul_32 = roundup(f);
+  const int f_mul_32 = roundup(f, 32);
   const int num_neighbor = hb - lb;
 
   // Allocate smem
@@ -785,8 +785,8 @@ void gf_forward(int m, int nnz, int h, int f,
   // cudaEventCreate(&stop);
   // cudaEventRecord(start, 0);
   const int ntx = WARP_SIZE;
-  const int nty = (f+WARP_SIZE-1)/WARP_SIZE;
-  
+  const int nty = (f + WARP_SIZE - 1) / WARP_SIZE;
+
   const dim3 nblks(m, h);
   const dim3 nthrs(ntx, nty);
 
@@ -944,8 +944,8 @@ void gf_ell_forward(int m, int nnz, int h, int f, int num_tb,
   // cudaEventCreate(&stop);
   // cudaEventRecord(start, 0);
   const int ntx = WARP_SIZE;
-  const int nty = (f+WARP_SIZE-1)/WARP_SIZE;
-  
+  const int nty = (f + WARP_SIZE - 1) / WARP_SIZE;
+
   const dim3 nblks(num_tb, h);
   const dim3 nthrs(ntx, nty);
   CUDA_KERNEL_CALL(
