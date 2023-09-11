@@ -2,11 +2,17 @@
 # Graph statistics
 
 - [Graph statistics](#graph-statistics)
+  - [统计过的图性质](#统计过的图性质)
   - [molecular dataset](#molecular-dataset)
   - [super-pixel dataset](#super-pixel-dataset)
   - [SBM dataset](#sbm-dataset)
   - [Full-graph dataset](#full-graph-dataset)
 
+## 统计过的图性质
+
+* num_nodes: 数据集中不同子图的节点数
+* num_neigh：数据集中不同节点的邻居数
+* over_adj：8个相邻节点的邻居的重合情况
 
 
 

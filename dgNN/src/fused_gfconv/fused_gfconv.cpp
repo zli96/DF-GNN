@@ -1,7 +1,12 @@
 #include <iostream>
 #include <pybind11/pybind11.h>
 #include <torch/extension.h>
+#include <ATen/cuda/CUDAContext.h>
 #include <vector>
+
+#define CHECK_DEVICE(x) TORCH_CHECK(x.device().type() == torch::kCUDA, #x " must be on CUDA")
+#define CHECK_SHAPE(x, ...) TORCH_CHECK(x.sizes() == torch::IntArrayRef({__VA_ARGS__}), #x " must have shape (" #__VA_ARGS__ ")")
+#define CHECK_CONTIGUOUS(x) TORCH_CHECK(x.is_contiguous(), #x " must be contiguous")
 
 std::vector<torch::Tensor> gf_forward_cuda(torch::Tensor indptr,
                                            torch::Tensor indices,
@@ -33,19 +38,13 @@ std::vector<torch::Tensor> gf_forward(torch::Tensor indptr,
                                       torch::Tensor V)
 {
   // device check
-  assert(indptr.device().type() == torch::kCUDA);
-  assert(indices.device().type() == torch::kCUDA);
-  assert(val.device().type() == torch::kCUDA);
-  assert(Q.device().type() == torch::kCUDA);
-  assert(K.device().type() == torch::kCUDA);
-  assert(V.device().type() == torch::kCUDA);
+  CHECK_DEVICE(indptr); CHECK_DEVICE(indices); CHECK_DEVICE(val);
+  CHECK_DEVICE(Q); CHECK_DEVICE(K); CHECK_DEVICE(V);
+
   // contiguous check
-  assert(indptr.is_contiguous());
-  assert(indices.is_contiguous());
-  assert(val.is_contiguous());
-  assert(Q.is_contiguous());
-  assert(K.is_contiguous());
-  assert(V.is_contiguous());
+  CHECK_CONTIGUOUS(indptr); CHECK_CONTIGUOUS(indices); CHECK_CONTIGUOUS(val);
+  CHECK_CONTIGUOUS(Q); CHECK_CONTIGUOUS(K); CHECK_CONTIGUOUS(V);
+
   // dtype check
   assert(indptr.dtype() == torch::kInt32);
   assert(indices.dtype() == torch::kInt32);
@@ -53,9 +52,11 @@ std::vector<torch::Tensor> gf_forward(torch::Tensor indptr,
   assert(Q.dtype() == torch::kFloat32);
   assert(K.dtype() == torch::kFloat32);
   assert(V.dtype() == torch::kFloat32);
+
   // shape check
   // TODO add shape check
   assert(indices.size(0) == val.size(0));
+
   return gf_forward_cuda(indptr, indices, val, Q, K, V);
 }
 
@@ -65,21 +66,13 @@ std::vector<torch::Tensor> gf_hyper_forward(torch::Tensor indptr, torch::Tensor 
                                             torch::Tensor V)
 {
   // device check
-  assert(indptr.device().type() == torch::kCUDA);
-  assert(indices.device().type() == torch::kCUDA);
-  assert(rows.device().type() == torch::kCUDA);
-  assert(val.device().type() == torch::kCUDA);
-  assert(Q.device().type() == torch::kCUDA);
-  assert(K.device().type() == torch::kCUDA);
-  assert(V.device().type() == torch::kCUDA);
+  CHECK_DEVICE(indptr); CHECK_DEVICE(indices); CHECK_DEVICE(val); CHECK_DEVICE(rows);
+  CHECK_DEVICE(Q); CHECK_DEVICE(K); CHECK_DEVICE(V);
+
   // contiguous check
-  assert(indptr.is_contiguous());
-  assert(indices.is_contiguous());
-  assert(rows.is_contiguous());
-  assert(val.is_contiguous());
-  assert(Q.is_contiguous());
-  assert(K.is_contiguous());
-  assert(V.is_contiguous());
+  CHECK_CONTIGUOUS(indptr); CHECK_CONTIGUOUS(indices); CHECK_CONTIGUOUS(val); CHECK_CONTIGUOUS(rows);
+  CHECK_CONTIGUOUS(Q); CHECK_CONTIGUOUS(K); CHECK_CONTIGUOUS(V);
+
   // dtype check
   assert(indptr.dtype() == torch::kInt32);
   assert(indices.dtype() == torch::kInt32);
@@ -88,9 +81,11 @@ std::vector<torch::Tensor> gf_hyper_forward(torch::Tensor indptr, torch::Tensor 
   assert(Q.dtype() == torch::kFloat32);
   assert(K.dtype() == torch::kFloat32);
   assert(V.dtype() == torch::kFloat32);
+
   // shape check
   // TODO add shape check
   assert(indices.size(0) == val.size(0));
+
   return gf_hyper_forward_cuda(indptr, indices, rows, val, Q, K, V);
 }
 
@@ -141,21 +136,13 @@ std::vector<torch::Tensor> gf_subgraph_forward(torch::Tensor nodes_subgraph, tor
                                             torch::Tensor V)
 {
   // device check
-  assert(indptr.device().type() == torch::kCUDA);
-  assert(indices.device().type() == torch::kCUDA);
-  assert(nodes_subgraph.device().type() == torch::kCUDA);
-  assert(val.device().type() == torch::kCUDA);
-  assert(Q.device().type() == torch::kCUDA);
-  assert(K.device().type() == torch::kCUDA);
-  assert(V.device().type() == torch::kCUDA);
+  CHECK_DEVICE(indptr); CHECK_DEVICE(indices); CHECK_DEVICE(val); CHECK_DEVICE(nodes_subgraph);
+  CHECK_DEVICE(Q); CHECK_DEVICE(K); CHECK_DEVICE(V);
+
   // contiguous check
-  assert(indptr.is_contiguous());
-  assert(indices.is_contiguous());
-  assert(nodes_subgraph.is_contiguous());
-  assert(val.is_contiguous());
-  assert(Q.is_contiguous());
-  assert(K.is_contiguous());
-  assert(V.is_contiguous());
+  CHECK_CONTIGUOUS(indptr); CHECK_CONTIGUOUS(indices); CHECK_CONTIGUOUS(val); CHECK_CONTIGUOUS(nodes_subgraph);
+  CHECK_CONTIGUOUS(Q); CHECK_CONTIGUOUS(K); CHECK_CONTIGUOUS(V);
+
   // dtype check
   assert(indptr.dtype() == torch::kInt32);
   assert(indices.dtype() == torch::kInt32);
@@ -164,9 +151,11 @@ std::vector<torch::Tensor> gf_subgraph_forward(torch::Tensor nodes_subgraph, tor
   assert(Q.dtype() == torch::kFloat32);
   assert(K.dtype() == torch::kFloat32);
   assert(V.dtype() == torch::kFloat32);
+
   // shape check
   // TODO add shape check
   assert(indices.size(0) == val.size(0));
+  
   return gf_subgraph_forward_cuda(nodes_subgraph, indptr, indices, val, Q, K, V);
 }
 

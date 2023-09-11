@@ -209,7 +209,7 @@ class SparseMHA_subgraph(nn.Module):
         q *= self.scaling
         k = self.k_proj(h).reshape(N, self.head_dim, self.num_heads)
         v = self.v_proj(h).reshape(N, self.head_dim, self.num_heads)
-        A, nodes_subgraph, indptr, indices, val = params
+        A, indptr, indices, nodes_subgraph, val = params
         ######################################################################
         # (HIGHLIGHT) Compute the multi-head attention with Sparse Matrix API
         ######################################################################
