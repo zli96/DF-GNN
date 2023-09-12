@@ -42,13 +42,13 @@ extern "C" bool isMul32(int x)
 
 __device__ __forceinline__ float warpReduceSum(float sum, int blockSize)
 {
-  if (blockSize >= 32)
+  if (blockSize > 16)
     sum += __shfl_down_sync(0xffffffff, sum, 16);
-  if (blockSize >= 16)
+  if (blockSize > 8)
     sum += __shfl_down_sync(0xffffffff, sum, 8);
-  if (blockSize >= 8)
+  if (blockSize > 4)
     sum += __shfl_down_sync(0xffffffff, sum, 4);
-  if (blockSize >= 4)
+  if (blockSize > 2)
     sum += __shfl_down_sync(0xffffffff, sum, 2);
   if (blockSize >= 2)
     sum += __shfl_down_sync(0xffffffff, sum, 1);
@@ -502,8 +502,8 @@ __global__ void fused_forward_kernel_mul32(const int m, const int nnz, const int
   static __shared__ float warpLevelSums[WARP_SIZE];
   const int hf = h * f;
   const int hfid = hid * f + fid;
-  const int laneId = fid % WARP_SIZE;
-  const int warpId = fid / WARP_SIZE;
+  const int laneId = threadIdx.x;
+  const int warpId = threadIdx.y;
   float Q_i = Q[rid * hf + hfid];
 
   for (int j = 0; j < num_neighbor; j++)
@@ -518,7 +518,7 @@ __global__ void fused_forward_kernel_mul32(const int m, const int nnz, const int
     weight_partial = warpReduceSum(weight_partial, f);
     if (laneId == 0)
       warpLevelSums[warpId] = weight_partial;
-    namedBarrierSync(0, f);
+    __syncthreads();
     weight_partial = (fid < f / WARP_SIZE) ? warpLevelSums[laneId] : 0;
     if (warpId == 0)
       weight_partial = warpReduceSum(weight_partial, f / WARP_SIZE);
@@ -526,11 +526,11 @@ __global__ void fused_forward_kernel_mul32(const int m, const int nnz, const int
     {
       neigh_nodes_weight[j] = weight_partial * val[lb + j];
     }
-    namedBarrierSync(0, f);
+    __syncthreads();
     weight = neigh_nodes_weight[j];
     weightMax = MAX(weight, weightMax);
   }
-
+  
   // compute the sum of exp
   int loop = (num_neighbor + 31) / 32;
   float expAll = 0;
@@ -559,6 +559,7 @@ __global__ void fused_forward_kernel_mul32(const int m, const int nnz, const int
     float attn_val;
     int cid = indices[lb + j];
     float weight = neigh_nodes_weight[j];
+    //TODO 这个除法可以放出去？
     attn_val = exp(weight - weightMax) / expAll;
     acc += attn_val * V[cid * hf + hfid];
   }
@@ -927,7 +928,7 @@ void gf_forward_multiple32(int m, int nnz, int h, int f,
   // cudaEventRecord(start, 0);
   const dim3 nblks(m, h, 1);
   const dim3 nthrs(32, f / 32, 1);
-  CUDA_KERNEL_CALL(
+    CUDA_KERNEL_CALL(
       (fused_forward_kernel_mul32),
       nblks, nthrs, (512) * sizeof(float), m, nnz, h, f, indptr, indices, val,
       Q, K, V, out_feat);
