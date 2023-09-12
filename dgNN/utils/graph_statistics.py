@@ -34,7 +34,7 @@ def batch_graph_statistics(args):
     num_nodes = []  # 每个subgraph中节点的总数
     graph_density = []  # 每个subgraph的图密度
 
-    if args.dataset == "PATTERN" or args.dataset == "CLUSTER":
+    if args.dataset in ["PATTERN", "CLUSTER", "PascalVOC-SP", "COCO-SP"]:
         for iter, (g) in tqdm(enumerate(train_dataloader)):
             indices = torch.stack(g.edges())
             N = g.num_nodes()
