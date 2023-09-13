@@ -311,7 +311,7 @@ __global__ void fused_forward_kernel_subgraph_mul32(const int h, const int f,
         int pid = laneId + (k << 5);
         if (pid < num_neighbor)
         {
-          // DType weight = 2;
+          // TODO need to fix the bank conflict?
           DType weight = neigh_nodes_weight[tidy + (pid << LOG_BLOCK_SIZE)];
 
           // if(gid==0 && fid == 0){
@@ -344,10 +344,10 @@ __global__ void fused_forward_kernel_subgraph_mul32(const int h, const int f,
         // if(gid==0 && fid == 0){
         //   printf("3curr_node %d neigh %d wightacc %f \n", curr_node, k, weight);
         // }
-        attn_val = exp(weight - weightMax) / expAll;
+        attn_val = exp(weight - weightMax);
         acc += attn_val * V_SMEM[cid_local * f + fid];
       }
-      out_feat[curr_node_global * hf + hfid] = acc;
+      out_feat[curr_node_global * hf + hfid] = acc / expAll;
     }
   }
 }
@@ -469,7 +469,7 @@ __global__ void fused_forward_kernel_subgraph(const int h, const int f,
       {
         int cid_local = indices[lb + k] - node_lb;
         DType weight = neigh_nodes_weight[tidy + (k << LOG_BLOCK_SIZE)];
-        attn_val = exp(weight - weightMax) / expAll;
+        attn_val = exp(weight - weightMax);
         if (fid < f)
         {
           acc += attn_val * V_SMEM[cid_local * f + fid];
@@ -477,7 +477,7 @@ __global__ void fused_forward_kernel_subgraph(const int h, const int f,
       }
       if (fid < f)
       {
-        out_feat[curr_node_global * hf + hid * f + fid] = acc;
+        out_feat[curr_node_global * hf + hid * f + fid] = acc / expAll;
       }
     }
   }
@@ -530,7 +530,7 @@ __global__ void fused_forward_kernel_mul32(const int m, const int nnz, const int
     weight = neigh_nodes_weight[j];
     weightMax = MAX(weight, weightMax);
   }
-  
+
   // compute the sum of exp
   int loop = (num_neighbor + 31) / 32;
   float expAll = 0;
@@ -559,12 +559,11 @@ __global__ void fused_forward_kernel_mul32(const int m, const int nnz, const int
     float attn_val;
     int cid = indices[lb + j];
     float weight = neigh_nodes_weight[j];
-    //TODO 这个除法可以放出去？
-    attn_val = exp(weight - weightMax) / expAll;
+    attn_val = exp(weight - weightMax);
     acc += attn_val * V[cid * hf + hfid];
   }
 
-  out_feat[rid * hf + hfid] = acc;
+  out_feat[rid * hf + hfid] = acc / expAll;
 }
 
 __global__ void fused_forward_kernel(const int m, const int nnz, const int h, const int f,
@@ -657,15 +656,14 @@ __global__ void fused_forward_kernel(const int m, const int nnz, const int h, co
     float attn_val;
     int cid = indices[lb + j];
     float weight = neigh_nodes_weight[j];
-    attn_val = exp(weight - weightMax) / expAll;
+    attn_val = exp(weight - weightMax);
     if (fid < f)
     {
-      // TODO 把weight的计算移到if外面
       acc += attn_val * V[cid * h * f + hid * f + fid];
     }
   }
   if (fid < f)
-    out_feat[rid * h * f + hid * f + fid] = acc;
+    out_feat[rid * h * f + hid * f + fid] = acc / expAll;
 }
 
 __global__ void fused_forward_ell_kernel(const int m, const int nnz, const int h, const int f,
@@ -928,7 +926,7 @@ void gf_forward_multiple32(int m, int nnz, int h, int f,
   // cudaEventRecord(start, 0);
   const dim3 nblks(m, h, 1);
   const dim3 nthrs(32, f / 32, 1);
-    CUDA_KERNEL_CALL(
+  CUDA_KERNEL_CALL(
       (fused_forward_kernel_mul32),
       nblks, nthrs, (512) * sizeof(float), m, nnz, h, f, indptr, indices, val,
       Q, K, V, out_feat);
