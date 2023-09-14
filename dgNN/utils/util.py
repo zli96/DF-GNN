@@ -235,27 +235,26 @@ def preprocess_ELL(
 
 
 def check_correct(logits, logits_fuse, params):
-    check_same = all(torch.isclose(logits, logits_fuse, atol=0.01).flatten())
-    if check_same:
+    check_same = torch.tensor(
+        [all(i) for i in torch.isclose(logits, logits_fuse, atol=0.001)]
+    )
+    if all(check_same):
         print("the results are the same, success!!!!!!!!!!")
     else:
+        false_flag = torch.argwhere(~check_same)
         if len(params) == 5:
             row_ptr = params[2]
             col_ind = params[3]
         else:
             row_ptr = params[1]
             col_ind = params[2]
-        for i in range(logits.shape[0]):
-            if not check_same:
+        for i in false_flag:
+            if not check_same[i]:
                 print(f"error node {i} mismatch")
                 print("neighbor nodes", col_ind[row_ptr[i] : row_ptr[i + 1]])
                 print(logits[i])
                 print(logits_fuse[i])
                 pdb.set_trace()
-            else:
-                print("----------------pass------------------")
-                print("neighbor nodes", col_ind[row_ptr[i] : row_ptr[i + 1]])
-                print("")
 
 
 def train(process_func, layer, train_dataloader, dev, **arg):
