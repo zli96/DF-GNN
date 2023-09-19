@@ -254,6 +254,7 @@ def check_correct(logits, logits_fuse, params):
                 print("neighbor nodes", col_ind[row_ptr[i] : row_ptr[i + 1]])
                 print(logits[i])
                 print(logits_fuse[i])
+                print(torch.isclose(logits[i], logits_fuse[i], atol=0.001))
                 pdb.set_trace()
 
 

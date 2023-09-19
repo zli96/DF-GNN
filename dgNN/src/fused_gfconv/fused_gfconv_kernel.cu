@@ -173,7 +173,7 @@ __global__ void softMax_SPMM(const int m, const int nnz, const int h, const int 
     weightMax = MAX(weight, weightMax);
   }
   // compute the sum of exp
-  int loop = (num_neighbor + 31) / 32;
+  int loop = (num_neighbor + WARP_SIZE - 1) / WARP_SIZE;
   float expAll = 0;
   for (int j = 0; j < loop; j++)
   {
@@ -192,7 +192,6 @@ __global__ void softMax_SPMM(const int m, const int nnz, const int h, const int 
     __syncwarp();
     expAll += exptmp;
   }
-  __syncthreads();
 
   // compute the output
   float acc = 0;
@@ -201,12 +200,15 @@ __global__ void softMax_SPMM(const int m, const int nnz, const int h, const int 
     float attn_val;
     int cid = indices[lb + j];
     float weight = neigh_nodes_weight[j];
-    attn_val = exp(weight - weightMax) / expAll;
-    acc += attn_val * V[cid * hf + hfid];
-    __syncthreads();
+    attn_val = exp(weight - weightMax);
+    if (fid < f)
+    {
+      acc += attn_val * V[cid * hf + hfid];
+    }
   }
-
-  out_feat[rid * hf + hfid] = acc;
+  if (fid < f)
+    // handle the node with no neighbor
+    out_feat[rid * hf + hfid] = (expAll != 0) ? acc / expAll : 0;
 }
 
 template <typename DType, int BLOCK_SIZE, int LOG_BLOCK_SIZE>
@@ -347,7 +349,8 @@ __global__ void fused_forward_kernel_subgraph_mul32(const int h, const int f,
         attn_val = exp(weight - weightMax);
         acc += attn_val * V_SMEM[cid_local * f + fid];
       }
-      out_feat[curr_node_global * hf + hfid] = acc / expAll;
+      // handle the node with no neighbor
+      out_feat[curr_node_global * hf + hfid] = (expAll != 0) ? acc / expAll : 0;
     }
   }
 }
@@ -477,7 +480,8 @@ __global__ void fused_forward_kernel_subgraph(const int h, const int f,
       }
       if (fid < f)
       {
-        out_feat[curr_node_global * hf + hid * f + fid] = acc / expAll;
+        // handle the node with no neighbor
+        out_feat[curr_node_global * hf + hid * f + fid] = (expAll != 0) ? acc / expAll : 0;
       }
     }
   }
@@ -563,7 +567,8 @@ __global__ void fused_forward_kernel_mul32(const int m, const int nnz, const int
     acc += attn_val * V[cid * hf + hfid];
   }
 
-  out_feat[rid * hf + hfid] = acc / expAll;
+  // handle the node with no neighbor
+  out_feat[rid * hf + hfid] = (expAll != 0) ? acc / expAll : 0;
 }
 
 __global__ void fused_forward_kernel(const int m, const int nnz, const int h, const int f,
@@ -663,7 +668,8 @@ __global__ void fused_forward_kernel(const int m, const int nnz, const int h, co
     }
   }
   if (fid < f)
-    out_feat[rid * h * f + hid * f + fid] = acc / expAll;
+    // handle the node with no neighbor
+    out_feat[rid * h * f + hid * f + fid] = (expAll != 0) ? acc / expAll : 0;
 }
 
 __global__ void fused_forward_ell_kernel(const int m, const int nnz, const int h, const int f,
