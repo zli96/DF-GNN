@@ -12,7 +12,7 @@ if [ -z "${heads}" ]; then
 	heads=1
 fi
 if [ -z "${bs}" ]; then
-	bs=256
+	bs=2048
 fi
 if [ -z "${data_dir}" ]; then
 	data_dir="/workspace2/dataset"
