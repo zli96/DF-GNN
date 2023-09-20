@@ -61,3 +61,5 @@ if __name__ == "__main__":
     print(
         "fuse average time {:.4f} ms".format(sum(time_fuse[:-1]) / (len(time_fuse) - 1))
     )
+    print(sum(time_no_fuse[:-1]) / (len(time_no_fuse) - 1))
+    print(sum(time_fuse[:-1]) / (len(time_fuse) - 1))

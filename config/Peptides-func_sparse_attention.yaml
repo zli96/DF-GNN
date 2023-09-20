@@ -1,0 +1,5 @@
+dataset: Peptides-func
+format: csr
+dim: 96
+heads: 1
+batch_size: 256

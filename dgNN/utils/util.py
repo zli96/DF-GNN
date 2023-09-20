@@ -7,6 +7,8 @@ import dgl.sparse as dglsp
 import matplotlib.pyplot as plt
 import ScheduleProfiler
 import torch
+
+import yaml
 from data import LoadData
 from dgl.data import (
     CiteseerGraphDataset,
@@ -408,15 +410,33 @@ def benchmark(function, *args):
     return out, t.elapsed_secs / 100
 
 
+def parse_args(parser):
+    args = parser.parse_args()
+    if args.config:
+        with open(args.config, "r") as file:
+            data = yaml.safe_load(file)
+        delattr(args, "config")
+        arg_dict = args.__dict__
+        for key, value in data.items():
+            if key not in arg_dict.keys():
+                if isinstance(value, list):
+                    for v in value:
+                        arg_dict[key].append(v)
+                else:
+                    arg_dict[key] = value
+    return args
+
+
 def parser_argument(parser):
+    parser.add_argument("--config", type=str)
     parser.add_argument("--format", type=str, default="csr")
     parser.add_argument("--dim", type=int, default=64)
-    parser.add_argument("--heads", type=int, default=8)
+    parser.add_argument("--heads", type=int, default=1)
     parser.add_argument("--batch-size", type=int, default=256)
     parser.add_argument("--data-dir", type=str, default="./data/OGB")
     parser.add_argument("--dataset", type=str, default="ogbg-molhiv")
 
-    args = parser.parse_args()
+    args = parse_args(parser)
     print("Dataset", args.dataset)
     print("format: ", args.format)
     print("hidden dim", args.dim)
