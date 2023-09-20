@@ -571,6 +571,66 @@ __global__ void fused_forward_kernel_mul32(const int m, const int nnz, const int
   out_feat[rid * hf + hfid] = (expAll != 0) ? acc / expAll : 0;
 }
 
+__global__ void fused_forward_kernel_tiling_mul32(const int m, const int nnz, const int h, const int f,
+                                                  const int *indptr, const int *indices, const float *val,
+                                                  const float *Q, const float *K, const float *V,
+                                                  float *out_feat)
+{
+  const int rid = blockIdx.x;                     // loop over row of adj matrix
+  const int hid = blockIdx.y;                     // loop over heads
+  const int fid = threadIdx.y * 32 + threadIdx.x; // loop over feature dim
+
+  const int lb = indptr[rid]; // row rid elements
+  const int hb = indptr[rid + 1];
+
+  const int num_neighbor = hb - lb;
+  extern __shared__ float smem[];
+  float *neigh_nodes_weight = smem;
+  static __shared__ float warpLevelSums[WARP_SIZE];
+  const int hf = h * f;
+  const int hfid = hid * f + fid;
+  const int laneId = threadIdx.x;
+  const int warpId = threadIdx.y;
+  float Q_i = Q[rid * hf + hfid];
+
+  float acc = 0, partial_sum = 0;
+  float weightMax_old = -1e38, weightMax = -1e38;
+  float expweight, expweightMax;
+
+  for (int j = 0; j < num_neighbor; j++)
+  {
+    float weight = 0;
+    float weight_partial = 0;
+
+    int cid = indices[lb + j];
+    weight_partial = Q_i * K[cid * hf + hfid];
+    __syncwarp();
+
+    weight_partial = warpReduceSum(weight_partial, f);
+    if (laneId == 0)
+      warpLevelSums[warpId] = weight_partial;
+    __syncthreads();
+    weight_partial = (fid < f / WARP_SIZE) ? warpLevelSums[laneId] : 0;
+    if (warpId == 0)
+      weight_partial = warpReduceSum(weight_partial, f / WARP_SIZE);
+    if (fid == 0)
+    {
+      neigh_nodes_weight[j] = weight_partial * val[lb + j];
+    }
+    __syncthreads();
+    weight = neigh_nodes_weight[j];
+    weightMax = MAX(weight, weightMax);
+    expweight = exp(weight - weightMax);
+    expweightMax = (weightMax_old == weightMax) ? 1 : exp(weightMax_old - weightMax);
+    acc = acc * expweightMax + expweight * V[cid * hf + hfid];
+    partial_sum = partial_sum * expweightMax + expweight;
+    weightMax_old = weightMax;
+  }
+
+  // handle the node with no neighbor
+  out_feat[rid * hf + hfid] = (partial_sum != 0) ? acc / partial_sum : 0;
+}
+
 __global__ void fused_forward_kernel(const int m, const int nnz, const int h, const int f,
                                      const int *indptr, const int *indices, const float *val,
                                      const float *Q, const float *K, const float *V,
@@ -933,7 +993,7 @@ void gf_forward_multiple32(int m, int nnz, int h, int f,
   const dim3 nblks(m, h, 1);
   const dim3 nthrs(32, f / 32, 1);
   CUDA_KERNEL_CALL(
-      (fused_forward_kernel_mul32),
+      (fused_forward_kernel_tiling_mul32),
       nblks, nthrs, (512) * sizeof(float), m, nnz, h, f, indptr, indices, val,
       Q, K, V, out_feat);
 }
