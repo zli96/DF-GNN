@@ -418,7 +418,7 @@ def parse_args(parser):
         delattr(args, "config")
         arg_dict = args.__dict__
         for key, value in data.items():
-            if key not in arg_dict.keys():
+            if key not in arg_dict.keys() or arg_dict[key] == None:
                 if isinstance(value, list):
                     for v in value:
                         arg_dict[key].append(v)
@@ -430,15 +430,15 @@ def parse_args(parser):
 def parser_argument(parser):
     parser.add_argument("--config", type=str)
     parser.add_argument("--format", type=str, default="csr")
-    parser.add_argument("--dim", type=int, default=64)
+    parser.add_argument("--dim", type=int)
     parser.add_argument("--heads", type=int, default=1)
-    parser.add_argument("--batch-size", type=int, default=256)
+    parser.add_argument("--batch-size", type=int)
     parser.add_argument("--data-dir", type=str, default="./data/OGB")
-    parser.add_argument("--dataset", type=str, default="ogbg-molhiv")
+    parser.add_argument("--dataset", type=str)
 
     args = parse_args(parser)
     print("Dataset", args.dataset)
-    print("format: ", args.format)
+    print("format", args.format)
     print("hidden dim", args.dim)
     print("num heads", args.heads)
     print("batch size", args.batch_size)

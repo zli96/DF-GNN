@@ -22,10 +22,10 @@ for dataset in ${datasets[@]}; do
         for bs in ${batch_sizes[@]}; do
 
             # # run with nolog
-            # python -u dgNN/script/test/test_gf.py  --data-dir ${data_dir} --dataset ${dataset} --format ${format} --config ${config_dir} --batch-size $bs
+            # python -u dgNN/script/test/test_gf.py --data-dir ${data_dir} --format ${format} --config ${config_dir} --batch-size $bs
 
             # # run with log
-            python -u dgNN/script/test/test_gf.py  --data-dir ${data_dir} --dataset ${dataset} --format ${format} --config ${config_dir} --batch-size $bs | tee -a log/day_${day}/${name}.log
+            python -u dgNN/script/test/test_gf.py  --data-dir ${data_dir} --format ${format} --config ${config_dir} --batch-size $bs | tee -a log/day_${day}/${name}.log
 
             # # run with nohup
             # echo "nohup python -u dgNN/script/test/test_gf.py --data-dir ${data_dir} --dataset ${dataset} --format ${format} --config ${config_dir} --batch-size $bs  >> log/day_${day}/${name}.log 2>&1 &" | bash;
