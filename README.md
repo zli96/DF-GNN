@@ -48,7 +48,7 @@ bash bash/run_nsys.sh
 bash bash/run_ncu.sh 
 
 // run the csr/hyper methods on all datasets
-nohup bash bash/run_all.sh & 
+nohup bash bash/run_all.sh > /dev/null 2>&1 &
 
 ```
 
