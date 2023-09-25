@@ -55,6 +55,18 @@ __device__ __forceinline__ float warpReduceSum(float sum, int blockSize)
   return sum;
 }
 
+__device__ __forceinline__ float warpReduceMax(float val)
+{
+    const unsigned int FULL_MASK = 0xffffffff;
+  
+    for (int mask = warpSize / 2; mask > 0; mask /= 2)
+    {
+        val = max(__shfl_xor_sync(FULL_MASK, val, mask), val);
+    }
+      
+    return val;
+}
+
 __device__ __forceinline__ void namedBarrierSync(int name, int numThreads)
 {
   asm volatile("bar.sync %0, %1;" : : "r"(name), "r"(numThreads) : "memory");
@@ -161,19 +173,52 @@ __global__ void softMax_SPMM(const int m, const int nnz, const int h, const int 
   const int hf = h * f;
   const int hfid = hid * f + fid;
 
-  for (int j = 0; j < num_neighbor; j++)
+  // for (int j = 0; j < num_neighbor; j++)
+  // {
+  //   float weight = 0;
+  //   if (fid == 0)
+  //   {
+  //     neigh_nodes_weight[j] = attn_edge[lb + j];
+  //   }
+  //   __syncthreads();
+  //   weight = neigh_nodes_weight[j];
+  //   weightMax = MAX(weight, weightMax);
+  // }
+  // // compute the sum of exp
+  // int loop = (num_neighbor + WARP_SIZE - 1) / WARP_SIZE;
+  
+  // init smem
+  int loop = (num_neighbor + f - 1) / f;
+  for (int j = 0; j < loop; j++)
   {
-    float weight = 0;
-    if (fid == 0)
+    int pid = fid+ j *f;
+    if (pid < num_neighbor)
     {
-      neigh_nodes_weight[j] = attn_edge[lb + j];
+      neigh_nodes_weight[pid] = attn_edge[lb + pid];
     }
-    __syncthreads();
-    weight = neigh_nodes_weight[j];
+  }
+  __syncthreads();
+  // TODO: 算最大weight可以并行的吧
+  loop = (num_neighbor + WARP_SIZE - 1) / WARP_SIZE;
+  float warpMax;
+  for (int j = 0; j < loop; j++)
+  {
+    float weight = -1e38;
+    int pid = threadIdx.x + (j << 5);
+    if (pid < num_neighbor)
+    {
+      weight = neigh_nodes_weight[pid];
+    }
+    __syncwarp();
+    for (int stride = 16; stride > 0; stride >>= 1)
+    {
+      weight = max(__shfl_xor_sync(0xffffffff, weight, stride, 32), weight);
+    }
+    // warpMax = warpReduceMax(weight);
+    __syncwarp();
     weightMax = MAX(weight, weightMax);
   }
   // compute the sum of exp
-  int loop = (num_neighbor + WARP_SIZE - 1) / WARP_SIZE;
   float expAll = 0;
   for (int j = 0; j < loop; j++)
   {
@@ -977,7 +1022,7 @@ void gf_forward_nofuse(int m, int nnz, int h, int f,
   // const dim3 nthrs2(32, (f + 31) / 32, 1);
   CUDA_KERNEL_CALL(
       (softMax_SPMM),
-      nblks2, nthrs2, (f + 512) * sizeof(float), m, nnz, h, f, indptr, indices, val,
+      nblks2, nthrs2, (f + 4*1024) * sizeof(float), m, nnz, h, f, indptr, indices, val,
       V, attn_edge, out_feat);
 }
 
@@ -994,7 +1039,7 @@ void gf_forward_multiple32(int m, int nnz, int h, int f,
   const dim3 nthrs(32, f / 32, 1);
   CUDA_KERNEL_CALL(
       (fused_forward_kernel_tiling_mul32),
-      nblks, nthrs, (512) * sizeof(float), m, nnz, h, f, indptr, indices, val,
+      nblks, nthrs, (1024) * sizeof(float), m, nnz, h, f, indptr, indices, val,
       Q, K, V, out_feat);
 }
 
