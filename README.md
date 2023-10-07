@@ -33,19 +33,22 @@ We provide serval bash examples to run the model
 // hyper (sddmm in coo + spmm in csr format)
 
 // test bash, run the code on the molhiv dataset without the log
-bash run_nolog.sh 
+bash bash/run_nolog.sh 
 
 // run the code on the different bs and print the log
-bash run_multi.sh 
+bash bash/run_multi.sh 
 
 // run the code on the full-graph dataset like cora and print the log
-bash run_full_graph.sh 
+bash bash/run_full_graph.sh 
 
 // profile the code by the nsight system tool
-bash run_nsys.sh 
+bash bash/run_nsys.sh 
 
 // profile the code by the nsight compute tool
-bash run_ncu.sh 
+bash bash/run_ncu.sh 
+
+// run the csr/hyper methods on all datasets
+nohup bash bash/run_all.sh > /dev/null 2>&1 &
 
 ```
 
@@ -57,6 +60,7 @@ Batch dataset:
 * mol: ogbg-molhiv, PCQM4Mv2-full
 * SBM: PATTERN, CLUSTER
 * superpixel： CIFAR10, MNIST
+* LRGB: PascalVOC-SP, COCO-SP, Peptides-func, Peptides-struct
 
 For Batch datasets, you can run it by [dgNN/script/test/test_gf.py](dgNN/script/test/test_gf.py)
 

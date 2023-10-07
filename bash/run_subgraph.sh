@@ -3,29 +3,24 @@
 read -p "Enter dim(default=64): " dim
 
 if [ -z "${dim}" ]; then
-    dim=32
+    dim=64
 fi
-
-# if [ -z "${dataset}" ];then
-# 	# dataset="ogbg-molhiv"
-# 	dataset="CLUSTER"
-# 	# dataset="PATTERN"
-# fi
 
 day=$(date +%m_%d)
 Time=$(date +%H_%M_%S)
 mkdir log/day_${day}
 mkdir log/ncu/day_${day}
 
+## specify batch-size
 batch_sizes=(32 64 128 256 512 1024 2048 4096)
-# batch_sizes=(32 2048)
+# batch_sizes=(2048)
 # batch_sizes=(32)
 
-
+## specify dataset
 # datasets=(PATTERN CLUSTER MNIST CIFAR10)
-export BLOCK_SIZE=32
-datasets=(PATTERN)
+datasets=(ogbg-molhiv)
 
+BLOCK_SIZE=$((1024 / ${dim}))
 
 set -e
 python setup.py develop
@@ -43,8 +38,8 @@ for dataset in ${datasets[@]}; do
         # CUDA_LAUNCH_BLOCKING=1 python -u dgNN/script/test/test_gf_subgraph.py --batch-size ${bs} --dataset ${dataset} --dim ${dim}
 
         # # run ncu profile
-        # name=ncu_gf_subgraph_no_r2r3_${dataset}_blocksize${BLOCK_SIZE}_dim${dim}_bs${bs}_${Time}
-        # ncu --set full --import-source yes -c 10 -o log/ncu/day_${day}/${name} -k "fused_forward_kernel_subgraph" python -u dgNN/script/test/test_gf_subgraph.py --batch-size ${bs} --dataset ${dataset} --dim ${dim} --profile  > log/ncu/day_${day}/${name}.log 2>&1
+        # name=ncu_gf_subgraph_${dataset}_blocksize${BLOCK_SIZE}_dim${dim}_bs${bs}_${Time}
+        # ncu --set full --import-source yes -c 10 -o log/ncu/day_${day}/${name} -k "fused_forward_kernel_subgraph_mul32" python -u dgNN/script/test/test_gf_subgraph.py --batch-size ${bs} --dataset ${dataset} --dim ${dim} --profile  > log/ncu/day_${day}/${name}.log 2>&1
     done
     wait
 done

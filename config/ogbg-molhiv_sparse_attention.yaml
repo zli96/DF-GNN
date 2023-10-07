@@ -1,0 +1,5 @@
+dataset: ogbg-molhiv
+format: csr
+dim: 64
+heads: 1
+batch_size: 256

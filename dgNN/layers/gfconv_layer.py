@@ -36,8 +36,7 @@ class SparseMHA(nn.Module):
         q *= self.scaling
         k = self.k_proj(h).reshape(N, self.head_dim, self.num_heads)
         v = self.v_proj(h).reshape(N, self.head_dim, self.num_heads)
-        A, indptr, indices, val = params
-
+        A, indptr, indices, val, smem_consume = params
         ######################################################################
         # (HIGHLIGHT) Compute the multi-head attention with Sparse Matrix API
         ######################################################################
@@ -52,7 +51,9 @@ class SparseMHA(nn.Module):
             # torch.cuda.synchronize()
             # start = time.time()
 
-            out, elapsed_time = benchmark(GFConvFuse, indptr, indices, val, q, k, v)
+            out, elapsed_time = benchmark(
+                GFConvFuse, indptr, indices, val, smem_consume, q, k, v
+            )
 
             out = out.transpose(1, 2)
         else:
@@ -159,7 +160,7 @@ class SparseMHA_hyper(nn.Module):
         q *= self.scaling
         k = self.k_proj(h).reshape(N, self.head_dim, self.num_heads)
         v = self.v_proj(h).reshape(N, self.head_dim, self.num_heads)
-        A, indptr, indices, rows, val = params
+        A, indptr, indices, rows, val, smem_consume = params
         ######################################################################
         # (HIGHLIGHT) Compute the multi-head attention with Sparse Matrix API
         ######################################################################
@@ -169,7 +170,7 @@ class SparseMHA_hyper(nn.Module):
             k = k.transpose(1, 2).contiguous()
             v = v.transpose(1, 2).contiguous()
             out, elapsed_time = benchmark(
-                GFConvFuse_hyper, indptr, indices, rows, val, q, k, v
+                GFConvFuse_hyper, indptr, indices, rows, val, smem_consume, q, k, v
             )
             out = out.transpose(1, 2)
         else:

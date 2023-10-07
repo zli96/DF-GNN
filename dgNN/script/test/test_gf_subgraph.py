@@ -43,7 +43,7 @@ def load_dataset(dataset_name, data_dir, profile=False):
         train_idx = split_idx["train"]
         dataset = dataset[train_idx]
     elif dataset_name == "MNIST" or dataset_name == "CIFAR10":
-        dataset = LoadData(dataset_name)
+        dataset = LoadData(dataset_name, data_dir)
     elif dataset_name == "PATTERN":
         train_fn = train_SBM
         if profile == True:

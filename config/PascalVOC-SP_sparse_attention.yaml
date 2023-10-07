@@ -1,0 +1,5 @@
+dataset: PascalVOC-SP
+format: csr
+dim: 96
+heads: 1
+batch_size: 32

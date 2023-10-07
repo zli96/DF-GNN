@@ -1,0 +1,5 @@
+dataset: Peptides-struct
+format: csr
+dim: 88
+heads: 1
+batch_size: 256

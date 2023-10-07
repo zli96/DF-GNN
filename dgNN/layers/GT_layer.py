@@ -49,7 +49,12 @@ class GTlayer_SBM(nn.Module):
 
 
 def choose_GTlayer(dataset_name, MHAlayer, hidden_size, num_heads):
-    if dataset_name == "ogbg-molhiv" or dataset_name == "ogbg-molpcba":
+    if dataset_name in [
+        "ogbg-molhiv",
+        "ogbg-molpcba",
+        "Peptides-func",
+        "Peptides-struct",
+    ]:
         return GTlayer_mol(MHAlayer, hidden_size, num_heads)
     elif dataset_name == "PATTERN":
         return GTlayer_SBM(MHAlayer, 3, hidden_size, num_heads)
@@ -59,5 +64,7 @@ def choose_GTlayer(dataset_name, MHAlayer, hidden_size, num_heads):
         return GTlayer(MHAlayer, 3, hidden_size, num_heads)
     elif dataset_name == "CIFAR10":
         return GTlayer(MHAlayer, 5, hidden_size, num_heads)
+    elif dataset_name in ["PascalVOC-SP", "COCO-SP"]:
+        return GTlayer(MHAlayer, 14, hidden_size, num_heads)
     else:
         raise ValueError(f"unknown dataset {dataset_name}")

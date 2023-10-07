@@ -1,17 +1,14 @@
-import os.path as osp
 import pdb
 
-import ssl
-import sys
-import urllib
 from timeit import default_timer
-from typing import Optional
 
 import dgl.sparse as dglsp
 
 import matplotlib.pyplot as plt
 import ScheduleProfiler
 import torch
+
+import yaml
 from data import LoadData
 from dgl.data import (
     CiteseerGraphDataset,
@@ -20,7 +17,6 @@ from dgl.data import (
     PATTERNDataset,
     PubmedGraphDataset,
 )
-from dgl.data.utils import makedirs
 
 from dgl.dataloading import GraphDataLoader
 from ogb.graphproppred import collate_dgl, DglGraphPropPredDataset
@@ -30,47 +26,6 @@ from ogb.nodeproppred import DglNodePropPredDataset
 from torch.utils.data import DataLoader
 
 profiler = ScheduleProfiler.ScheduleProfiler()
-
-
-def download_url(
-    url: str, folder: str, log: bool = True, filename: Optional[str] = None
-):
-    r"""Downloads the content of an URL to a specific folder.
-
-    Args:
-        url (str): The URL.
-        folder (str): The folder.
-        log (bool, optional): If :obj:`False`, will not print anything to the
-            console. (default: :obj:`True`)
-    """
-
-    if filename is None:
-        filename = url.rpartition("/")[2]
-        filename = filename if filename[0] == "?" else filename.split("?")[0]
-
-    path = osp.join(folder, filename)
-
-    if osp.exists(path):  # pragma: no cover
-        if log and "pytest" not in sys.modules:
-            print(f"Using existing file {filename}", file=sys.stderr)
-        return path
-
-    if log and "pytest" not in sys.modules:
-        print(f"Downloading {url}", file=sys.stderr)
-
-    makedirs(folder)
-
-    context = ssl._create_unverified_context()
-    data = urllib.request.urlopen(url, context=context)
-
-    with open(path, "wb") as f:
-        while True:
-            chunk = data.read(10 * 1024 * 1024)
-            if not chunk:
-                break
-            f.write(chunk)
-
-    return path
 
 
 def load_data_batch(dataset_name, batch_size, data_dir):
@@ -89,11 +44,25 @@ def load_data_batch(dataset_name, batch_size, data_dir):
             shuffle=False,
             collate_fn=collate_dgl,
         )
-    elif dataset_name == "MNIST" or dataset_name == "CIFAR10":
-        dataset = LoadData(dataset_name)
+    elif dataset_name in ["MNIST", "CIAR10"]:
+        dataset = LoadData(dataset_name, data_dir)
         trainset, _, _ = dataset.train, dataset.val, dataset.test
-        train_dataloader = DataLoader(
+        # train_dataloader = DataLoader(
+        #     trainset, batch_size=batch_size, shuffle=False, collate_fn=dataset.collate
+        # )
+        train_dataloader = GraphDataLoader(
             trainset, batch_size=batch_size, shuffle=False, collate_fn=dataset.collate
+        )
+    elif dataset_name in ["Peptides-func", "Peptides-struct"]:
+        dataset = LoadData(dataset_name, data_dir)
+        train_dataloader = GraphDataLoader(
+            dataset, batch_size=batch_size, shuffle=False, collate_fn=collate_dgl
+        )
+    elif dataset_name in ["PascalVOC-SP", "COCO-SP"]:
+        train_fn = train_SBM
+        dataset = LoadData(dataset_name, data_dir)
+        train_dataloader = GraphDataLoader(
+            dataset, batch_size=batch_size, shuffle=False
         )
     elif dataset_name == "PATTERN":
         train_fn = train_SBM
@@ -190,35 +159,52 @@ def preprocess_CSR(g):
     indices = torch.stack(g.edges())
     N = g.num_nodes()
     A = dglsp.spmatrix(indices, shape=(N, N))
+
+    # using max_degree to cal max smem consume
+    max_degree = int(max(A.sum(1)).item())
+    smem_consume = (max_degree + 31) // 32 * 32
+    print("preprocess smem consume", smem_consume)
+
+    # the CSR format of adj matrix
     row_ptr, col_ind, val_idx = A.csr()
     row_ptr = row_ptr.int()
     col_ind = col_ind.int()
     val = torch.tensor([A.val[i] for i in val_idx]).float()
-    return A, row_ptr, col_ind, val
+    return A, row_ptr, col_ind, val, smem_consume
 
 
 def preprocess_Hyper(g):
     indices = torch.stack(g.edges())
     N = g.num_nodes()
     A = dglsp.spmatrix(indices, shape=(N, N))
+
+    # using max_degree to cal max smem consume
+    max_degree = int(max(A.sum(1)).item())
+    smem_consume = (max_degree + 31) // 32 * 32
+
+    # A.row: the src node of each edge
     rows = A.row.int()
     rows = torch.sort(rows).values
+
+    # the CSR format of adj matrix
     row_ptr, col_ind, val_idx = A.csr()
     row_ptr = row_ptr.int()
     col_ind = col_ind.int()
     val = torch.tensor([A.val[i] for i in val_idx]).float()
-    return A, row_ptr, col_ind, rows, val
+    return A, row_ptr, col_ind, rows, val, smem_consume
 
 
 def preprocess_SubGraph(g):
     nodes = g.batch_num_nodes()
-    # print("max num of nodes", max(nodes).item())
+    # num of nodes in each sub-graph(accumulate)
     nodes_subgraph = torch.cat(
         (torch.tensor([0]), torch.cumsum(nodes.clone(), 0))
     ).int()
     indices = torch.stack(g.edges())
     N = g.num_nodes()
     A = dglsp.spmatrix(indices, shape=(N, N))
+
+    # the CSR format of adj matrix
     row_ptr, col_ind, val_idx = A.csr()
     row_ptr = row_ptr.int()
     col_ind = col_ind.int()
@@ -268,26 +254,23 @@ def preprocess_ELL(
 
 
 def check_correct(logits, logits_fuse, params):
-    if all(torch.isclose(logits, logits_fuse, atol=0.001).flatten()):
+    check_same = torch.tensor(
+        [all(i) for i in torch.isclose(logits, logits_fuse, atol=0.001)]
+    )
+    if all(check_same):
         print("the results are the same, success!!!!!!!!!!")
     else:
-        if len(params) == 5:
-            row_ptr = params[2]
-            col_ind = params[3]
-        else:
-            row_ptr = params[1]
-            col_ind = params[2]
-        for i in range(logits.shape[0]):
-            if not all(torch.isclose(logits[i], logits_fuse[i], atol=0.001).flatten()):
+        false_flag = torch.argwhere(~check_same)
+        row_ptr = params[1]
+        col_ind = params[2]
+        for i in false_flag:
+            if not check_same[i]:
                 print(f"error node {i} mismatch")
                 print("neighbor nodes", col_ind[row_ptr[i] : row_ptr[i + 1]])
                 print(logits[i])
                 print(logits_fuse[i])
+                print(torch.isclose(logits[i], logits_fuse[i], atol=0.001))
                 pdb.set_trace()
-            else:
-                print("----------------pass------------------")
-                print("neighbor nodes", col_ind[row_ptr[i] : row_ptr[i + 1]])
-                print("")
 
 
 def train(process_func, layer, train_dataloader, dev, **arg):
@@ -297,14 +280,13 @@ def train(process_func, layer, train_dataloader, dev, **arg):
     warmup = 1
     sample_start_time = 0
     for i, (batched_g, labels) in enumerate(train_dataloader):
-        pdb.set_trace()
         print(
             f"epoch {i} sample elapsed time {default_timer() - sample_start_time:.2f} s"
         )
         params = process_func(batched_g, **arg)
         if params == None:
             continue
-        params = [param.to(dev) for param in params]
+        params = [param.to(dev) if hasattr(param, "to") else param for param in params]
         batched_g, labels = batched_g.to(dev), labels.to(dev)
         logits, elapsed_time = layer(params, batched_g.ndata["feat"])
         print(f"epoch {i} non-fused time %.4f" % elapsed_time)
@@ -441,17 +423,35 @@ def benchmark(function, *args):
     return out, t.elapsed_secs / 100
 
 
-def parser_argument(parser):
-    parser.add_argument("--format", type=str, default="csr")
-    parser.add_argument("--dim", type=int, default=64)
-    parser.add_argument("--heads", type=int, default=8)
-    parser.add_argument("--batch-size", type=int, default=256)
-    parser.add_argument("--data-dir", type=str, default="./data/OGB")
-    parser.add_argument("--dataset", type=str, default="ogbg-molhiv")
-
+def parse_args(parser):
     args = parser.parse_args()
+    if args.config:
+        with open(args.config, "r") as file:
+            data = yaml.safe_load(file)
+        delattr(args, "config")
+        arg_dict = args.__dict__
+        for key, value in data.items():
+            if key not in arg_dict.keys() or arg_dict[key] == None:
+                if isinstance(value, list):
+                    for v in value:
+                        arg_dict[key].append(v)
+                else:
+                    arg_dict[key] = value
+    return args
+
+
+def parser_argument(parser):
+    parser.add_argument("--config", type=str)
+    parser.add_argument("--format", type=str, default="csr")
+    parser.add_argument("--dim", type=int)
+    parser.add_argument("--heads", type=int, default=1)
+    parser.add_argument("--batch-size", type=int)
+    parser.add_argument("--data-dir", type=str, default="./data/OGB")
+    parser.add_argument("--dataset", type=str)
+
+    args = parse_args(parser)
     print("Dataset", args.dataset)
-    print("format: ", args.format)
+    print("format", args.format)
     print("hidden dim", args.dim)
     print("num heads", args.heads)
     print("batch size", args.batch_size)

@@ -1,0 +1,5 @@
+dataset: CIFAR10
+format: csr
+dim: 32
+heads: 1
+batch_size: 256
