@@ -159,35 +159,52 @@ def preprocess_CSR(g):
     indices = torch.stack(g.edges())
     N = g.num_nodes()
     A = dglsp.spmatrix(indices, shape=(N, N))
+
+    # using max_degree to cal max smem consume
+    max_degree = int(max(A.sum(1)).item())
+    smem_consume = (max_degree + 31) // 32 * 32
+    print("preprocess smem consume", smem_consume)
+
+    # the CSR format of adj matrix
     row_ptr, col_ind, val_idx = A.csr()
     row_ptr = row_ptr.int()
     col_ind = col_ind.int()
     val = torch.tensor([A.val[i] for i in val_idx]).float()
-    return A, row_ptr, col_ind, val
+    return A, row_ptr, col_ind, val, smem_consume
 
 
 def preprocess_Hyper(g):
     indices = torch.stack(g.edges())
     N = g.num_nodes()
     A = dglsp.spmatrix(indices, shape=(N, N))
+
+    # using max_degree to cal max smem consume
+    max_degree = int(max(A.sum(1)).item())
+    smem_consume = (max_degree + 31) // 32 * 32
+
+    # A.row: the src node of each edge
     rows = A.row.int()
     rows = torch.sort(rows).values
+
+    # the CSR format of adj matrix
     row_ptr, col_ind, val_idx = A.csr()
     row_ptr = row_ptr.int()
     col_ind = col_ind.int()
     val = torch.tensor([A.val[i] for i in val_idx]).float()
-    return A, row_ptr, col_ind, rows, val
+    return A, row_ptr, col_ind, rows, val, smem_consume
 
 
 def preprocess_SubGraph(g):
     nodes = g.batch_num_nodes()
-    # print("max num of nodes", max(nodes).item())
+    # num of nodes in each sub-graph(accumulate)
     nodes_subgraph = torch.cat(
         (torch.tensor([0]), torch.cumsum(nodes.clone(), 0))
     ).int()
     indices = torch.stack(g.edges())
     N = g.num_nodes()
     A = dglsp.spmatrix(indices, shape=(N, N))
+
+    # the CSR format of adj matrix
     row_ptr, col_ind, val_idx = A.csr()
     row_ptr = row_ptr.int()
     col_ind = col_ind.int()
@@ -244,12 +261,8 @@ def check_correct(logits, logits_fuse, params):
         print("the results are the same, success!!!!!!!!!!")
     else:
         false_flag = torch.argwhere(~check_same)
-        if len(params) == 5:
-            row_ptr = params[2]
-            col_ind = params[3]
-        else:
-            row_ptr = params[1]
-            col_ind = params[2]
+        row_ptr = params[1]
+        col_ind = params[2]
         for i in false_flag:
             if not check_same[i]:
                 print(f"error node {i} mismatch")
@@ -273,7 +286,7 @@ def train(process_func, layer, train_dataloader, dev, **arg):
         params = process_func(batched_g, **arg)
         if params == None:
             continue
-        params = [param.to(dev) for param in params]
+        params = [param.to(dev) if hasattr(param, "to") else param for param in params]
         batched_g, labels = batched_g.to(dev), labels.to(dev)
         logits, elapsed_time = layer(params, batched_g.ndata["feat"])
         print(f"epoch {i} non-fused time %.4f" % elapsed_time)

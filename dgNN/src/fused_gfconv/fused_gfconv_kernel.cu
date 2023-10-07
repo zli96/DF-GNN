@@ -57,14 +57,14 @@ __device__ __forceinline__ float warpReduceSum(float sum, int blockSize)
 
 __device__ __forceinline__ float warpReduceMax(float val)
 {
-    const unsigned int FULL_MASK = 0xffffffff;
-  
-    for (int mask = warpSize / 2; mask > 0; mask /= 2)
-    {
-        val = max(__shfl_xor_sync(FULL_MASK, val, mask), val);
-    }
-      
-    return val;
+  const unsigned int FULL_MASK = 0xffffffff;
+
+  for (int mask = warpSize / 2; mask > 0; mask /= 2)
+  {
+    val = max(__shfl_xor_sync(FULL_MASK, val, mask), val);
+  }
+
+  return val;
 }
 
 __device__ __forceinline__ void namedBarrierSync(int name, int numThreads)
@@ -186,12 +186,12 @@ __global__ void softMax_SPMM(const int m, const int nnz, const int h, const int 
   // }
   // // compute the sum of exp
   // int loop = (num_neighbor + WARP_SIZE - 1) / WARP_SIZE;
-  
+
   // init smem
   int loop = (num_neighbor + f - 1) / f;
   for (int j = 0; j < loop; j++)
   {
-    int pid = fid+ j *f;
+    int pid = fid + j * f;
     if (pid < num_neighbor)
     {
       neigh_nodes_weight[pid] = attn_edge[lb + pid];
@@ -254,6 +254,53 @@ __global__ void softMax_SPMM(const int m, const int nnz, const int h, const int 
   if (fid < f)
     // handle the node with no neighbor
     out_feat[rid * hf + hfid] = (expAll != 0) ? acc / expAll : 0;
+}
+
+__global__ void softMax_SPMM_tiling(const int m, const int nnz, const int h, const int f,
+                                    const int *indptr, const int *indices, const float *val,
+                                    const float *V, const float *attn_edge,
+                                    float *out_feat)
+{
+  const int rid = blockIdx.x;                     // loop over row of adj matrix
+  const int hid = blockIdx.y;                     // loop over heads
+  const int fid = threadIdx.y * 32 + threadIdx.x; // loop over feature dim
+
+  const int lb = indptr[rid]; // row rid elements
+  const int hb = indptr[rid + 1];
+
+  const int num_neighbor = hb - lb;
+  extern __shared__ float smem[];
+  float *neigh_nodes_weight = smem;
+  const int hf = h * f;
+  const int hfid = hid * f + fid;
+
+  float acc = 0, partial_sum = 0;
+  float weightMax_old = -1e38, weightMax = -1e38;
+  float expweight, expweightMax;
+
+  for (int j = 0; j < num_neighbor; j++)
+  {
+    float weight = 0;
+    float weight_partial = 0;
+
+    int cid = indices[lb + j];
+
+    if (fid == 0)
+    {
+      neigh_nodes_weight[j] = attn_edge[lb + j] * val[lb + j];
+    }
+    __syncthreads();
+    weight = neigh_nodes_weight[j];
+    weightMax = MAX(weight, weightMax);
+    expweight = exp(weight - weightMax);
+    expweightMax = (weightMax_old == weightMax) ? 1 : exp(weightMax_old - weightMax);
+    if (fid < f)
+      acc = acc * expweightMax + expweight * V[cid * hf + hfid];
+    partial_sum = partial_sum * expweightMax + expweight;
+    weightMax_old = weightMax;
+  }
+  if (fid < f)
+    out_feat[rid * hf + hfid] = (partial_sum != 0) ? acc / partial_sum : 0;
 }
 
 template <typename DType, int BLOCK_SIZE, int LOG_BLOCK_SIZE>
@@ -697,8 +744,7 @@ __global__ void fused_forward_kernel(const int m, const int nnz, const int h, co
   // Allocate smem
   static __shared__ float warpLevelSums[WARP_SIZE];
   extern __shared__ float smem[];
-  float *curr_node_feature = smem;
-  float *neigh_nodes_weight = (float *)&curr_node_feature[f];
+  float *neigh_nodes_weight = smem;
   float weightMax = -1e38;
 
   // init the shared memory
@@ -885,32 +931,6 @@ __global__ void fused_forward_ell_kernel(const int m, const int nnz, const int h
   }
 }
 
-void gf_forward(int m, int nnz, int h, int f,
-                const int *indptr, const int *indices, const float *val,
-                const float *Q, const float *K, const float *V,
-                float *out_feat)
-{
-  // cudaEvent_t start, stop;
-  // cudaEventCreate(&start);
-  // cudaEventCreate(&stop);
-  // cudaEventRecord(start, 0);
-  const int ntx = WARP_SIZE;
-  const int nty = (f + WARP_SIZE - 1) / WARP_SIZE;
-
-  const dim3 nblks(m, h);
-  const dim3 nthrs(ntx, nty);
-
-  CUDA_KERNEL_CALL(
-      (fused_forward_kernel),
-      nblks, nthrs, (f + 512) * sizeof(float), m, nnz, h, f, indptr, indices, val,
-      Q, K, V, out_feat);
-  // cudaEventRecord(stop, 0);
-  // cudaEventSynchronize(stop);
-  // float elapsedTime;
-  // cudaEventElapsedTime(&elapsedTime, start, stop);
-  // printf("Time of fused kernel: %f \n", elapsedTime);
-}
-
 void gf_forward_subgraph(int num_subgraph, int h, int f, const int *nodes_subgraph,
                          const int *indptr, const int *indices, const float *val,
                          const float *Q, const float *K, const float *V,
@@ -994,7 +1014,7 @@ void gf_forward_subgraph_multiple32(int num_subgraph, int h, int f, const int *n
   }
 }
 
-void gf_forward_nofuse(int m, int nnz, int h, int f,
+void gf_forward_nofuse(int m, int nnz, int h, int f, int smem_consume,
                        const int *indptr, const int *indices, const int *rows, const float *val,
                        const float *Q, const float *K, const float *V,
                        float *attn_edge, float *out_feat)
@@ -1014,19 +1034,43 @@ void gf_forward_nofuse(int m, int nnz, int h, int f,
   const dim3 nblks2(m, h, 1);
   const dim3 nthrs2(32, (f + 31) / 32, 1);
   // CUDA_KERNEL_CALL(
-  //     (sddmmCsrKernel),
-  //     nblks2, nthrs2, (f + 512) * sizeof(float), m, nnz, h, f, indptr, indices, val,
-  //     Q, K, attn_edge);
+  //     (softMax_SPMM),
+  //     nblks2, nthrs2, (f + 4*1024) * sizeof(float), m, nnz, h, f, indptr, indices, val,
+  //     V, attn_edge, out_feat);
 
-  // const dim3 nblks2(m, h, 1);
-  // const dim3 nthrs2(32, (f + 31) / 32, 1);
   CUDA_KERNEL_CALL(
       (softMax_SPMM),
-      nblks2, nthrs2, (f + 4*1024) * sizeof(float), m, nnz, h, f, indptr, indices, val,
+      nblks2, nthrs2, (smem_consume) * sizeof(float), m, nnz, h, f, indptr, indices, val,
       V, attn_edge, out_feat);
 }
 
-void gf_forward_multiple32(int m, int nnz, int h, int f,
+void gf_forward_no_multiple32(int m, int nnz, int h, int f, int smem_consume,
+                              const int *indptr, const int *indices, const float *val,
+                              const float *Q, const float *K, const float *V,
+                              float *out_feat)
+{
+  // cudaEvent_t start, stop;
+  // cudaEventCreate(&start);
+  // cudaEventCreate(&stop);
+  // cudaEventRecord(start, 0);
+  const int ntx = WARP_SIZE;
+  const int nty = (f + WARP_SIZE - 1) / WARP_SIZE;
+
+  const dim3 nblks(m, h);
+  const dim3 nthrs(ntx, nty);
+
+  CUDA_KERNEL_CALL(
+      (fused_forward_kernel),
+      nblks, nthrs, (smem_consume) * sizeof(float), m, nnz, h, f, indptr, indices, val,
+      Q, K, V, out_feat);
+  // cudaEventRecord(stop, 0);
+  // cudaEventSynchronize(stop);
+  // float elapsedTime;
+  // cudaEventElapsedTime(&elapsedTime, start, stop);
+  // printf("Time of fused kernel: %f \n", elapsedTime);
+}
+
+void gf_forward_multiple32(int m, int nnz, int h, int f, int smem_consume,
                            const int *indptr, const int *indices, const float *val,
                            const float *Q, const float *K, const float *V,
                            float *out_feat)
@@ -1038,8 +1082,8 @@ void gf_forward_multiple32(int m, int nnz, int h, int f,
   const dim3 nblks(m, h, 1);
   const dim3 nthrs(32, f / 32, 1);
   CUDA_KERNEL_CALL(
-      (fused_forward_kernel_tiling_mul32),
-      nblks, nthrs, (1024) * sizeof(float), m, nnz, h, f, indptr, indices, val,
+      (fused_forward_kernel_mul32),
+      nblks, nthrs, (smem_consume) * sizeof(float), m, nnz, h, f, indptr, indices, val,
       Q, K, V, out_feat);
 }
 
@@ -1070,9 +1114,8 @@ void gf_ell_forward(int m, int nnz, int h, int f, int num_tb,
 }
 
 std::vector<torch::Tensor>
-gf_forward_cuda(torch::Tensor indptr,
-                torch::Tensor indices,
-                torch::Tensor val, torch::Tensor Q,
+gf_forward_cuda(torch::Tensor indptr, torch::Tensor indices,
+                torch::Tensor val, int smem_consume, torch::Tensor Q,
                 torch::Tensor K, torch::Tensor V)
 {
   // Q: torch.Size([6248, 10, 8])
@@ -1088,17 +1131,17 @@ gf_forward_cuda(torch::Tensor indptr,
   // check whether f is multiples of 32
   if (isMul32(f))
   {
-    gf_forward_multiple32(m, nnz, h, f,
+    gf_forward_multiple32(m, nnz, h, f, smem_consume,
                           indptr.data_ptr<int>(), indices.data_ptr<int>(), val.data_ptr<float>(),
                           Q.data_ptr<float>(), K.data_ptr<float>(), V.data_ptr<float>(),
                           out_feat.data_ptr<float>());
   }
   else
   {
-    gf_forward(m, nnz, h, f,
-               indptr.data_ptr<int>(), indices.data_ptr<int>(), val.data_ptr<float>(),
-               Q.data_ptr<float>(), K.data_ptr<float>(), V.data_ptr<float>(),
-               out_feat.data_ptr<float>());
+    gf_forward_no_multiple32(m, nnz, h, f, smem_consume,
+                             indptr.data_ptr<int>(), indices.data_ptr<int>(), val.data_ptr<float>(),
+                             Q.data_ptr<float>(), K.data_ptr<float>(), V.data_ptr<float>(),
+                             out_feat.data_ptr<float>());
   }
   return {out_feat};
 }
@@ -1142,7 +1185,7 @@ gf_subgraph_forward_cuda(torch::Tensor nodes_subgraph,
 std::vector<torch::Tensor>
 gf_hyper_forward_cuda(torch::Tensor indptr,
                       torch::Tensor indices, torch::Tensor rows,
-                      torch::Tensor val, torch::Tensor Q,
+                      torch::Tensor val, int smem_consume, torch::Tensor Q,
                       torch::Tensor K, torch::Tensor V)
 {
   // Q: torch.Size([6248, 10, 8])
@@ -1155,7 +1198,7 @@ gf_hyper_forward_cuda(torch::Tensor indptr,
       torch::TensorOptions().dtype(torch::kFloat32).device(torch::kCUDA, devid);
   auto out_feat = torch::zeros({m, h, f}, options);
   auto attn_edge = torch::zeros({nnz * h}, options);
-  gf_forward_nofuse(m, nnz, h, f,
+  gf_forward_nofuse(m, nnz, h, f, smem_consume,
                     indptr.data_ptr<int>(), indices.data_ptr<int>(), rows.data_ptr<int>(), val.data_ptr<float>(),
                     Q.data_ptr<float>(), K.data_ptr<float>(), V.data_ptr<float>(),
                     attn_edge.data_ptr<float>(), out_feat.data_ptr<float>());
