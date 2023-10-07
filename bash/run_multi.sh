@@ -8,7 +8,7 @@ read -p "Enter data dir(default=/workspace2/dataset): " data_dir
 # 	format=csr
 # fi
 if [ -z "${dim}" ]; then
-    dim=96
+    dim=64
 fi
 if [ -z "${heads}" ]; then
     heads=1
@@ -17,21 +17,21 @@ if [ -z "${data_dir}" ]; then
     data_dir="/workspace2/dataset"
 fi
 if [ -z "${dataset}" ]; then
-    # dataset="ogbg-molhiv"
+    dataset="ogbg-molhiv"
 
     # dataset="PATTERN"
     # dataset="CLUSTER"
 
-    dataset="Peptides-func"
+    # dataset="Peptides-func"
     # dataset="Peptides-struct"
     # dataset="PascalVOC-SP"
     # dataset="COCO-SP"
 fi
 
 # formats=(csr hyper)
-formats=(csr)
+formats=(csr hyper)
 
-batch_sizes=(16 32 64 128 256 512 1024 2048 4096)
+batch_sizes=(256 512 1024 2048)
 # batch_sizes=(256 512 1024 2048 4096)
 
 # batch_sizes=(32)

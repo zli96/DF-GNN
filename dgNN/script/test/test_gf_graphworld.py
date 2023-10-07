@@ -41,7 +41,9 @@ def train(process_func, layer, dev):
             g = g.to(dev)
             logits, elapsed_time = layer(params, g.ndata["feat"])
         except IOError:
-            break
+            print("---------read INPUT file fail!!!--------------")
+            exit()
+
     for g_id in range(args.graph_range):
         try:
             with open(os.path.join(args.output, f"{g_id}_config.pkl"), "rb") as f:
