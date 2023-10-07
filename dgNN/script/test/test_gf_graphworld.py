@@ -7,6 +7,7 @@ import dgl
 from dgNN.layers import GTlayer, SparseMHA, SparseMHA_hyper, SparseMHA_subgraph
 from dgNN.utils import (
     check_correct,
+    Move2Device,
     preprocess_CSR,
     preprocess_Hyper,
     preprocess_SubGraph,
@@ -35,10 +36,7 @@ def train(process_func, layer, dev):
                 graph_pkl = pickle.load(f)
                 g = g_pkl2DGL(graph_pkl)
             params = process_func(g)
-            if params == None:
-                continue
-            params = [param.to(dev) for param in params]
-            g = g.to(dev)
+            g, params = Move2Device([g, params], dev)
             logits, elapsed_time = layer(params, g.ndata["feat"])
         except IOError:
             print("---------read INPUT file fail!!!--------------")
@@ -54,10 +52,7 @@ def train(process_func, layer, dev):
                 g = g_pkl2DGL(graph_pkl)
             print("graph id", g_id)
             params = process_func(g)
-            if params == None:
-                continue
-            params = [param.to(dev) for param in params]
-            g = g.to(dev)
+            g, params = Move2Device([g, params], dev)
             logits, elapsed_time = layer(params, g.ndata["feat"])
             print(f"epoch {g_id} non-fused time %.4f" % elapsed_time)
             time_no_fuse.append(elapsed_time)
@@ -68,8 +63,6 @@ def train(process_func, layer, dev):
             print(f"epoch {g_id} fused time %.4f" % elapsed_time)
             if g_id < 3:
                 check_correct(logits, logits_fuse, params)
-            if g_id == 20:
-                break
             print("--------------------------------------")
         except IOError:
             break

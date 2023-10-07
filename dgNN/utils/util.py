@@ -196,6 +196,7 @@ def preprocess_Hyper(g):
 
 def preprocess_SubGraph(g):
     nodes = g.batch_num_nodes()
+
     # num of nodes in each sub-graph(accumulate)
     nodes_subgraph = torch.cat(
         (torch.tensor([0]), torch.cumsum(nodes.clone(), 0))
@@ -210,6 +211,38 @@ def preprocess_SubGraph(g):
     col_ind = col_ind.int()
     val = torch.tensor([A.val[i] for i in val_idx]).float()
     return A, row_ptr, col_ind, nodes_subgraph, val
+
+
+def cal_available_node(dim, MAX_NEIGH, MAX_LIMIT=64 * 1024 / 4):
+    block_size = 1024 / dim
+    ## smem need to store
+    ## K,V features: 2*num_store_nodes*dim
+    ## warpLevelSums: blocksize * 32
+    ## SDDMM result: MAX_NEIGH * blocksize
+    return int((MAX_LIMIT - MAX_NEIGH * block_size - 32 * block_size) / (dim * 2))
+
+
+def preprocess_Outdegree(g, dim):
+    indices = torch.stack(g.edges())
+    N = g.num_nodes()
+    A = dglsp.spmatrix(indices, shape=(N, N))
+    out_degree = A.sum(0)
+
+    ## use smem limit to determine how many nodes to store
+    degree_limit = sum(out_degree > 1).item()
+    max_nodes = cal_available_node(dim, max(A.sum(1)).item())
+    max_nodes = min(max_nodes, degree_limit)
+
+    ## store_node: the index of nodes stored in smem
+    ## store_flag: the flay whether stored in smem
+    ## If: -1, not in smem
+    ## If: int, the local index in smem
+    _, indices = torch.sort(out_degree, descending=True)
+    store_node = indices[:max_nodes]
+    print("store avg degree", torch.mean(out_degree[store_node]).item())
+    store_flag = torch.zeros(N, dtype=torch.int64) - 1
+    store_flag[store_node] = torch.arange(0, max_nodes)
+    return A, max_nodes, store_node, store_flag
 
 
 def preprocess_ELL(
@@ -273,7 +306,22 @@ def check_correct(logits, logits_fuse, params):
                 pdb.set_trace()
 
 
-def train(process_func, layer, train_dataloader, dev, **arg):
+def Move2Device(data_list, dev):
+    ### move data in list to dev
+    data_dev = []
+    for data in data_list:
+        if isinstance(data, tuple):
+            data_dev.append(
+                [param.to(dev) if hasattr(param, "to") else param for param in data]
+            )
+        elif hasattr(data, "to"):
+            data_dev.append(data.to(dev))
+        else:
+            data_dev.append(data)
+    return data_dev
+
+
+def train(process_func, layer, train_dataloader, dev, **kwargs):
     print("----------------------Forward------------------------")
     time_no_fuse = []
     time_fuse = []
@@ -283,21 +331,20 @@ def train(process_func, layer, train_dataloader, dev, **arg):
         print(
             f"epoch {i} sample elapsed time {default_timer() - sample_start_time:.2f} s"
         )
-        params = process_func(batched_g, **arg)
-        if params == None:
-            continue
-        params = [param.to(dev) if hasattr(param, "to") else param for param in params]
-        batched_g, labels = batched_g.to(dev), labels.to(dev)
+        ## preprocess
+        params = process_func(batched_g, **kwargs)
+        batched_g, labels, params = Move2Device([batched_g, labels, params], dev)
+        ## run by DGL sparse API
         logits, elapsed_time = layer(params, batched_g.ndata["feat"])
         print(f"epoch {i} non-fused time %.4f" % elapsed_time)
+
         if i > warmup:
             time_no_fuse.append(elapsed_time)
-            # print("----------------------with fuse--------------------------")
+            ## run by fuse attention
             logits_fuse, elapsed_time = layer(
                 params, batched_g.ndata["feat"], fuse=True
             )
             time_fuse.append(elapsed_time)
-            # pdb.set_trace()
             print(f"epoch {i} fused time %.4f" % elapsed_time)
             if i < 3:
                 check_correct(logits, logits_fuse, params)
@@ -307,7 +354,7 @@ def train(process_func, layer, train_dataloader, dev, **arg):
     return time_no_fuse, time_fuse
 
 
-def train_SBM(process_func, layer, train_dataloader, dev, **arg):
+def train_SBM(process_func, layer, train_dataloader, dev, **kwargs):
     print("----------------------Forward------------------------")
     time_no_fuse = []
     time_fuse = []
@@ -317,20 +364,20 @@ def train_SBM(process_func, layer, train_dataloader, dev, **arg):
         print(
             f"epoch {i} sample elapsed time {default_timer() - sample_start_time:.2f} s"
         )
-        params = process_func(batched_g, **arg)
-        if params == None:
-            continue
-        params = [param.to(dev) for param in params]
-        batched_g = batched_g.to(dev)
+        ## preprocess
+        params = process_func(batched_g, **kwargs)
+        batched_g, params = Move2Device([batched_g, params], dev)
+
+        ## run by DGL sparse API
         logits, elapsed_time = layer(params, batched_g.ndata["feat"])
         print(f"epoch {i} non-fused time %.4f" % elapsed_time)
         if i > warmup:
             time_no_fuse.append(elapsed_time)
+            ## run by fuse attention
             logits_fuse, elapsed_time = layer(
                 params, batched_g.ndata["feat"], fuse=True
             )
             time_fuse.append(elapsed_time)
-            # pdb.set_trace()
             print(f"epoch {i} fused time %.4f" % elapsed_time)
             if i < 3:
                 check_correct(logits, logits_fuse, params)
