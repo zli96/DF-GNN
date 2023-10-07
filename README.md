@@ -68,3 +68,11 @@ Full dataset: (only one graph)
 * cora, arxiv, pumbed, cite
 
 For full datasets, you can run it by [dgNN/script/test/test_gf_full_graph.py](dgNN/script/test/test_gf_full_graph.py)
+
+### Experiment plan
+固定节点数
+
+测试图在不同平均度数、度数分布下的性能变化，可以画一个三维曲面（x: avg degree, y: power exponent, z: speedup）
+
+* 平均度数的选择：2(molhiv)4 8(MNIST 8 CIFAR 8) 16 24 32 (CLUSTER 36 PATTERN 51) 40 48 56 64
+* power exponent：这个暂时还不太确定怎么设置，数据集在哪一个位置？
