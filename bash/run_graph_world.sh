@@ -1,13 +1,9 @@
-read -p "What config to shmoo(default=power_exponent): " shmoo
+# read -p "Enter num of sample(default=50): " g_range
 read -p "Whether to log(default=False): " log_flag
 read -p "Enter format(default=csr): " format
 read -p "Enter dim(default=64): " dim
-read -p "Enter graph range(default=100): " g_range
 read -p "Enter data dir(default=/workspace2/dataset): " data_dir
 
-if [ -z "${shmoo}" ]; then
-    shmoo="power_exponent"
-fi
 
 if [ -z "${dim}" ]; then
     dim=64
@@ -33,18 +29,15 @@ echo TASK $TASK
 echo GENERATOR $GENERATOR
 
 
-
-
-if [ "$shmoo" == "power_exponent" ]; then
-    max_degrees=(9)
-    for max_d in ${max_degrees[@]}; do
-        OUTPUT_PATH="/workspace2/dataset/graphworld/${TASK}_${GENERATOR}/${shmoo}/${max_d}"
-        if [ -n "${log_flag}" ]; then
-            Time=$(date +%H_%M_%S)
-            name=gf_graphworld_${shmoo}_${max_d}_${format}_dim${dim}_${Time}
-            python -u dgNN/script/test/test_gf_graphworld.py --dim $dim --data-dir ${data_dir} --format ${format} --output ${OUTPUT_PATH} | tee log/day_${day}/${name}.log
-        else
-            python -u dgNN/script/test/test_gf_graphworld.py --dim $dim --data-dir ${data_dir} --format ${format} --output ${OUTPUT_PATH}
-        fi
-    done
-fi
+avg_degrees=(2 4 8 16 32 64)
+power_exponent=9
+for avg_degree in ${avg_degrees[@]}; do
+    OUTPUT_PATH="/workspace2/dataset/graphworld/${TASK}_${GENERATOR}/power_ex${power_exponent}/avg_d${avg_degree}"
+    if [ -n "${log_flag}" ]; then
+        Time=$(date +%H_%M_%S)
+        name=gf_graphworld_${format}_avgd${avg_degree}_power${power_exponent}_dim${dim}_${Time}
+        python -u dgNN/script/test/test_gf_graphworld.py --dim $dim --data-dir ${data_dir} --format ${format} --output ${OUTPUT_PATH} | tee log/day_${day}/${name}.log
+    else
+        python -u dgNN/script/test/test_gf_graphworld.py --dim $dim --data-dir ${data_dir} --format ${format} --output ${OUTPUT_PATH}
+    fi
+done
