@@ -47,7 +47,6 @@ class FusedGFFunction_outdegree(torch.autograd.Function):
         K,
         V,
     ):
-        raise NotImplemented
         out_feat = fused_gf.gf_outdegree_forward(
             row_ptr,
             col_ind,
