@@ -6,6 +6,63 @@ import torch
 from torch.utils.cpp_extension import load
 
 
+def GFConvFuse_outdegree(
+    row_ptr,
+    col_ind,
+    val,
+    nodes_subgraph,
+    smem_nodes_subgraph,
+    store_node,
+    store_flag,
+    Q,
+    K,
+    V,
+):
+    return FusedGFFunction_outdegree.apply(
+        row_ptr,
+        col_ind,
+        val,
+        nodes_subgraph,
+        smem_nodes_subgraph,
+        store_node,
+        store_flag,
+        Q,
+        K,
+        V,
+    )
+
+
+class FusedGFFunction_outdegree(torch.autograd.Function):
+    @staticmethod
+    def forward(
+        ctx,
+        row_ptr,
+        col_ind,
+        val,
+        nodes_subgraph,
+        smem_nodes_subgraph,
+        store_node,
+        store_flag,
+        Q,
+        K,
+        V,
+    ):
+        raise NotImplemented
+        out_feat = fused_gf.gf_outdegree_forward(
+            row_ptr,
+            col_ind,
+            val,
+            nodes_subgraph,
+            smem_nodes_subgraph,
+            store_node,
+            store_flag,
+            Q,
+            K,
+            V,
+        )
+        return out_feat[0]
+
+
 def GFConvFuse_subgraph(
     nodes_subgraph,
     indptr,

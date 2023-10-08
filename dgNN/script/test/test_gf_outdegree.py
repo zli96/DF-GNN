@@ -3,9 +3,7 @@ import pdb
 
 import torch
 
-from dgl.dataloading import GraphDataLoader
-
-from dgNN.layers import choose_GTlayer, SparseMHA_subgraph
+from dgNN.layers import choose_GTlayer, SparseMHA_outdegree
 from dgNN.utils import load_data_batch, preprocess_Outdegree
 
 
@@ -38,7 +36,7 @@ if __name__ == "__main__":
 
     GTlayer = choose_GTlayer(
         args.dataset,
-        MHAlayer=SparseMHA_subgraph,
+        MHAlayer=SparseMHA_outdegree,
         hidden_size=args.dim,
         num_heads=args.heads,
     )
