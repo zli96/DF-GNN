@@ -29,7 +29,7 @@ echo TASK $TASK
 echo GENERATOR $GENERATOR
 
 
-avg_degrees=(2 4 8 16 32 64)
+avg_degrees=(2 4 8 16 24 32 40 48 56 64)
 power_exponent=9
 for avg_degree in ${avg_degrees[@]}; do
     OUTPUT_PATH="/workspace2/dataset/graphworld/${TASK}_${GENERATOR}/power_ex${power_exponent}/avg_d${avg_degree}"
