@@ -223,26 +223,65 @@ def cal_available_node(dim, MAX_NEIGH, MAX_LIMIT=64 * 1024 / 4):
 
 
 def preprocess_Outdegree(g, dim):
+    ## global graph config
+    # nodes_subgraph: num of nodes in each sub-graph(accumulate), shape(num_subgraph+1)
+    nodes = g.batch_num_nodes()
+    nodes_subgraph = torch.cat(
+        (torch.tensor([0]), torch.cumsum(nodes.clone(), 0))
+    ).int()
     indices = torch.stack(g.edges())
     N = g.num_nodes()
     A = dglsp.spmatrix(indices, shape=(N, N))
-    out_degree = A.sum(0)
-
-    ## use smem limit to determine how many nodes to store
-    degree_limit = sum(out_degree > 1).item()
-    max_nodes = cal_available_node(dim, max(A.sum(1)).item())
-    max_nodes = min(max_nodes, degree_limit)
-
-    ## store_node: the index of nodes stored in smem
-    ## store_flag: the flay whether stored in smem
+    out_degree = A.sum(0).int()
+    max_neighbor = max(A.sum(1)).item()
+    max_nodes = cal_available_node(dim, max_neighbor)
+    ## store_node: the ind ex of nodes stored in smem, shape(num_subgraph*max_nodes,1)
+    ## store_flag: the flag whether stored in smem, shape(N, 1)
     ## If: -1, not in smem
     ## If: int, the local index in smem
-    _, indices = torch.sort(out_degree, descending=True)
-    store_node = indices[:max_nodes]
-    print("store avg degree", torch.mean(out_degree[store_node]).item())
-    store_flag = torch.zeros(N, dtype=torch.int64) - 1
-    store_flag[store_node] = torch.arange(0, max_nodes)
-    return A, max_nodes, store_node, store_flag
+    ## smem_nodes_subgraph: num of nodes in smem of each subgraph, shape(num_subgraph+1)
+    store_node = []
+    store_flag = torch.zeros(N, dtype=torch.int) - 1
+    smem_nodes_subgraph = [0]
+    cumsum = 0
+    ## Loop over all subgraph
+    for i in range(g.batch_size):
+        node_lb = nodes_subgraph[i]
+        node_hb = nodes_subgraph[i + 1]
+        out_degree_local = out_degree[node_lb:node_hb]
+        degree_limit = sum(out_degree_local > 1).item()
+        max_nodes_local = min(max_nodes, degree_limit)
+        cumsum += max_nodes_local
+        smem_nodes_subgraph.append(cumsum)
+        _, indices = torch.sort(out_degree_local, descending=True)
+        store_node_subgraph = indices[:max_nodes_local] + node_lb
+        store_node += store_node_subgraph.tolist()
+        store_flag[store_node_subgraph] = torch.arange(0, max_nodes_local).int()
+
+    smem_nodes_subgraph = torch.tensor(smem_nodes_subgraph).int()
+    store_node = torch.tensor(store_node).int()
+
+    ## The CSR format of adj matrix
+    row_ptr, col_ind, val_idx = A.csr()
+    row_ptr = row_ptr.int()
+    col_ind = col_ind.int()
+    val = torch.tensor([A.val[i] for i in val_idx]).float()
+    assert g.batch_size + 1 == nodes_subgraph.shape[0]
+    assert g.batch_size + 1 == smem_nodes_subgraph.shape[0]
+    print(
+        f"{smem_nodes_subgraph[-1].item()} nodes of all {nodes_subgraph[-1].item()} nodes are stored in smem"
+    )
+
+    return (
+        A,
+        row_ptr,
+        col_ind,
+        val,
+        nodes_subgraph,
+        smem_nodes_subgraph,
+        store_node,
+        store_flag,
+    )
 
 
 def preprocess_ELL(
