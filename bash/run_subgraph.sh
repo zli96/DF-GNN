@@ -12,9 +12,9 @@ mkdir log/day_${day}
 mkdir log/ncu/day_${day}
 
 ## specify batch-size
-batch_sizes=(32 64 128 256 512 1024 2048 4096)
+# batch_sizes=(32 64 128 256 512 1024 2048 4096)
 # batch_sizes=(2048)
-# batch_sizes=(32)
+batch_sizes=(32)
 
 ## specify dataset
 # datasets=(PATTERN CLUSTER MNIST CIFAR10)
@@ -28,11 +28,11 @@ python setup.py develop
 for dataset in ${datasets[@]}; do
     for bs in ${batch_sizes[@]}; do
         # # run without log
-        # python -u dgNN/script/test/test_gf_subgraph.py --batch-size ${bs} --dataset ${dataset} --dim ${dim}
+        python -u dgNN/script/test/test_gf_subgraph.py --batch-size ${bs} --dataset ${dataset} --dim ${dim}
 
         # # run with log
-        name=gf_subgraph_${dataset}_blocksize${BLOCK_SIZE}_dim${dim}_bs${bs}_${Time}
-        python -u dgNN/script/test/test_gf_subgraph.py --batch-size ${bs} --dataset ${dataset} --dim ${dim} | tee log/day_${day}/${name}.log
+        # name=gf_subgraph_${dataset}_blocksize${BLOCK_SIZE}_dim${dim}_bs${bs}_${Time}
+        # python -u dgNN/script/test/test_gf_subgraph.py --batch-size ${bs} --dataset ${dataset} --dim ${dim} | tee log/day_${day}/${name}.log
 
         # # debug
         # CUDA_LAUNCH_BLOCKING=1 python -u dgNN/script/test/test_gf_subgraph.py --batch-size ${bs} --dataset ${dataset} --dim ${dim}

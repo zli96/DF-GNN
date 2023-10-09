@@ -2,8 +2,12 @@
 #define computeUtil_H
 #include "device_atomic_functions.h"
 #include "device_launch_parameters.h"
+#include <cuda.h>
 #include <cuda_runtime.h>
 #include <cuda_runtime_api.h>
+#include <stdio.h>
+#include <torch/types.h>
+#include <unistd.h>
 
 #define WARP_SIZE 32
 
@@ -170,7 +174,8 @@ __device__ __forceinline__ void AllReduce(data multi, int stride,
 
 inline int FindNumThreads(int dim, int max_nthrs = CUDA_MAX_NUM_THREADS) {
   // CHECK_GE(dim, 0);
-  if (dim == 0) return 1;
+  if (dim == 0)
+    return 1;
   int ret = max_nthrs;
   while (ret > dim) {
     ret = ret >> 1;
@@ -182,24 +187,84 @@ inline int FindNumThreads(int dim, int max_nthrs = CUDA_MAX_NUM_THREADS) {
  * @brief Find number of blocks is smaller than nblks and max_nblks
  * on the given axis ('x', 'y' or 'z').
  */
-template <char axis>
-inline int FindNumBlocks(int nblks, int max_nblks = -1) {
+template <char axis> inline int FindNumBlocks(int nblks, int max_nblks = -1) {
   int default_max_nblks = -1;
   switch (axis) {
-    case 'x':
-      default_max_nblks = CUDA_MAX_NUM_BLOCKS_X;
-      break;
-    case 'y':
-      default_max_nblks = CUDA_MAX_NUM_BLOCKS_Y;
-      break;
-    case 'z':
-      default_max_nblks = CUDA_MAX_NUM_BLOCKS_Z;
-      break;
+  case 'x':
+    default_max_nblks = CUDA_MAX_NUM_BLOCKS_X;
+    break;
+  case 'y':
+    default_max_nblks = CUDA_MAX_NUM_BLOCKS_Y;
+    break;
+  case 'z':
+    default_max_nblks = CUDA_MAX_NUM_BLOCKS_Z;
+    break;
   }
-  if (max_nblks == -1) max_nblks = default_max_nblks;
+  if (max_nblks == -1)
+    max_nblks = default_max_nblks;
   // CHECK_NE(nblks, 0);
-  if (nblks < max_nblks) return nblks;
+  if (nblks < max_nblks)
+    return nblks;
   return max_nblks;
+}
+
+inline bool isMul32(int x) { return (x > 0 && x % 32 == 0); }
+
+#define roundup(x, y)                                                          \
+  ({                                                                           \
+    typeof(y) __y = y;                                                         \
+    (((x) + (__y - 1)) / __y) * __y;                                           \
+  })
+
+#define CUDA_CALL(func)                                                        \
+  {                                                                            \
+    cudaError_t e = (func);                                                    \
+    CHECK(e == cudaSuccess || e == cudaErrorCudartUnloading)                   \
+        << "CUDA: " << cudaGetErrorString(e);                                  \
+  }
+
+#define CUSPARSE_CALL(func)                                                    \
+  {                                                                            \
+    cusparseStatus_t e = (func);                                               \
+    CHECK(e == CUSPARSE_STATUS_SUCCESS) << "CUSPARSE ERROR: " << e;            \
+  }
+
+#define CUDA_KERNEL_CALL(kernel, nblks, nthrs, shmem, ...)                     \
+  {                                                                            \
+    {                                                                          \
+      (kernel)<<<(nblks), (nthrs), (shmem)>>>(__VA_ARGS__);                    \
+      cudaError_t e = cudaGetLastError();                                      \
+      CHECK(e == cudaSuccess || e == cudaErrorCudartUnloading)                 \
+          << "CUDA kernel launch error: " << cudaGetErrorString(e);            \
+    }                                                                          \
+  }
+
+__device__ __forceinline__ float warpReduceSum(float sum, int blockSize) {
+  if (blockSize > 16)
+    sum += __shfl_down_sync(0xffffffff, sum, 16);
+  if (blockSize > 8)
+    sum += __shfl_down_sync(0xffffffff, sum, 8);
+  if (blockSize > 4)
+    sum += __shfl_down_sync(0xffffffff, sum, 4);
+  if (blockSize > 2)
+    sum += __shfl_down_sync(0xffffffff, sum, 2);
+  if (blockSize >= 2)
+    sum += __shfl_down_sync(0xffffffff, sum, 1);
+  return sum;
+}
+
+__device__ __forceinline__ float warpReduceMax(float val) {
+  const unsigned int FULL_MASK = 0xffffffff;
+
+  for (int mask = warpSize / 2; mask > 0; mask /= 2) {
+    val = max(__shfl_xor_sync(FULL_MASK, val, mask), val);
+  }
+
+  return val;
+}
+
+__device__ __forceinline__ void namedBarrierSync(int name, int numThreads) {
+  asm volatile("bar.sync %0, %1;" : : "r"(name), "r"(numThreads) : "memory");
 }
 
 #endif // computeUtil_H
