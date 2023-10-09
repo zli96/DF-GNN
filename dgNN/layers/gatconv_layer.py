@@ -88,8 +88,8 @@ class GATConv(nn.Module):  # our gat layer
                 col_ptr,
                 row_ind,
                 permute,
-                self.negative_slope, #0.2
-                h, #[2708,4,64]
+                self.negative_slope,  # 0.2
+                h,  # [2708,4,64]
                 self.attn_drop,
             )
 

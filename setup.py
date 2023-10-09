@@ -43,6 +43,7 @@ setuptools.setup(
                 "dgNN/src/fused_gfconv/fused_gfconv_outdegree.cu",
                 "dgNN/src/fused_gfconv/fused_gfconv_hyper.cu",
                 "dgNN/src/fused_gfconv/fused_gfconv_subgraph.cu",
+                "dgNN/src/fused_gfconv/fused_gfconv_ell.cu",
             ],
             extra_compile_args={"cxx": [], "nvcc": ["-arch=sm_75", "-lineinfo"]},
             extra_link_args=["-lcurand", "-lcusparse"],

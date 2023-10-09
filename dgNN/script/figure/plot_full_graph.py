@@ -1,8 +1,9 @@
-import torch
-from tqdm import tqdm
 import argparse
 
-from dgNN.utils import load_data_full_graph, figure_nodes_neigh
+import torch
+
+from dgNN.utils import figure_nodes_neigh, load_data_full_graph
+from tqdm import tqdm
 
 if __name__ == "__main__":
     # load dataset

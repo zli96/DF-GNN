@@ -1,8 +1,9 @@
-import torch
-from tqdm import tqdm
 import argparse
 
-from dgNN.utils import load_data_batch, figure_num_neigh_dist
+import torch
+
+from dgNN.utils import figure_num_neigh_dist, load_data_batch
+from tqdm import tqdm
 
 if __name__ == "__main__":
 
@@ -28,7 +29,7 @@ if __name__ == "__main__":
     # std_nodes_avg = np.mean(std_nodes_batch)
 
     # figure_num_std(
-    #     args.dataset, 
+    #     args.dataset,
     #     args.bs,
     #     num_nodes_batch,
     #     num_nodes_avg,
