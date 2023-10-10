@@ -1,4 +1,5 @@
 import pdb
+import warnings
 
 from timeit import default_timer
 
@@ -155,7 +156,7 @@ def figure_nodes_neigh(dataset_name, num_neigh_per_node):
     fig.clear()
 
 
-def preprocess_CSR(g):
+def preprocess_CSR(g, **args):
     indices = torch.stack(g.edges())
     N = g.num_nodes()
     A = dglsp.spmatrix(indices, shape=(N, N))
@@ -169,11 +170,11 @@ def preprocess_CSR(g):
     row_ptr, col_ind, val_idx = A.csr()
     row_ptr = row_ptr.int()
     col_ind = col_ind.int()
-    val = torch.tensor([A.val[i] for i in val_idx]).float()
+    val = A.val[val_idx]
     return A, row_ptr, col_ind, val, smem_consume
 
 
-def preprocess_Hyper(g):
+def preprocess_Hyper(g, **args):
     indices = torch.stack(g.edges())
     N = g.num_nodes()
     A = dglsp.spmatrix(indices, shape=(N, N))
@@ -190,7 +191,7 @@ def preprocess_Hyper(g):
     row_ptr, col_ind, val_idx = A.csr()
     row_ptr = row_ptr.int()
     col_ind = col_ind.int()
-    val = torch.tensor([A.val[i] for i in val_idx]).float()
+    val = A.val[val_idx]
     return A, row_ptr, col_ind, rows, val, smem_consume
 
 
@@ -209,11 +210,11 @@ def preprocess_SubGraph(g):
     row_ptr, col_ind, val_idx = A.csr()
     row_ptr = row_ptr.int()
     col_ind = col_ind.int()
-    val = torch.tensor([A.val[i] for i in val_idx]).float()
+    val = A.val[val_idx]
     return A, row_ptr, col_ind, nodes_subgraph, val
 
 
-def cal_available_node(dim, MAX_NEIGH, MAX_LIMIT=64 * 1024 / 4):
+def cal_available_node(dim, MAX_NEIGH, MAX_LIMIT=48 * 1024 / 4):
     block_size = 1024 / dim
     ## smem need to store
     ## K,V features: 2*num_store_nodes*dim
@@ -223,6 +224,7 @@ def cal_available_node(dim, MAX_NEIGH, MAX_LIMIT=64 * 1024 / 4):
 
 
 def preprocess_Outdegree(g, dim):
+    print("-----start preprocess-----")
     ## global graph config
     # nodes_subgraph: num of nodes in each sub-graph(accumulate), shape(num_subgraph+1)
     nodes = g.batch_num_nodes()
@@ -233,8 +235,14 @@ def preprocess_Outdegree(g, dim):
     N = g.num_nodes()
     A = dglsp.spmatrix(indices, shape=(N, N))
     out_degree = A.sum(0).int()
-    max_neighbor = max(A.sum(1)).item()
+    num_neighbor = A.sum(1).int()
+    if any(num_neighbor == 0):
+        warnings.warn("exit zero-degree node")
+    max_neighbor = max(num_neighbor).item()
     max_nodes = cal_available_node(dim, max_neighbor)
+    print("max neighbor", max_neighbor)
+    print("max supported num of nodes", max_nodes)
+
     ## store_node: the ind ex of nodes stored in smem, shape(num_subgraph*max_nodes,1)
     ## store_flag: the flag whether stored in smem, shape(N, 1)
     ## If: -1, not in smem
@@ -265,13 +273,13 @@ def preprocess_Outdegree(g, dim):
     row_ptr, col_ind, val_idx = A.csr()
     row_ptr = row_ptr.int()
     col_ind = col_ind.int()
-    val = torch.tensor([A.val[i] for i in val_idx]).float()
+    val = A.val[val_idx]
     assert g.batch_size + 1 == nodes_subgraph.shape[0]
     assert g.batch_size + 1 == smem_nodes_subgraph.shape[0]
     print(
         f"{smem_nodes_subgraph[-1].item()} nodes of all {nodes_subgraph[-1].item()} nodes are stored in smem"
     )
-
+    print("-----end preprocess-----")
     return (
         A,
         row_ptr,
@@ -297,7 +305,7 @@ def preprocess_ELL(
 
     # row_ptr = row_ptr.int()
     # col_ind = col_ind.int()
-    # val = torch.tensor([A.val[i] for i in val_idx]).float()
+    # val = A.val[val_idx]
 
     # # cluster the rows into diff buckets based on its num of neighbors
     # row_col_ind, _, _ = format_conversion.csr2ell(
