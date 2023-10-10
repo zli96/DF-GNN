@@ -2,23 +2,14 @@ import argparse
 
 import torch
 
-from dgNN.layers import (
-    choose_GTlayer,
-    SparseMHA,
-    SparseMHA_ELL,
-    SparseMHA_hyper,
-    SparseMHA_subgraph,
-)
+from dgNN.layers import choose_GTlayer, SparseMHA, SparseMHA_hyper, SparseMHA_outdegree
 from dgNN.utils import (
     load_data_batch,
     parser_argument,
     preprocess_CSR,
-    preprocess_ELL,
     preprocess_Hyper,
-    preprocess_SubGraph,
-    train,
+    preprocess_Outdegree,
 )
-
 
 if __name__ == "__main__":
     # parse argument
@@ -31,9 +22,9 @@ if __name__ == "__main__":
     elif args.format == "hyper":
         layer = SparseMHA_hyper
         preprocess_func = preprocess_Hyper
-    elif args.format == "subgraph":
-        layer = SparseMHA_subgraph
-        preprocess_func = preprocess_SubGraph
+    elif args.format == "outdegree":
+        layer = SparseMHA_outdegree
+        preprocess_func = preprocess_Outdegree
     else:
         raise ValueError(f"Unsupported format {args.format}")
 
@@ -50,7 +41,9 @@ if __name__ == "__main__":
     )
     GTlayer = GTlayer.to(dev)
     print("GTlayer", GTlayer)
-    time_no_fuse, time_fuse = train_fn(preprocess_func, GTlayer, train_dataloader, dev)
+    time_no_fuse, time_fuse = train_fn(
+        preprocess_func, GTlayer, train_dataloader, dev, dim=args.dim
+    )
 
     print("----------------------Result------------------------")
     print(
