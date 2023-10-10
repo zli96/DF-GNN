@@ -19,16 +19,16 @@ __global__ void fused_forward_kernel_outdegree_mul32(
   const int fid = threadIdx.x; // index of feature
   const int tidy = threadIdx.y;
 
+  // Offset of nodes in the subgraph on the full graph
   const int node_lb = node_num_ptr[gid];
-  const int node_hb =
-      node_num_ptr[gid +
-                   1]; // Offset of nodes in the subgraph on the full graph
-  const int num_nodes = node_hb - node_lb; // num of nodes in this subgraph
+  const int node_hb = node_num_ptr[gid + 1];
+  // num of nodes in this subgraph
+  const int num_nodes = node_hb - node_lb;
 
   const int smem_node_lb = smem_nodes_ptr[gid];
   const int smem_node_hb = smem_nodes_ptr[gid + 1];
-  const int smem_num_nodes =
-      node_hb - node_lb; // num of nodes in smem of this subgraph
+  // num of nodes in smem of this subgraph
+  const int smem_num_nodes = smem_node_hb - smem_node_lb;
 
   const int hf = h * f;
   const int hfid = hid * f + fid;
@@ -157,7 +157,7 @@ __global__ void fused_forward_kernel_outdegree(
   const int smem_node_lb = smem_nodes_ptr[gid];
   const int smem_node_hb = smem_nodes_ptr[gid + 1];
   // num of nodes in smem of this subgraph
-  const int smem_num_nodes = node_hb - node_lb;
+  const int smem_num_nodes = smem_node_hb - smem_node_lb;
 
   const int f_mul_32 = roundup(f, 32);
 
