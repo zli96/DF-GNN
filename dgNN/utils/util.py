@@ -45,7 +45,7 @@ def load_data_batch(dataset_name, batch_size, data_dir):
             shuffle=False,
             collate_fn=collate_dgl,
         )
-    elif dataset_name in ["MNIST", "CIAR10"]:
+    elif dataset_name in ["MNIST", "CIFAR10"]:
         dataset = LoadData(dataset_name, data_dir)
         trainset, _, _ = dataset.train, dataset.val, dataset.test
         # train_dataloader = DataLoader(

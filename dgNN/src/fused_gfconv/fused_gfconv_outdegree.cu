@@ -6,7 +6,7 @@
 
 using namespace std;
 
-template <typename DType, int BLOCK_SIZE, int LOG_BLOCK_SIZE>
+template <typename DType>
 __global__ void fused_forward_kernel_outdegree_mul32(
     const int h, const int f, const int *node_num_ptr,
     const int *smem_nodes_ptr, const int *store_nodes, const int *store_flags,
@@ -18,6 +18,8 @@ __global__ void fused_forward_kernel_outdegree_mul32(
   const int hid = blockIdx.y;  // index of head
   const int fid = threadIdx.x; // index of feature
   const int tidy = threadIdx.y;
+
+  const int BLOCK_SIZE = blockDim.y;
 
   // Offset of nodes in the subgraph on the full graph
   const int node_lb = node_num_ptr[gid];
@@ -36,11 +38,11 @@ __global__ void fused_forward_kernel_outdegree_mul32(
   const int warpId = fid / WARP_SIZE;
 
   // init shared memory
-  static __shared__ DType warpLevelSums[WARP_SIZE * BLOCK_SIZE];
   extern __shared__ DType smem[];
   DType *K_SMEM = smem;
   DType *V_SMEM = (DType *)&K_SMEM[smem_num_nodes * f];
-  DType *neigh_nodes_weight = (DType *)&V_SMEM[smem_num_nodes * f];
+  DType *warpLevelSums = (DType *)&V_SMEM[smem_num_nodes * f];
+  DType *neigh_nodes_weight = (DType *)&warpLevelSums[WARP_SIZE * BLOCK_SIZE];
 
   // Put the K and V into smem
   int loops_smem_node = (smem_num_nodes + BLOCK_SIZE - 1) / BLOCK_SIZE;
@@ -89,12 +91,13 @@ __global__ void fused_forward_kernel_outdegree_mul32(
         if (warpId == 0)
           weight_partial = warpReduceSum(weight_partial, f / WARP_SIZE);
         if (fid == 0) {
-          neigh_nodes_weight[tidy + (k << LOG_BLOCK_SIZE)] =
+          neigh_nodes_weight[((k >> 5) * BLOCK_SIZE + tidy) * 32 + k % 32] =
               weight_partial * val[lb + k];
         }
         namedBarrierSync(tidy, f);
 
-        weight = neigh_nodes_weight[tidy + (k << LOG_BLOCK_SIZE)];
+        weight =
+            neigh_nodes_weight[((k >> 5) * BLOCK_SIZE + tidy) * 32 + k % 32];
         weightMax = MAX(weight, weightMax);
       }
 
@@ -106,7 +109,9 @@ __global__ void fused_forward_kernel_outdegree_mul32(
         int pid = laneId + (k << 5);
         if (pid < num_neighbor) {
           // TODO need to fix the bank conflict?
-          DType weight = neigh_nodes_weight[tidy + (pid << LOG_BLOCK_SIZE)];
+          DType weight =
+              neigh_nodes_weight[((pid >> 5) * BLOCK_SIZE + tidy) * 32 +
+                                 laneId];
           exptmp = exp(weight - weightMax);
         }
         __syncwarp();
@@ -122,7 +127,8 @@ __global__ void fused_forward_kernel_outdegree_mul32(
       DType attn_val;
       for (int k = 0; k < num_neighbor; k++) {
         int cid_global = indices[lb + k];
-        DType weight = neigh_nodes_weight[tidy + (k << LOG_BLOCK_SIZE)];
+        DType weight =
+            neigh_nodes_weight[((k >> 5) * BLOCK_SIZE + tidy) * 32 + k % 32];
         attn_val = exp(weight - weightMax);
         int store_flag = store_flags[cid_global];
         if (store_flag >= 0)
@@ -136,7 +142,7 @@ __global__ void fused_forward_kernel_outdegree_mul32(
   }
 }
 
-template <typename DType, int BLOCK_SIZE, int LOG_BLOCK_SIZE>
+template <typename DType>
 __global__ void fused_forward_kernel_outdegree(
     const int h, const int f, const int *node_num_ptr,
     const int *smem_nodes_ptr, const int *store_nodes, const int *store_flags,
@@ -148,6 +154,8 @@ __global__ void fused_forward_kernel_outdegree(
   const int hid = blockIdx.y;  // index of head
   const int fid = threadIdx.x; // index of feature
   const int tidy = threadIdx.y;
+
+  const int BLOCK_SIZE = blockDim.y;
 
   // Offset of nodes in the subgraph on the full graph
   const int node_lb = node_num_ptr[gid];
@@ -167,11 +175,11 @@ __global__ void fused_forward_kernel_outdegree(
   const int warpId = fid / WARP_SIZE;
 
   // init shared memory
-  static __shared__ DType warpLevelSums[WARP_SIZE * BLOCK_SIZE];
   extern __shared__ DType smem[];
   DType *K_SMEM = smem;
   DType *V_SMEM = (DType *)&K_SMEM[smem_num_nodes * f];
-  DType *neigh_nodes_weight = (DType *)&V_SMEM[smem_num_nodes * f];
+  DType *warpLevelSums = (DType *)&V_SMEM[smem_num_nodes * f];
+  DType *neigh_nodes_weight = (DType *)&warpLevelSums[WARP_SIZE * BLOCK_SIZE];
 
   // Put the K and V into smem
   int loops_smem_node = (smem_num_nodes + BLOCK_SIZE - 1) / BLOCK_SIZE;
@@ -222,12 +230,13 @@ __global__ void fused_forward_kernel_outdegree(
         if (warpId == 0)
           weight_partial = warpReduceSum(weight_partial, f_mul_32 / WARP_SIZE);
         if (fid == 0) {
-          neigh_nodes_weight[tidy + (k << LOG_BLOCK_SIZE)] =
+          neigh_nodes_weight[((k >> 5) * BLOCK_SIZE + tidy) * 32 + k % 32] =
               weight_partial * val[lb + k];
         }
         namedBarrierSync(tidy, f_mul_32);
 
-        weight = neigh_nodes_weight[tidy + (k << LOG_BLOCK_SIZE)];
+        weight =
+            neigh_nodes_weight[((k >> 5) * BLOCK_SIZE + tidy) * 32 + k % 32];
         weightMax = MAX(weight, weightMax);
       }
 
@@ -239,7 +248,9 @@ __global__ void fused_forward_kernel_outdegree(
         int pid = laneId + (k << 5);
         if (pid < num_neighbor) {
           // TODO need to fix the bank conflict?
-          DType weight = neigh_nodes_weight[tidy + (pid << LOG_BLOCK_SIZE)];
+          DType weight =
+              neigh_nodes_weight[((pid >> 5) * BLOCK_SIZE + tidy) * 32 +
+                                 laneId];
           exptmp = exp(weight - weightMax);
         }
         __syncwarp();
@@ -255,7 +266,8 @@ __global__ void fused_forward_kernel_outdegree(
       DType attn_val;
       for (int k = 0; k < num_neighbor; k++) {
         int cid_global = indices[lb + k];
-        DType weight = neigh_nodes_weight[tidy + (k << LOG_BLOCK_SIZE)];
+        DType weight =
+            neigh_nodes_weight[((k >> 5) * BLOCK_SIZE + tidy) * 32 + k % 32];
         attn_val = exp(weight - weightMax);
         int store_flag = store_flags[cid_global];
         if (fid < f) {
@@ -286,39 +298,15 @@ void gf_forward_outdegree(int num_subgraph, int h, int f,
   const int nby = h;
   const dim3 nblks(nbx, nby);
   const dim3 nthrs(ntx, nty);
-  const int smem_size = 1024 * 64 - nty * 32 * 4;
+  const int smem_size = 1024 * 64;
   // printf("launch dim %d %d %d %d \n", ntx, nty, nbx, nby);
-  switch (nty) {
-  case 8:
-    cudaFuncSetAttribute(fused_forward_kernel_outdegree<float, 8, 3>,
-                         cudaFuncAttributeMaxDynamicSharedMemorySize,
-                         smem_size);
-    CUDA_KERNEL_CALL((fused_forward_kernel_outdegree<float, 8, 3>), nblks,
-                     nthrs, smem_size, h, f, nodes_subgraph,
-                     smem_nodes_subgraph, store_node, store_flag, indptr,
-                     indices, val, Q, K, V, out_feat);
-    break;
-  case 16:
-    cudaFuncSetAttribute(fused_forward_kernel_outdegree<float, 16, 4>,
-                         cudaFuncAttributeMaxDynamicSharedMemorySize,
-                         smem_size);
-    CUDA_KERNEL_CALL((fused_forward_kernel_outdegree<float, 16, 4>), nblks,
-                     nthrs, smem_size, h, f, nodes_subgraph,
-                     smem_nodes_subgraph, store_node, store_flag, indptr,
-                     indices, val, Q, K, V, out_feat);
-    break;
-  case 32:
-    cudaFuncSetAttribute(fused_forward_kernel_outdegree<float, 32, 5>,
-                         cudaFuncAttributeMaxDynamicSharedMemorySize,
-                         smem_size);
-    CUDA_KERNEL_CALL((fused_forward_kernel_outdegree<float, 32, 5>), nblks,
-                     nthrs, smem_size, h, f, nodes_subgraph,
-                     smem_nodes_subgraph, store_node, store_flag, indptr,
-                     indices, val, Q, K, V, out_feat);
-    break;
-  default:
-    throw "not supported BLOCKSIZE!";
-  }
+
+  cudaFuncSetAttribute(fused_forward_kernel_outdegree<float>,
+                       cudaFuncAttributeMaxDynamicSharedMemorySize, smem_size);
+  CUDA_KERNEL_CALL((fused_forward_kernel_outdegree<float>), nblks, nthrs,
+                   smem_size, h, f, nodes_subgraph, smem_nodes_subgraph,
+                   store_node, store_flag, indptr, indices, val, Q, K, V,
+                   out_feat);
 }
 
 void gf_forward_outdegree_multiple32(int num_subgraph, int h, int f,
@@ -335,39 +323,15 @@ void gf_forward_outdegree_multiple32(int num_subgraph, int h, int f,
   const int nby = h;
   const dim3 nblks(nbx, nby);
   const dim3 nthrs(ntx, nty);
-  const int smem_size = 1024 * 64 - nty * 32 * 4;
+  const int smem_size = 1024 * 64;
   // printf("launch dim %d %d %d %d \n", ntx, nty, nbx, nby);
-  switch (nty) {
-  case 8:
-    cudaFuncSetAttribute(fused_forward_kernel_outdegree_mul32<float, 8, 3>,
-                         cudaFuncAttributeMaxDynamicSharedMemorySize,
-                         smem_size);
-    CUDA_KERNEL_CALL((fused_forward_kernel_outdegree_mul32<float, 8, 3>), nblks,
-                     nthrs, smem_size, h, f, nodes_subgraph,
-                     smem_nodes_subgraph, store_node, store_flag, indptr,
-                     indices, val, Q, K, V, out_feat);
-    break;
-  case 16:
-    cudaFuncSetAttribute(fused_forward_kernel_outdegree_mul32<float, 16, 4>,
-                         cudaFuncAttributeMaxDynamicSharedMemorySize,
-                         smem_size);
-    CUDA_KERNEL_CALL((fused_forward_kernel_outdegree_mul32<float, 16, 4>),
-                     nblks, nthrs, smem_size, h, f, nodes_subgraph,
-                     smem_nodes_subgraph, store_node, store_flag, indptr,
-                     indices, val, Q, K, V, out_feat);
-    break;
-  case 32:
-    cudaFuncSetAttribute(fused_forward_kernel_outdegree_mul32<float, 32, 5>,
-                         cudaFuncAttributeMaxDynamicSharedMemorySize,
-                         smem_size);
-    CUDA_KERNEL_CALL((fused_forward_kernel_outdegree_mul32<float, 32, 5>),
-                     nblks, nthrs, smem_size, h, f, nodes_subgraph,
-                     smem_nodes_subgraph, store_node, store_flag, indptr,
-                     indices, val, Q, K, V, out_feat);
-    break;
-  default:
-    throw "not supported BLOCKSIZE!";
-  }
+
+  cudaFuncSetAttribute(fused_forward_kernel_outdegree_mul32<float>,
+                       cudaFuncAttributeMaxDynamicSharedMemorySize, smem_size);
+  CUDA_KERNEL_CALL((fused_forward_kernel_outdegree_mul32<float>), nblks, nthrs,
+                   smem_size, h, f, nodes_subgraph, smem_nodes_subgraph,
+                   store_node, store_flag, indptr, indices, val, Q, K, V,
+                   out_feat);
 }
 
 std::vector<torch::Tensor> gf_outdegree_forward_cuda(
