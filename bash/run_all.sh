@@ -1,8 +1,11 @@
 #!/bin/bash
 
 datasets=(ogbg-molhiv PATTERN CLUSTER Peptides-func Peptides-struct PascalVOC-SP COCO-SP)
+# datasets=(CIFAR10 Peptides-func Peptides-struct PascalVOC-SP COCO-SP)
 
-formats=(csr hyper)
+
+formats=(outdegree)
+# formats=(outdegree csr hyper)
 
 batch_sizes=(16 32 64 128 256 512 1024 2048 4096)
 
@@ -18,12 +21,14 @@ for dataset in ${datasets[@]}; do
     config_dir=config/${dataset}_sparse_attention.yaml
 
     for format in ${formats[@]}; do
-        name=gf_tiling_${dataset}_${format}_${Time}
+        name=gf_${dataset}_${format}_${Time}
         for bs in ${batch_sizes[@]}; do
 
             # # run with nolog
+            # cuda-gdb -ex r --args  python -u dgNN/script/test/test_gf.py --data-dir ${data_dir} --format ${format} --config ${config_dir} --batch-size $bs
+            # CUDA_LAUNCH_BLOCKING=1 python -u dgNN/script/test/test_gf.py --data-dir ${data_dir} --format ${format} --config ${config_dir} --batch-size $bs
             # python -u dgNN/script/test/test_gf.py --data-dir ${data_dir} --format ${format} --config ${config_dir} --batch-size $bs
-
+            
             # # run with log
             python -u dgNN/script/test/test_gf.py --data-dir ${data_dir} --format ${format} --config ${config_dir} --batch-size $bs | tee -a log/day_${day}/${name}.log
 
