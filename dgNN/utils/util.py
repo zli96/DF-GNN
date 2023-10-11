@@ -17,6 +17,7 @@ from dgl.data import (
     CoraGraphDataset,
     PATTERNDataset,
     PubmedGraphDataset,
+    Subset,
 )
 
 from dgl.dataloading import GraphDataLoader
@@ -29,57 +30,43 @@ from torch.utils.data import DataLoader
 profiler = ScheduleProfiler.ScheduleProfiler()
 
 
-def load_data_batch(dataset_name, batch_size, data_dir):
+def load_dataset_fn(dataset_name, data_dir):
     train_fn = train
+    collate_fn = None
+    # train function for node-classification task
+    if dataset_name in ["PascalVOC-SP", "COCO-SP", "PATTERN", "CLUSTER"]:
+        train_fn = train_SBM
 
-    if dataset_name == "PCQM4Mv2-full" or dataset_name == "ogbg-molhiv":
+    if dataset_name in ["PCQM4Mv2-full", "ogbg-molhiv"]:
         if dataset_name == "PCQM4Mv2-full":
             dataset = DglPCQM4Mv2Dataset(root=data_dir)
         else:
             dataset = DglGraphPropPredDataset(dataset_name, data_dir)
         split_idx = dataset.get_idx_split()
         train_idx = split_idx["train"]
-        train_dataloader = GraphDataLoader(
-            dataset[train_idx],
-            batch_size=batch_size,
-            shuffle=False,
-            collate_fn=collate_dgl,
-        )
+        dataset = dataset[train_idx]
     elif dataset_name in ["MNIST", "CIFAR10"]:
-        dataset = LoadData(dataset_name, data_dir)
-        trainset, _, _ = dataset.train, dataset.val, dataset.test
-        # train_dataloader = DataLoader(
+        dataset_all = LoadData(dataset_name, data_dir)
+        dataset = dataset_all.train
+        collate_fn = dataset_all.collate
+        # # TODO collate work?
+        # train_dataloader = GraphDataLoader(
         #     trainset, batch_size=batch_size, shuffle=False, collate_fn=dataset.collate
         # )
-        train_dataloader = GraphDataLoader(
-            trainset, batch_size=batch_size, shuffle=False, collate_fn=dataset.collate
-        )
     elif dataset_name in ["Peptides-func", "Peptides-struct"]:
         dataset = LoadData(dataset_name, data_dir)
-        train_dataloader = GraphDataLoader(
-            dataset, batch_size=batch_size, shuffle=False, collate_fn=collate_dgl
-        )
-    elif dataset_name in ["PascalVOC-SP", "COCO-SP"]:
-        train_fn = train_SBM
+
+    if dataset_name in ["PascalVOC-SP", "COCO-SP"]:
         dataset = LoadData(dataset_name, data_dir)
-        train_dataloader = GraphDataLoader(
-            dataset, batch_size=batch_size, shuffle=False
-        )
     elif dataset_name == "PATTERN":
-        train_fn = train_SBM
         dataset = PATTERNDataset(mode="train", raw_dir=data_dir)
-        train_dataloader = GraphDataLoader(
-            dataset, batch_size=batch_size, shuffle=False
-        )
     elif dataset_name == "CLUSTER":
-        train_fn = train_SBM
         dataset = CLUSTERDataset(mode="train", raw_dir=data_dir)
-        train_dataloader = GraphDataLoader(
-            dataset, batch_size=batch_size, shuffle=False
-        )
-    else:
+
+    if dataset == None:
         raise ValueError(f"unknown dataset {dataset_name}")
-    return train_dataloader, train_fn
+
+    return dataset, train_fn, collate_fn
 
 
 def load_data_full_graph(dataset_name, dataset_dir):
@@ -195,7 +182,7 @@ def preprocess_Hyper(g, **args):
     return A, row_ptr, col_ind, rows, val, smem_consume
 
 
-def preprocess_SubGraph(g):
+def preprocess_SubGraph(g, **args):
     nodes = g.batch_num_nodes()
 
     # num of nodes in each sub-graph(accumulate)
@@ -214,7 +201,7 @@ def preprocess_SubGraph(g):
     return A, row_ptr, col_ind, nodes_subgraph, val
 
 
-def cal_available_node(dim, MAX_NEIGH, MAX_LIMIT=48 * 1024 / 4):
+def cal_available_node(dim, MAX_NEIGH, MAX_LIMIT=64 * 1024 / 4):
     block_size = 1024 / dim
     ## smem need to store
     ## K,V features: 2*num_store_nodes*dim
@@ -224,7 +211,6 @@ def cal_available_node(dim, MAX_NEIGH, MAX_LIMIT=48 * 1024 / 4):
 
 
 def preprocess_Outdegree(g, dim):
-    print("-----start preprocess-----")
     ## global graph config
     # nodes_subgraph: num of nodes in each sub-graph(accumulate), shape(num_subgraph+1)
     nodes = g.batch_num_nodes()
@@ -279,7 +265,6 @@ def preprocess_Outdegree(g, dim):
     print(
         f"{smem_nodes_subgraph[-1].item()} nodes of all {nodes_subgraph[-1].item()} nodes are stored in smem"
     )
-    print("-----end preprocess-----")
     return (
         A,
         row_ptr,
@@ -290,6 +275,22 @@ def preprocess_Outdegree(g, dim):
         store_node,
         store_flag,
     )
+
+
+def subgraph_filter(dataset, dataset_name, dim, heads):
+    if dataset_name in ["PascalVOC-SP", "COCO-SP", "PATTERN", "CLUSTER"]:
+        num_nodes = torch.tensor([subgraph.num_nodes() for (subgraph) in dataset])
+    else:
+        num_nodes = torch.tensor([subgraph.num_nodes() for (subgraph, _) in dataset])
+    # max_neighbor = max(A.sum(1).int()).item()
+    max_nodes = cal_available_node(dim / heads, 192)
+    subgraph_index = torch.nonzero(num_nodes < max_nodes).squeeze().long()
+    if dataset_name in ["MNIST", "CIFAR10"]:
+        dataset = Subset(dataset, subgraph_index.cpu())
+    else:
+        dataset = dataset[subgraph_index]
+    pdb.set_trace()
+    return dataset
 
 
 def preprocess_ELL(
@@ -375,6 +376,7 @@ def train(process_func, layer, train_dataloader, dev, **kwargs):
     warmup = 1
     sample_start_time = 0
     for i, (batched_g, labels) in enumerate(train_dataloader):
+        print(f"-----epoch {i}--------")
         print(
             f"epoch {i} sample elapsed time {default_timer() - sample_start_time:.2f} s"
         )
@@ -385,7 +387,7 @@ def train(process_func, layer, train_dataloader, dev, **kwargs):
         logits, elapsed_time = layer(params, batched_g.ndata["feat"])
         print(f"epoch {i} non-fused time %.4f" % elapsed_time)
 
-        if i > warmup:
+        if i >= warmup:
             time_no_fuse.append(elapsed_time)
             ## run by fuse attention
             logits_fuse, elapsed_time = layer(
@@ -408,6 +410,7 @@ def train_SBM(process_func, layer, train_dataloader, dev, **kwargs):
     warmup = 1
     sample_start_time = 0
     for i, (batched_g) in enumerate(train_dataloader):
+        print(f"-----epoch {i}--------")
         print(
             f"epoch {i} sample elapsed time {default_timer() - sample_start_time:.2f} s"
         )
@@ -418,7 +421,7 @@ def train_SBM(process_func, layer, train_dataloader, dev, **kwargs):
         ## run by DGL sparse API
         logits, elapsed_time = layer(params, batched_g.ndata["feat"])
         print(f"epoch {i} non-fused time %.4f" % elapsed_time)
-        if i > warmup:
+        if i >= warmup:
             time_no_fuse.append(elapsed_time)
             ## run by fuse attention
             logits_fuse, elapsed_time = layer(
@@ -542,11 +545,13 @@ def parser_argument(parser):
     parser.add_argument("--batch-size", type=int)
     parser.add_argument("--data-dir", type=str, default="./data/OGB")
     parser.add_argument("--dataset", type=str)
-
+    parser.add_argument("--subgraph-filter", action="store_true")
     args = parse_args(parser)
     print("Dataset", args.dataset)
     print("format", args.format)
     print("hidden dim", args.dim)
     print("num heads", args.heads)
     print("batch size", args.batch_size)
+    if args.subgraph_filter:
+        print("will filter the subgraph bigger than limit")
     return args

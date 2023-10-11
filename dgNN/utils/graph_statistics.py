@@ -14,8 +14,10 @@ print(os.path.join(current_dir, ".."))
 
 import argparse
 
+from dgl.dataloading import GraphDataLoader
+
 from tqdm import tqdm
-from util import load_data_batch, load_data_full_graph
+from util import load_data_full_graph, load_dataset_fn
 
 
 def figure_boxplot(dataset_name, fig_name, data, mean, std):
@@ -29,8 +31,15 @@ def figure_boxplot(dataset_name, fig_name, data, mean, std):
 
 
 def batch_graph_statistics(args):
-    train_dataloader, _ = load_data_batch(args.dataset, 1, "/workspace2/dataset")
-
+    dataset, train_fn, collate_fn = load_dataset_fn(
+        args.dataset, 1, "/workspace2/dataset"
+    )
+    train_dataloader = GraphDataLoader(
+        dataset,
+        batch_size=args.batch_size,
+        shuffle=False,
+        collate_fn=collate_fn,
+    )
     num_nodes = []  # 每个subgraph中节点的总数
     graph_density = []  # 每个subgraph的图密度
 

@@ -223,13 +223,19 @@ class VOCSuperpixels_DGL(object):
             - ``ndata['label']``: node labels
             - ``edata['feat']``: edge features
         """
+
         if isinstance(idx, int):
             return self.graphs[idx]
-        elif torch.is_tensor(idx):
-            if torch.ndim(idx) == 0:
+        elif torch.is_tensor(idx) and idx.dtype == torch.long:
+            if idx.dim() == 0:
                 return self.graphs[idx]
-            elif torch.ndim(idx) == 1:
+            elif idx.dim() == 1:
                 return Subset(self, idx.cpu())
+
+        raise IndexError(
+            "Only integers and long are valid "
+            "indices (got {}).".format(type(idx).__name__)
+        )
 
 
 if __name__ == "__main__":

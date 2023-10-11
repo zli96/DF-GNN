@@ -7,8 +7,9 @@ from collections import Counter
 import dgl.sparse as dglsp
 import matplotlib.pyplot as plt
 import torch
+from dgl.dataloading import GraphDataLoader
 from tqdm import tqdm
-from util import load_data_batch, load_data_full_graph
+from util import load_data_full_graph, load_dataset_fn
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(current_dir, "../.."))
@@ -84,7 +85,15 @@ def cal_overlap_adj_nodes(A, num_nodes, blocksize, f):
 
 def neigh_overlap_adj_nodes(args):
     blocksize = args.blocksize
-    train_dataloader, _ = load_data_batch(args.dataset, args.bs, "/workspace2/dataset")
+    dataset, train_fn, collate_fn = load_dataset_fn(
+        args.dataset, args.bs, "/workspace2/dataset"
+    )
+    train_dataloader = GraphDataLoader(
+        dataset,
+        batch_size=args.batch_size,
+        shuffle=False,
+        collate_fn=collate_fn,
+    )
     overlap_coe = []
     if args.dataset == "PATTERN" or args.dataset == "CLUSTER":
         for iter, (g) in enumerate(train_dataloader):

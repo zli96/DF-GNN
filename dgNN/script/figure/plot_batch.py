@@ -2,8 +2,11 @@ import argparse
 
 import torch
 
-from dgNN.utils import figure_num_neigh_dist, load_data_batch
+from dgl.dataloading import GraphDataLoader
+
+from dgNN.utils import figure_num_neigh_dist, load_dataset_fn
 from tqdm import tqdm
+
 
 if __name__ == "__main__":
 
@@ -12,7 +15,13 @@ if __name__ == "__main__":
     parser.add_argument("--bs", type=int, default=1)
     parser.add_argument("--dataset", type=str, default="ogbg-molhiv")
     args = parser.parse_args()
-    train_dataloader = load_data_batch(args.dataset, args.bs)
+    dataset, train_fn, collate_fn = load_dataset_fn(args.dataset, args.bs)
+    train_dataloader = GraphDataLoader(
+        dataset,
+        batch_size=args.batch_size,
+        shuffle=False,
+        collate_fn=collate_fn,
+    )
     num_nodes_batch = []
     num_edges_batch = []
     std_nodes_batch = []

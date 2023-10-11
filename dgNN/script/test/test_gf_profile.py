@@ -3,16 +3,16 @@ import pdb
 
 import torch
 import torch.nn.functional as F
+
+from dgl.dataloading import GraphDataLoader
 from dgNN.layers import GTlayer_mol, SparseMHA, SparseMHA_ELL, SparseMHA_hyper
 from dgNN.utils import (
-    load_data_batch,
+    load_dataset_fn,
     parser_argument,
     preprocess_CSR,
-    preprocess_ELL,
     preprocess_Hyper,
     train_profile,
 )
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="GF")
@@ -38,7 +38,15 @@ if __name__ == "__main__":
     dev = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     # load dataset
-    train_dataloader = load_data_batch(args.dataset, args.batch_size, args.data_dir)
+    dataset, train_fn, collate_fn = load_dataset_fn(
+        args.dataset, args.batch_size, args.data_dir
+    )
+    train_dataloader = GraphDataLoader(
+        dataset,
+        batch_size=args.batch_size,
+        shuffle=False,
+        collate_fn=collate_fn,
+    )
     GTlayer = GTlayer_mol(layer=layer, hidden_size=args.dim, num_heads=args.heads).to(
         dev
     )
