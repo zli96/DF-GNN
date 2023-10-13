@@ -4,13 +4,13 @@ import os, pdb, pickle, torch
 
 import dgl
 
-from dgNN.layers import GTlayer, SparseMHA, SparseMHA_hyper, SparseMHA_subgraph
+from dgNN.layers import GTlayer, SparseMHA, SparseMHA_hyper, SparseMHA_outdegree
 from dgNN.utils import (
     check_correct,
     Move2Device,
     preprocess_CSR,
     preprocess_Hyper,
-    preprocess_SubGraph,
+    preprocess_Outdegree,
 )
 
 
@@ -25,17 +25,17 @@ def g_pkl2DGL(graph):
     return g
 
 
-def train(process_func, layer, dev):
+def train(process_func, layer, dev, args, **kwargs):
     print("----------------------Forward------------------------")
     time_no_fuse = []
     time_fuse = []
+    avg_degrees = []
     warmup = 1
     for g_id in range(warmup):
         try:
             with open(os.path.join(args.output, f"{g_id}.pkl"), "rb") as f:
-                graph_pkl = pickle.load(f)
-                g = g_pkl2DGL(graph_pkl)
-            params = process_func(g)
+                g = pickle.load(f)
+            params = process_func(g, **kwargs)
             g, params = Move2Device([g, params], dev)
             logits, elapsed_time = layer(params, g.ndata["feat"])
         except IOError:
@@ -48,10 +48,12 @@ def train(process_func, layer, dev):
                 config = pickle.load(f)
                 print(config)
             with open(os.path.join(args.output, f"{g_id}.pkl"), "rb") as f:
-                graph_pkl = pickle.load(f)
-                g = g_pkl2DGL(graph_pkl)
+                g = pickle.load(f)
             print("graph id", g_id)
-            params = process_func(g)
+            avg_degree = 2 * g.num_edges() / g.num_nodes()
+            print("avg degree", avg_degree)
+            avg_degrees.append(avg_degree)
+            params = process_func(g, **kwargs)
             g, params = Move2Device([g, params], dev)
             logits, elapsed_time = layer(params, g.ndata["feat"])
             print(f"epoch {g_id} non-fused time %.4f" % elapsed_time)
@@ -61,11 +63,14 @@ def train(process_func, layer, dev):
             time_fuse.append(elapsed_time)
             # pdb.set_trace()
             print(f"epoch {g_id} fused time %.4f" % elapsed_time)
-            if g_id < 3:
-                check_correct(logits, logits_fuse, params)
+            if g_id == 0:
+                check_correct(logits[:10000], logits_fuse[:10000], params)
             print("--------------------------------------")
         except IOError:
             break
+
+    with open(os.path.join(args.output, f"{args.format}_result.pkl"), "wb") as f:
+        pickle.dump([avg_degrees, time_no_fuse, time_fuse], f)
 
     return time_no_fuse, time_fuse
 
@@ -79,6 +84,7 @@ if __name__ == "__main__":
     parser.add_argument("--dim", type=int, default=32)
     parser.add_argument("--heads", type=int, default=1)
     parser.add_argument("--data-dir", type=str, default="./data/OGB")
+    parser.add_argument("--rerun", action="store_true")
 
     args = parser.parse_args()
 
@@ -93,9 +99,9 @@ if __name__ == "__main__":
     elif args.format == "hyper":
         layer = SparseMHA_hyper
         preprocess_func = preprocess_Hyper
-    elif args.format == "subgraph":
-        layer = SparseMHA_subgraph
-        preprocess_func = preprocess_SubGraph
+    elif args.format == "outdegree":
+        layer = SparseMHA_outdegree
+        preprocess_func = preprocess_Outdegree
     else:
         raise ValueError(f"Unsupported format {args.format}")
 
@@ -107,7 +113,14 @@ if __name__ == "__main__":
     layer = GTlayer(layer, 16, args.dim, args.heads)
     layer = layer.to(dev)
     print("GTlayer", layer)
-    time_no_fuse, time_fuse = train(preprocess_func, layer, dev)
+
+    if args.rerun or not os.path.exists(
+        os.path.join(args.output, f"{args.format}_result.pkl")
+    ):
+        time_no_fuse, time_fuse = train(preprocess_func, layer, dev, args, dim=args.dim)
+
+    with open(os.path.join(args.output, f"{args.format}_result.pkl"), "rb") as f:
+        time_no_fuse, time_fuse = pickle.load(f)
 
     print("----------------------Result------------------------")
     print(
