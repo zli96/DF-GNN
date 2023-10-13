@@ -118,9 +118,9 @@ if __name__ == "__main__":
         os.path.join(args.output, f"{args.format}_result.pkl")
     ):
         time_no_fuse, time_fuse = train(preprocess_func, layer, dev, args, dim=args.dim)
-
-    with open(os.path.join(args.output, f"{args.format}_result.pkl"), "rb") as f:
-        time_no_fuse, time_fuse = pickle.load(f)
+    else:
+        with open(os.path.join(args.output, f"{args.format}_result.pkl"), "rb") as f:
+            _, time_no_fuse, time_fuse = pickle.load(f)
 
     print("----------------------Result------------------------")
     print(
