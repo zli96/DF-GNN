@@ -14,17 +14,6 @@ from dgNN.utils import (
 )
 
 
-def g_pkl2DGL(graph):
-    num_vertex, edge_index, node_feature = graph
-    # print("num_vertex", num_vertex)
-    # print(edge_index.shape)
-    # print(node_feature.shape)
-    # print(node_feature.dtype)
-    g = dgl.graph((edge_index[0], edge_index[1]), num_nodes=num_vertex)
-    g.ndata["feat"] = node_feature.to(torch.float)
-    return g
-
-
 def train(process_func, layer, dev, args, **kwargs):
     print("----------------------Forward------------------------")
     time_no_fuse = []
@@ -52,6 +41,7 @@ def train(process_func, layer, dev, args, **kwargs):
             print("graph id", g_id)
             avg_degree = 2 * g.num_edges() / g.num_nodes()
             print("avg degree", avg_degree)
+            print("in degree", torch.mean(g.in_degrees().float()).item())
             avg_degrees.append(avg_degree)
             params = process_func(g, **kwargs)
             g, params = Move2Device([g, params], dev)
@@ -69,7 +59,9 @@ def train(process_func, layer, dev, args, **kwargs):
         except IOError:
             break
 
-    with open(os.path.join(args.output, f"{args.format}_result.pkl"), "wb") as f:
+    with open(
+        os.path.join(args.output, f"{args.format}_{args.dim}_result.pkl"), "wb"
+    ) as f:
         pickle.dump([avg_degrees, time_no_fuse, time_fuse], f)
 
     return time_no_fuse, time_fuse

@@ -171,6 +171,7 @@ def preprocess_Hyper(g, **args):
     # using max_degree to cal max smem consume
     max_degree = int(max(A.sum(1)).item())
     smem_consume = (max_degree + WARP_SIZE - 1) // WARP_SIZE * WARP_SIZE
+    print("preprocess smem consume", smem_consume)
 
     # A.row: the src node of each edge
     rows = A.row.int()
