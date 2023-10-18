@@ -170,7 +170,7 @@ def preprocess_Hyper(g, **args):
 
     # using max_degree to cal max smem consume
     max_degree = int(max(A.sum(1)).item())
-    smem_consume = (max_degree + WARP_SIZE - 1) // WARP_SIZE * WARP_SIZE
+    smem_consume = (max_degree * 8 + WARP_SIZE - 1) // WARP_SIZE * WARP_SIZE
     print("preprocess smem consume", smem_consume)
 
     # A.row: the src node of each edge
@@ -403,8 +403,8 @@ def train(process_func, layer, train_dataloader, dev, **kwargs):
             )
             time_fuse.append(elapsed_time)
             print(f"epoch {i} fused time %.4f" % elapsed_time)
-            # if i < 3:
-            #     check_correct(logits, logits_fuse, params)
+            if i < 3:
+                check_correct(logits, logits_fuse, params)
             if i == 20:
                 break
         sample_start_time = default_timer()
