@@ -26,15 +26,15 @@ if [ -z "${dataset}" ]; then
 	# dataset="COCO-SP"
 fi
 if [ -z "${format}" ]; then
-	# format="csr"
+	format="csr"
 	# format="hyper"
-	format="outdegree"
+	# format="outdegree"
 fi
 
 set -e
 
 python setup.py develop
-# python -u dgNN/script/test/test_gf.py --dim $dim --heads $heads --batch-size $bs --data-dir ${data_dir} --dataset ${dataset} --format ${format}
+python -u dgNN/script/test/test_gf.py --dim $dim --heads $heads --batch-size $bs --data-dir ${data_dir} --dataset ${dataset} --format ${format}
 # python -u dgNN/script/test/test_gf_full_graph.py --dim $dim --heads $heads --dataset pubmed --data-dir ${data_dir} --format ${format}
-cuda-gdb -ex r --args  python -u dgNN/script/test/test_gf.py --dim $dim --heads $heads --batch-size $bs --data-dir ${data_dir} --dataset ${dataset} --format ${format}
+# cuda-gdb -ex r --args  python -u dgNN/script/test/test_gf.py --dim $dim --heads $heads --batch-size $bs --data-dir ${data_dir} --dataset ${dataset} --format ${format}
 # CUDA_LAUNCH_BLOCKING=1 python -u dgNN/script/test/test_gf.py --data-dir ${data_dir} --format ${format} --config ${config_dir} --batch-size $bs

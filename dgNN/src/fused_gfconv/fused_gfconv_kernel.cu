@@ -6,12 +6,12 @@
 
 using namespace std;
 
-__global__ void fused_forward_kernel_mul32(const int m, const int nnz,
-                                           const int h, const int f,
-                                           const int *indptr,
-                                           const int *indices, const float *val,
-                                           const float *Q, const float *K,
-                                           const float *V, float *out_feat) {
+template <typename DType>
+__global__ void
+fused_forward_kernel_mul32(const int m, const int nnz, const int h, const int f,
+                           const int *indptr, const int *indices,
+                           const DType *val, const DType *Q, const DType *K,
+                           const DType *V, DType *out_feat) {
   const int rid = blockIdx.x;                     // loop over row of adj matrix
   const int hid = blockIdx.y;                     // loop over heads
   const int fid = threadIdx.y * 32 + threadIdx.x; // loop over feature dim
@@ -20,19 +20,19 @@ __global__ void fused_forward_kernel_mul32(const int m, const int nnz,
   const int hb = indptr[rid + 1];
 
   const int num_neighbor = hb - lb;
-  extern __shared__ float smem[];
-  float *neigh_nodes_weight = smem;
-  float weightMax = -1e38;
-  static __shared__ float warpLevelSums[WARP_SIZE];
+  extern __shared__ DType smem[];
+  DType *neigh_nodes_weight = smem;
+  DType weightMax = -1e38;
+  static __shared__ DType warpLevelSums[WARP_SIZE];
   const int hf = h * f;
   const int hfid = hid * f + fid;
   const int laneId = threadIdx.x;
   const int warpId = threadIdx.y;
-  float Q_i = Q[rid * hf + hfid];
+  DType Q_i = Q[rid * hf + hfid];
 
   for (int j = 0; j < num_neighbor; j++) {
-    float weight = 0;
-    float weight_partial = 0;
+    DType weight = 0;
+    DType weight_partial = 0;
 
     int cid = indices[lb + j];
     weight_partial = Q_i * K[cid * hf + hfid];
@@ -55,12 +55,12 @@ __global__ void fused_forward_kernel_mul32(const int m, const int nnz,
 
   // compute the sum of exp
   int loop = (num_neighbor + 31) / 32;
-  float expAll = 0;
+  DType expAll = 0;
   for (int j = 0; j < loop; j++) {
     int pid = threadIdx.x + (j << 5); // node need to process in loop j
-    float exptmp = 0;
+    DType exptmp = 0;
     if (pid < num_neighbor) {
-      float weight = neigh_nodes_weight[pid];
+      DType weight = neigh_nodes_weight[pid];
       exptmp = exp(weight - weightMax);
     }
     __syncwarp();
@@ -72,11 +72,11 @@ __global__ void fused_forward_kernel_mul32(const int m, const int nnz,
   }
 
   // compute the output
-  float acc = 0;
+  DType acc = 0;
+  DType attn_val;
   for (int j = 0; j < num_neighbor; j++) {
-    float attn_val;
     int cid = indices[lb + j];
-    float weight = neigh_nodes_weight[j];
+    DType weight = neigh_nodes_weight[j];
     attn_val = exp(weight - weightMax);
     acc += attn_val * V[cid * hf + hfid];
   }
@@ -85,10 +85,11 @@ __global__ void fused_forward_kernel_mul32(const int m, const int nnz,
   out_feat[rid * hf + hfid] = (expAll != 0) ? acc / expAll : 0;
 }
 
+template <typename DType>
 __global__ void fused_forward_kernel_tiling_mul32(
     const int m, const int nnz, const int h, const int f, const int *indptr,
-    const int *indices, const float *val, const float *Q, const float *K,
-    const float *V, float *out_feat) {
+    const int *indices, const DType *val, const DType *Q, const DType *K,
+    const DType *V, DType *out_feat) {
   const int rid = blockIdx.x;                     // loop over row of adj matrix
   const int hid = blockIdx.y;                     // loop over heads
   const int fid = threadIdx.y * 32 + threadIdx.x; // loop over feature dim
@@ -97,22 +98,22 @@ __global__ void fused_forward_kernel_tiling_mul32(
   const int hb = indptr[rid + 1];
 
   const int num_neighbor = hb - lb;
-  extern __shared__ float smem[];
-  float *neigh_nodes_weight = smem;
-  static __shared__ float warpLevelSums[WARP_SIZE];
+  extern __shared__ DType smem[];
+  DType *neigh_nodes_weight = smem;
+  static __shared__ DType warpLevelSums[WARP_SIZE];
   const int hf = h * f;
   const int hfid = hid * f + fid;
   const int laneId = threadIdx.x;
   const int warpId = threadIdx.y;
-  float Q_i = Q[rid * hf + hfid];
+  DType Q_i = Q[rid * hf + hfid];
 
-  float acc = 0, partial_sum = 0;
-  float weightMax_old = -1e38, weightMax = -1e38;
-  float expweight, expweightMax;
+  DType acc = 0, partial_sum = 0;
+  DType weightMax_old = -1e38, weightMax = -1e38;
+  DType expweight, expweightMax;
 
   for (int j = 0; j < num_neighbor; j++) {
-    float weight = 0;
-    float weight_partial = 0;
+    DType weight = 0;
+    DType weight_partial = 0;
 
     int cid = indices[lb + j];
     weight_partial = Q_i * K[cid * hf + hfid];
@@ -143,11 +144,12 @@ __global__ void fused_forward_kernel_tiling_mul32(
   out_feat[rid * hf + hfid] = (partial_sum != 0) ? acc / partial_sum : 0;
 }
 
+template <typename DType>
 __global__ void fused_forward_kernel(const int m, const int nnz, const int h,
                                      const int f, const int *indptr,
-                                     const int *indices, const float *val,
-                                     const float *Q, const float *K,
-                                     const float *V, float *out_feat) {
+                                     const int *indices, const DType *val,
+                                     const DType *Q, const DType *K,
+                                     const DType *V, DType *out_feat) {
   const int rid = blockIdx.x;                     // loop over row of adj matrix
   const int hid = blockIdx.y;                     // loop over heads
   const int fid = threadIdx.y * 32 + threadIdx.x; // loop over feature dim
@@ -162,21 +164,21 @@ __global__ void fused_forward_kernel(const int m, const int nnz, const int h,
   const int num_neighbor = hb - lb;
 
   // Allocate smem
-  static __shared__ float warpLevelSums[WARP_SIZE];
-  extern __shared__ float smem[];
-  float *neigh_nodes_weight = smem;
-  float weightMax = -1e38;
+  static __shared__ DType warpLevelSums[WARP_SIZE];
+  extern __shared__ DType smem[];
+  DType *neigh_nodes_weight = smem;
+  DType weightMax = -1e38;
 
   // init the shared memory
-  float Q_i = 0;
+  DType Q_i = 0;
   if (fid < f) {
     Q_i = Q[rid * h * f + hid * f + fid];
   }
 
   // compute the attention weight
   for (int j = 0; j < num_neighbor; j++) {
-    float weight = 0;
-    float weight_partial = 0;
+    DType weight = 0;
+    DType weight_partial = 0;
     if (fid < f) {
       int cid = indices[lb + j];
       weight_partial = Q_i * K[cid * h * f + hid * f + fid];
@@ -202,12 +204,12 @@ __global__ void fused_forward_kernel(const int m, const int nnz, const int h,
 
   // compute the sum of exp
   int loop = (num_neighbor + 31) / 32;
-  float expAll = 0;
+  DType expAll = 0;
   for (int j = 0; j < loop; j++) {
     int pid = threadIdx.x + (j << 5); // node need to process in loop j
-    float exptmp = 0;
+    DType exptmp = 0;
     if (pid < num_neighbor) {
-      float weight = neigh_nodes_weight[pid];
+      DType weight = neigh_nodes_weight[pid];
       exptmp = exp(weight - weightMax);
     }
     __syncwarp();
@@ -219,11 +221,11 @@ __global__ void fused_forward_kernel(const int m, const int nnz, const int h,
   }
 
   // compute the output
-  float acc = 0;
+  DType acc = 0;
+  DType attn_val;
   for (int j = 0; j < num_neighbor; j++) {
-    float attn_val;
     int cid = indices[lb + j];
-    float weight = neigh_nodes_weight[j];
+    DType weight = neigh_nodes_weight[j];
     attn_val = exp(weight - weightMax);
     if (fid < f) {
       acc += attn_val * V[cid * h * f + hid * f + fid];
@@ -248,7 +250,7 @@ void gf_forward(int m, int nnz, int h, int f, int smem_consume,
   const dim3 nblks(m, h);
   const dim3 nthrs(ntx, nty);
 
-  CUDA_KERNEL_CALL((fused_forward_kernel), nblks, nthrs,
+  CUDA_KERNEL_CALL((fused_forward_kernel<float>), nblks, nthrs,
                    (smem_consume) * sizeof(float), m, nnz, h, f, indptr,
                    indices, val, Q, K, V, out_feat);
   // cudaEventRecord(stop, 0);
@@ -268,7 +270,7 @@ void gf_forward_multiple32(int m, int nnz, int h, int f, int smem_consume,
   // cudaEventRecord(start, 0);
   const dim3 nblks(m, h, 1);
   const dim3 nthrs(32, f / 32, 1);
-  CUDA_KERNEL_CALL((fused_forward_kernel_mul32), nblks, nthrs,
+  CUDA_KERNEL_CALL((fused_forward_kernel_mul32<float>), nblks, nthrs,
                    (smem_consume) * sizeof(float), m, nnz, h, f, indptr,
                    indices, val, Q, K, V, out_feat);
 }
