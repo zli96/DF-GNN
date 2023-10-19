@@ -71,7 +71,7 @@ if __name__ == "__main__":
     # parse argument
     parser = argparse.ArgumentParser(description="GF")
     parser.add_argument("--output", type=str)
-    parser.add_argument("--graph-range", type=int, default=100)
+    parser.add_argument("--graph-range", type=int, default=20)
     parser.add_argument("--format", type=str, default="csr")
     parser.add_argument("--dim", type=int, default=32)
     parser.add_argument("--heads", type=int, default=1)

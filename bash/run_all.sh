@@ -1,9 +1,10 @@
 #!/bin/bash
 
-# datasets=(ogbg-molhiv PATTERN CLUSTER MNIST CIFAR10 Peptides-func Peptides-struct PascalVOC-SP COCO-SP)
-datasets=(Peptides-func Peptides-struct PascalVOC-SP COCO-SP)
+datasets=(ogbg-molhiv PATTERN CLUSTER MNIST CIFAR10 Peptides-func Peptides-struct PascalVOC-SP)
+# datasets=(Peptides-func Peptides-struct PascalVOC-SP COCO-SP)
 
-formats=(csr hyper outdegree)
+formats=(csr hyper hyper_nofuse outdegree)
+# formats=(hyper)
 
 batch_sizes=(16 32 64 128 256 512 1024 2048 4096)
 # batch_sizes=(4096)

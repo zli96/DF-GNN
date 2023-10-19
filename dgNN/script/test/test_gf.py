@@ -1,4 +1,5 @@
 import argparse
+import os, pickle
 
 import torch
 
@@ -14,6 +15,7 @@ from dgNN.layers import (
 )
 from dgNN.utils import (
     load_dataset_fn,
+    mkdir,
     parser_argument,
     preprocess_CSR,
     preprocess_Hyper,
@@ -91,3 +93,14 @@ if __name__ == "__main__":
     )
     print(sum(time_no_fuse[:-1]) / (len(time_no_fuse) - 1))
     print(sum(time_fuse[:-1]) / (len(time_fuse) - 1))
+
+    # current_dir = os.path.dirname(os.path.join(os.path.abspath(__file__)))
+    result_dir = os.path.join("/workspace2/fuse_attention", "dataset", args.dataset)
+    mkdir(result_dir)
+    with open(
+        os.path.join(
+            result_dir, f"{args.format}_dim{args.dim}_bs{args.batch_size}_result.pkl"
+        ),
+        "wb",
+    ) as f:
+        pickle.dump([time_no_fuse[:-1], time_fuse[:-1]], f)
