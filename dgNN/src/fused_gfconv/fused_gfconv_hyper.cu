@@ -8,10 +8,10 @@ using namespace std;
 
 template <typename DType>
 __global__ void
-fused_forward_kernel_edge(const int m, const int nnz, const int h, const int f,
-                          const int *row, const int *indptr, const int *indices,
-                          const DType *val, const DType *Q, const DType *K,
-                          const DType *V, DType *out_feat) {
+fused_forward_kernel_hyper(const int m, const int nnz, const int h, const int f,
+                           const int *row, const int *indptr,
+                           const int *indices, const DType *val, const DType *Q,
+                           const DType *K, const DType *V, DType *out_feat) {
   // launch dim (32, 8) * (num_nodes/8, 1), blockSize:8, warps_row:1,only
   // support h = 1 launch dim (64, 4) * (num_nodes/4, 1), blockSize:4,
   // warps_row:2,only support h = 1
@@ -44,11 +44,13 @@ fused_forward_kernel_edge(const int m, const int nnz, const int h, const int f,
 
   // SDDMM, edge parallel
   int loop = (blk_num_edge + 7) / 8;
+  const int *rowoff = row + blk_edge_lb;
+  const int *indicesoff = indices + blk_edge_lb;
   for (int i = 0; i < loop; i++) {
     int curr_edge = i * 8 + warpId;
     if (curr_edge < blk_num_edge) {
-      const int src = __ldg(row + curr_edge);
-      const int dst = __ldg(indices + curr_edge);
+      const int src = __ldg(rowoff + curr_edge);
+      const int dst = __ldg(indicesoff + curr_edge);
 
       // the Q feature of row node
       const DType *Qoff = Q + src * f * h;
@@ -382,14 +384,15 @@ void gf_forward_hyper_fuse(int m, int nnz, int h, int f, int smem_consume,
   const dim3 nthrs(ntx, nty);
   const int smem_size = smem_consume * sizeof(float);
 
-  CUDA_KERNEL_CALL((fused_forward_kernel_edge<float>), nblks, nthrs, smem_size,
+  CUDA_KERNEL_CALL((fused_forward_kernel_hyper<float>), nblks, nthrs, smem_size,
                    m, nnz, h, f, rows, indptr, indices, val, Q, K, V, out_feat);
 }
 
 std::vector<torch::Tensor>
-gf_hyper_forward_cuda(torch::Tensor indptr, torch::Tensor indices,
-                      torch::Tensor rows, torch::Tensor val, int smem_consume,
-                      torch::Tensor Q, torch::Tensor K, torch::Tensor V) {
+gf_hyper_fused_forward_cuda(torch::Tensor indptr, torch::Tensor indices,
+                            torch::Tensor rows, torch::Tensor val,
+                            int smem_consume, torch::Tensor Q, torch::Tensor K,
+                            torch::Tensor V) {
   // Q: torch.Size([6248, 10, 8])
   const auto m = indptr.size(0) - 1; // num of nodes
   const auto nnz = indices.size(0);  // num of edges
@@ -411,5 +414,27 @@ gf_hyper_forward_cuda(torch::Tensor indptr, torch::Tensor indices,
                         K.data_ptr<float>(), V.data_ptr<float>(),
                         out_feat.data_ptr<float>());
 
+  return {out_feat};
+}
+
+std::vector<torch::Tensor>
+gf_hyper_nofuse_forward_cuda(torch::Tensor indptr, torch::Tensor indices,
+                             torch::Tensor rows, torch::Tensor val,
+                             int smem_consume, torch::Tensor Q, torch::Tensor K,
+                             torch::Tensor V) {
+  const auto m = indptr.size(0) - 1; // num of nodes
+  const auto nnz = indices.size(0);  // num of edges
+  const auto h = Q.size(1);          // num of heads
+  const auto f = Q.size(2);          // num of feats
+  auto devid = indptr.device().index();
+  auto options =
+      torch::TensorOptions().dtype(torch::kFloat32).device(torch::kCUDA, devid);
+  auto out_feat = torch::zeros({m, h, f}, options);
+  auto attn_edge = torch::zeros({nnz * h}, options);
+  gf_forward_hyper_nofuse(
+      m, nnz, h, f, smem_consume, indptr.data_ptr<int>(),
+      indices.data_ptr<int>(), rows.data_ptr<int>(), val.data_ptr<float>(),
+      Q.data_ptr<float>(), K.data_ptr<float>(), V.data_ptr<float>(),
+      attn_edge.data_ptr<float>(), out_feat.data_ptr<float>());
   return {out_feat};
 }

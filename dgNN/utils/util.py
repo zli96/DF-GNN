@@ -343,9 +343,7 @@ def preprocess_ELL(
 
 
 def check_correct(logits, logits_fuse, params):
-    check_same = torch.tensor(
-        [all(i) for i in torch.isclose(logits, logits_fuse, atol=0.1)]
-    )
+    check_same = torch.tensor([all(i) for i in torch.isclose(logits, logits_fuse)])
     if all(check_same):
         print("the results are the same, success!!!!!!!!!!")
     else:
@@ -358,7 +356,7 @@ def check_correct(logits, logits_fuse, params):
                 print("neighbor nodes", col_ind[row_ptr[i] : row_ptr[i + 1]])
                 print(logits[i])
                 print(logits_fuse[i])
-                print(torch.isclose(logits[i], logits_fuse[i], atol=0.1))
+                print(torch.isclose(logits[i], logits_fuse[i]))
                 pdb.set_trace()
 
 

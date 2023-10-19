@@ -8,6 +8,7 @@ from dgNN.layers import (
     choose_GTlayer,
     SparseMHA,
     SparseMHA_hyper,
+    SparseMHA_hyper_nofuse,
     SparseMHA_outdegree,
     SparseMHA_subgraph,
 )
@@ -31,6 +32,9 @@ if __name__ == "__main__":
         preprocess_func = preprocess_CSR
     elif args.format == "hyper":
         layer = SparseMHA_hyper
+        preprocess_func = preprocess_Hyper
+    elif args.format == "hyper_nofuse":
+        layer = SparseMHA_hyper_nofuse
         preprocess_func = preprocess_Hyper
     elif args.format == "outdegree":
         layer = SparseMHA_outdegree

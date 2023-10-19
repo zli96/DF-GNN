@@ -141,7 +141,55 @@ class FusedGFFunction_hyper(torch.autograd.Function):
         K,
         V,
     ):
-        out_feat = fused_gf.gf_hyper_forward(
+        out_feat = fused_gf.gf_hyper_fused_forward(
+            indptr,
+            indices,
+            rows,
+            val,
+            smem_consume,
+            Q,
+            K,
+            V,
+        )
+        return out_feat[0]
+
+
+def GFConvFuse_hyper_nofuse(
+    indptr,
+    indices,
+    rows,
+    val,
+    smem_consume,
+    Q,
+    K,
+    V,
+):
+    return FusedGFFunction_hyper_nofuse.apply(
+        indptr,
+        indices,
+        rows,
+        val,
+        smem_consume,
+        Q,
+        K,
+        V,
+    )
+
+
+class FusedGFFunction_hyper_nofuse(torch.autograd.Function):
+    @staticmethod
+    def forward(
+        ctx,
+        indptr,
+        indices,
+        rows,
+        val,
+        smem_consume,
+        Q,
+        K,
+        V,
+    ):
+        out_feat = fused_gf.gf_hyper_nofuse_forward(
             indptr,
             indices,
             rows,

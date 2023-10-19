@@ -25,9 +25,16 @@ gf_ell_forward_cuda(torch::Tensor indptr, torch::Tensor indices,
                     torch::Tensor V);
 
 std::vector<torch::Tensor>
-gf_hyper_forward_cuda(torch::Tensor indptr, torch::Tensor indices,
-                      torch::Tensor rows, torch::Tensor val, int smem_consume,
-                      torch::Tensor Q, torch::Tensor K, torch::Tensor V);
+gf_hyper_fused_forward_cuda(torch::Tensor indptr, torch::Tensor indices,
+                            torch::Tensor rows, torch::Tensor val,
+                            int smem_consume, torch::Tensor Q, torch::Tensor K,
+                            torch::Tensor V);
+
+std::vector<torch::Tensor>
+gf_hyper_nofuse_forward_cuda(torch::Tensor indptr, torch::Tensor indices,
+                             torch::Tensor rows, torch::Tensor val,
+                             int smem_consume, torch::Tensor Q, torch::Tensor K,
+                             torch::Tensor V);
 
 std::vector<torch::Tensor>
 gf_subgraph_forward_cuda(torch::Tensor nodes_subgraph, torch::Tensor indptr,
@@ -76,9 +83,9 @@ std::vector<torch::Tensor> gf_forward(torch::Tensor indptr,
 }
 
 std::vector<torch::Tensor>
-gf_hyper_forward(torch::Tensor indptr, torch::Tensor indices,
-                 torch::Tensor rows, torch::Tensor val, int smem_consume,
-                 torch::Tensor Q, torch::Tensor K, torch::Tensor V) {
+gf_hyper_fused_forward(torch::Tensor indptr, torch::Tensor indices,
+                       torch::Tensor rows, torch::Tensor val, int smem_consume,
+                       torch::Tensor Q, torch::Tensor K, torch::Tensor V) {
   // device check
   CHECK_DEVICE(indptr);
   CHECK_DEVICE(indices);
@@ -110,8 +117,47 @@ gf_hyper_forward(torch::Tensor indptr, torch::Tensor indices,
   // TODO add shape check
   assert(indices.size(0) == val.size(0));
 
-  return gf_hyper_forward_cuda(indptr, indices, rows, val, smem_consume, Q, K,
-                               V);
+  return gf_hyper_fused_forward_cuda(indptr, indices, rows, val, smem_consume,
+                                     Q, K, V);
+}
+
+std::vector<torch::Tensor>
+gf_hyper_nofuse_forward(torch::Tensor indptr, torch::Tensor indices,
+                        torch::Tensor rows, torch::Tensor val, int smem_consume,
+                        torch::Tensor Q, torch::Tensor K, torch::Tensor V) {
+  // device check
+  CHECK_DEVICE(indptr);
+  CHECK_DEVICE(indices);
+  CHECK_DEVICE(val);
+  CHECK_DEVICE(rows);
+  CHECK_DEVICE(Q);
+  CHECK_DEVICE(K);
+  CHECK_DEVICE(V);
+
+  // contiguous check
+  CHECK_CONTIGUOUS(indptr);
+  CHECK_CONTIGUOUS(indices);
+  CHECK_CONTIGUOUS(val);
+  CHECK_CONTIGUOUS(rows);
+  CHECK_CONTIGUOUS(Q);
+  CHECK_CONTIGUOUS(K);
+  CHECK_CONTIGUOUS(V);
+
+  // dtype check
+  assert(indptr.dtype() == torch::kInt32);
+  assert(indices.dtype() == torch::kInt32);
+  assert(rows.dtype() == torch::kInt32);
+  assert(val.dtype() == torch::kFloat32);
+  assert(Q.dtype() == torch::kFloat32);
+  assert(K.dtype() == torch::kFloat32);
+  assert(V.dtype() == torch::kFloat32);
+
+  // shape check
+  // TODO add shape check
+  assert(indices.size(0) == val.size(0));
+
+  return gf_hyper_nofuse_forward_cuda(indptr, indices, rows, val, smem_consume,
+                                      Q, K, V);
 }
 
 std::vector<torch::Tensor> gf_ell_forward(torch::Tensor indptr,
@@ -250,8 +296,10 @@ PYBIND11_MODULE(fused_gfconv, m) {
   m.def("gf_forward", &gf_forward, "fused graph transformer forward op");
   m.def("gf_ell_forward", &gf_ell_forward,
         "fused graph transformer forward op in ELL format");
-  m.def("gf_hyper_forward", &gf_hyper_forward,
-        "fused graph transformer forward op in ELL format");
+  m.def("gf_hyper_fused_forward", &gf_hyper_fused_forward,
+        "fused graph transformer forward op in hyper format, one kernel");
+  m.def("gf_hyper_nofuse_forward", &gf_hyper_nofuse_forward,
+        "fused graph transformer forward op in hyper format, two kernels");
   m.def("gf_subgraph_forward", &gf_subgraph_forward,
         "fused graph transformer forward op by subgraph");
   m.def("gf_outdegree_forward", &gf_outdegree_forward,
