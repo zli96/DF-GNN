@@ -8,7 +8,8 @@ using namespace std;
 
 template <typename DType>
 __global__ void
-fused_forward_kernel_hyper(const int m, const int nnz, const int h, const int f,
+fused_forward_kernel_hyper(const int blockSize, const int warps_row,
+                           const int m, const int h, const int f,
                            const int *row, const int *indptr,
                            const int *indices, const DType *val, const DType *Q,
                            const DType *K, const DType *V, DType *out_feat) {
@@ -21,8 +22,9 @@ fused_forward_kernel_hyper(const int m, const int nnz, const int h, const int f,
   const int tidx = threadIdx.x;
   const int tidy = threadIdx.y;
 
-  const int blockSize = blockDim.y;
-  const int warps_row = 8 / blockSize;
+  // const int blockSize = blockDim.y;
+  // const int warps_row = roundup(f, WARP_SIZE) / WARP_SIZE;
+  // const int warps_num = blockSize * warps_row;
 
   // the node bound of this block
   const int blk_node_lb = blockSize * bidx;
@@ -378,6 +380,7 @@ void gf_forward_hyper_fuse(int m, int nnz, int h, int f, int smem_consume,
                            const float *K, const float *V, float *out_feat) {
   const int ntx = roundup(f, WARP_SIZE);
   const int nty = 256 / ntx;
+
   const int nbx = (m + nty - 1) / nty;
   const int nby = h;
   const dim3 nblks(nbx, nby);
@@ -385,7 +388,8 @@ void gf_forward_hyper_fuse(int m, int nnz, int h, int f, int smem_consume,
   const int smem_size = smem_consume * sizeof(float);
 
   CUDA_KERNEL_CALL((fused_forward_kernel_hyper<float>), nblks, nthrs, smem_size,
-                   m, nnz, h, f, rows, indptr, indices, val, Q, K, V, out_feat);
+                   nty, ntx / WARP_SIZE, m, h, f, rows, indptr, indices, val, Q,
+                   K, V, out_feat);
 }
 
 std::vector<torch::Tensor>

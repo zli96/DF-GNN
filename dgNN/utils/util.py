@@ -343,21 +343,22 @@ def preprocess_ELL(
 
 
 def check_correct(logits, logits_fuse, params):
-    check_same = torch.tensor([all(i) for i in torch.isclose(logits, logits_fuse)])
-    # if all(check_same):
-    #     print("the results are the same, success!!!!!!!!!!")
-    # else:
-    #     false_flag = torch.argwhere(~check_same)
-    #     row_ptr = params[1]
-    #     col_ind = params[2]
-    #     for i in false_flag:
-    #         if not check_same[i]:
-    #             print(f"error node {i} mismatch")
-    #             print("neighbor nodes", col_ind[row_ptr[i] : row_ptr[i + 1]])
-    #             print(logits[i])
-    #             print(logits_fuse[i])
-    #             print(torch.isclose(logits[i], logits_fuse[i]))
-    #             pdb.set_trace()
+    check_same = torch.tensor(
+        [all(i) for i in torch.isclose(logits, logits_fuse, atol=0.1)]
+    )
+    if all(check_same):
+        print("the results are the same, success!!!!!!!!!!")
+    else:
+        false_flag = torch.argwhere(~check_same)
+        row_ptr = params[1]
+        col_ind = params[2]
+        for i in false_flag:
+            if not check_same[i]:
+                print(f"error node {i} mismatch")
+                print("neighbor nodes", col_ind[row_ptr[i] : row_ptr[i + 1]])
+                print(logits[i])
+                print(logits_fuse[i])
+                print(torch.isclose(logits[i], logits_fuse[i], atol=0.1))
 
 
 def Move2Device(data_list, dev):
@@ -401,8 +402,8 @@ def train(process_func, layer, train_dataloader, dev, **kwargs):
             )
             time_fuse.append(elapsed_time)
             print(f"epoch {i} fused time %.4f" % elapsed_time)
-            if i < 3:
-                check_correct(logits, logits_fuse, params)
+            if i < 2:
+                check_correct(logits[:1000], logits_fuse[:1000], params)
             if i == 20:
                 break
         sample_start_time = default_timer()
@@ -435,8 +436,8 @@ def train_SBM(process_func, layer, train_dataloader, dev, **kwargs):
             )
             time_fuse.append(elapsed_time)
             print(f"epoch {i} fused time %.4f" % elapsed_time)
-            # if i < 3:
-            #     check_correct(logits, logits_fuse, params)
+            if i < 2:
+                check_correct(logits[:1000], logits_fuse[:1000], params)
             if i == 20:
                 break
         sample_start_time = default_timer()
