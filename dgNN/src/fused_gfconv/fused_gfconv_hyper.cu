@@ -24,7 +24,7 @@ fused_forward_kernel_hyper(const int blockSize, const int warps_row,
 
   // const int blockSize = blockDim.y;
   // const int warps_row = roundup(f, WARP_SIZE) / WARP_SIZE;
-  // const int warps_num = blockSize * warps_row;
+  const int warps_num = blockSize * warps_row;
 
   // the node bound of this block
   const int blk_node_lb = blockSize * bidx;
@@ -45,11 +45,13 @@ fused_forward_kernel_hyper(const int blockSize, const int warps_row,
   DType *neigh_nodes_weight = smem;
 
   // SDDMM, edge parallel
-  int loop = (blk_num_edge + 7) / 8;
+  int loop = (blk_num_edge + warps_num - 1) / warps_num;
   const int *rowoff = row + blk_edge_lb;
   const int *indicesoff = indices + blk_edge_lb;
+  const DType *valoff = val + blk_edge_lb;
+
   for (int i = 0; i < loop; i++) {
-    int curr_edge = i * 8 + warpId;
+    int curr_edge = i * warps_num + warpId;
     if (curr_edge < blk_num_edge) {
       const int src = __ldg(rowoff + curr_edge);
       const int dst = __ldg(indicesoff + curr_edge);
@@ -59,17 +61,17 @@ fused_forward_kernel_hyper(const int blockSize, const int warps_row,
       // the K feature of col node
       const DType *Koff = K + dst * f * h;
 
-      DType val = 0;
+      DType att_val = 0;
       for (int j = laneId; j < f; j += 64) {
-        val += Qoff[hid * f + j] * Koff[hid * f + j];
+        att_val += Qoff[hid * f + j] * Koff[hid * f + j];
         if (j + 32 < f)
-          val += Qoff[hid * f + j + 32] * Koff[hid * f + j + 32];
+          att_val += Qoff[hid * f + j + 32] * Koff[hid * f + j + 32];
       }
 #pragma unroll
       for (int offset = 16; offset > 0; offset /= 2)
-        val += __shfl_down_sync(full_mask, val, offset);
+        att_val += __shfl_down_sync(full_mask, att_val, offset);
       if (laneId == 0) {
-        neigh_nodes_weight[curr_edge] = val;
+        neigh_nodes_weight[curr_edge] = att_val * valoff[curr_edge];
       }
     }
   }
@@ -154,6 +156,7 @@ __global__ void sddmmCooKernel(const int lhs_len, const int rhs_len,
     // the K feature of col node
     const DType *rhsoff = rhs + dst * rhs_len;
     DType *outoff = out + eid * out_len;
+    const DType *dataoff = data + eid * out_len;
     // the output feature
     int tx = threadIdx.x; // tx < 32
     for (int i = blockIdx.y; i < out_len;
@@ -169,7 +172,7 @@ __global__ void sddmmCooKernel(const int lhs_len, const int rhs_len,
       for (int offset = 16; offset > 0; offset /= 2)
         val += __shfl_down_sync(full_mask, val, offset);
       if (tx == 0) {
-        outoff[i] = val;
+        outoff[i] = val * dataoff[i];
       }
     }
   }

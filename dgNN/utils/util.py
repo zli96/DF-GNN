@@ -145,10 +145,17 @@ def figure_nodes_neigh(dataset_name, num_neigh_per_node):
     fig.clear()
 
 
-def preprocess_CSR(g, **args):
+def g_to_SPmatrix(g):
     indices = torch.stack(g.edges())
     N = g.num_nodes()
-    A = dglsp.spmatrix(indices, shape=(N, N))
+    M = g.num_edges()
+    val = torch.ones(M) * 1.5
+    A = dglsp.spmatrix(indices, val=val, shape=(N, N))
+    return A
+
+
+def preprocess_CSR(g, **args):
+    A = g_to_SPmatrix(g)
 
     # using max_degree to cal max smem consume
     max_degree = int(max(A.sum(1)).item())
@@ -164,9 +171,7 @@ def preprocess_CSR(g, **args):
 
 
 def preprocess_Hyper(g, **args):
-    indices = torch.stack(g.edges())
-    N = g.num_nodes()
-    A = dglsp.spmatrix(indices, shape=(N, N))
+    A = g_to_SPmatrix(g)
 
     # using max_degree to cal max smem consume
     max_degree = int(max(A.sum(1)).item())
@@ -192,9 +197,7 @@ def preprocess_SubGraph(g, **args):
     nodes_subgraph = torch.cat(
         (torch.tensor([0]), torch.cumsum(nodes.clone(), 0))
     ).int()
-    indices = torch.stack(g.edges())
-    N = g.num_nodes()
-    A = dglsp.spmatrix(indices, shape=(N, N))
+    A = g_to_SPmatrix(g)
 
     # the CSR format of adj matrix
     row_ptr, col_ind, val_idx = A.csr()
@@ -226,9 +229,8 @@ def preprocess_Outdegree(g, dim):
     nodes_subgraph = torch.cat(
         (torch.tensor([0]), torch.cumsum(nodes.clone(), 0))
     ).int()
-    indices = torch.stack(g.edges())
-    N = g.num_nodes()
-    A = dglsp.spmatrix(indices, shape=(N, N))
+    A = g_to_SPmatrix(g)
+    N = A.shape[0]
     out_degree = A.sum(0).int()
     num_neighbor = A.sum(1).int()
     if any(num_neighbor == 0):
@@ -356,9 +358,10 @@ def check_correct(logits, logits_fuse, params):
             if not check_same[i]:
                 print(f"error node {i} mismatch")
                 print("neighbor nodes", col_ind[row_ptr[i] : row_ptr[i + 1]])
-                print(logits[i])
-                print(logits_fuse[i])
+                print("nonfuse result", logits[i])
+                print("fuse result", logits_fuse[i])
                 print(torch.isclose(logits[i], logits_fuse[i], atol=0.1))
+                pdb.set_trace()
 
 
 def Move2Device(data_list, dev):

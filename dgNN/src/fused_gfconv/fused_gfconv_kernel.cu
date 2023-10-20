@@ -28,7 +28,8 @@ fused_forward_kernel_mul32(const int m, const int nnz, const int h, const int f,
   const int hfid = hid * f + fid;
   const int laneId = threadIdx.x;
   const int warpId = threadIdx.y;
-  DType Q_i = Q[rid * hf + hfid];
+  const DType Q_i = Q[rid * hf + hfid];
+  const DType *valoff = val + lb;
 
   for (int j = 0; j < num_neighbor; j++) {
     DType weight = 0;
@@ -46,7 +47,7 @@ fused_forward_kernel_mul32(const int m, const int nnz, const int h, const int f,
     if (warpId == 0)
       weight_partial = warpReduceSum(weight_partial, f / WARP_SIZE);
     if (fid == 0) {
-      neigh_nodes_weight[j] = weight_partial * val[lb + j];
+      neigh_nodes_weight[j] = weight_partial * valoff[j];
     }
     __syncthreads();
     weight = neigh_nodes_weight[j];

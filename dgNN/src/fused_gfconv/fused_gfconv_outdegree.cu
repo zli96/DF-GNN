@@ -61,13 +61,11 @@ __global__ void fused_forward_kernel_outdegree_mul32(
     int curr_node = tidy + j * BLOCK_SIZE;
     int curr_node_global = curr_node + node_lb;
     if (curr_node_global < node_hb) {
-      DType weightMax = -1e38;
-      DType Q_i = Q[curr_node_global * hf + hfid]; // Q of current node
-
       const int lb = indptr[curr_node_global]; // row rid elements
       const int hb = indptr[curr_node_global + 1];
       const int num_neighbor = hb - lb; // num of neighbors
-
+      DType weightMax = -1e38;
+      DType Q_i = Q[curr_node_global * hf + hfid]; // Q of current node
       // SPMM on Q and K
       for (int k = 0; k < num_neighbor; k++) {
         int cid_global = indices[lb + k]; // node id in this subgraph
