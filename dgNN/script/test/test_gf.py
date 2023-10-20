@@ -19,6 +19,7 @@ from dgNN.utils import (
     parser_argument,
     preprocess_CSR,
     preprocess_Hyper,
+    preprocess_Hyper_nofuse,
     preprocess_Outdegree,
     preprocess_SubGraph,
     subgraph_filter,
@@ -37,7 +38,7 @@ if __name__ == "__main__":
         preprocess_func = preprocess_Hyper
     elif args.format == "hyper_nofuse":
         layer = SparseMHA_hyper_nofuse
-        preprocess_func = preprocess_Hyper
+        preprocess_func = preprocess_Hyper_nofuse
     elif args.format == "outdegree":
         layer = SparseMHA_outdegree
         preprocess_func = preprocess_Outdegree

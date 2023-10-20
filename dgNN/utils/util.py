@@ -190,6 +190,26 @@ def preprocess_Hyper(g, **args):
     return A, row_ptr, col_ind, rows, val, smem_consume
 
 
+def preprocess_Hyper_nofuse(g, **args):
+    A = g_to_SPmatrix(g)
+
+    # using max_degree to cal max smem consume
+    max_degree = int(max(A.sum(1)).item())
+    smem_consume = (max_degree + WARP_SIZE - 1) // WARP_SIZE * WARP_SIZE
+    print("preprocess smem consume", smem_consume)
+
+    # A.row: the src node of each edge
+    rows = A.row.int()
+    rows = torch.sort(rows).values
+
+    # the CSR format of adj matrix
+    row_ptr, col_ind, val_idx = A.csr()
+    row_ptr = row_ptr.int()
+    col_ind = col_ind.int()
+    val = A.val[val_idx]
+    return A, row_ptr, col_ind, rows, val, smem_consume
+
+
 def preprocess_SubGraph(g, **args):
     nodes = g.batch_num_nodes()
 
