@@ -4,14 +4,8 @@ import os, pdb, pickle, torch
 
 import dgl
 
-from dgNN.layers import GTlayer, SparseMHA, SparseMHA_hyper, SparseMHA_outdegree
-from dgNN.utils import (
-    check_correct,
-    Move2Device,
-    preprocess_CSR,
-    preprocess_Hyper,
-    preprocess_Outdegree,
-)
+from dgNN.layers import GTlayer, load_layer_prepfunc
+from dgNN.utils import check_correct, Move2Device
 
 
 def train(process_func, layer, dev, args, **kwargs):
@@ -58,11 +52,11 @@ def train(process_func, layer, dev, args, **kwargs):
             print("--------------------------------------")
         except IOError:
             break
-
-    with open(
-        os.path.join(args.output, f"{args.format}_{args.dim}_result.pkl"), "wb"
-    ) as f:
-        pickle.dump([avg_degrees, time_no_fuse, time_fuse], f)
+    if args.store_result:
+        with open(
+            os.path.join(args.output, f"{args.format}_{args.dim}_result.pkl"), "wb"
+        ) as f:
+            pickle.dump([avg_degrees, time_no_fuse, time_fuse], f)
 
     return time_no_fuse, time_fuse
 
@@ -77,6 +71,7 @@ if __name__ == "__main__":
     parser.add_argument("--heads", type=int, default=1)
     parser.add_argument("--data-dir", type=str, default="./data/OGB")
     parser.add_argument("--rerun", action="store_true")
+    parser.add_argument("--store-result", action="store_true")
 
     args = parser.parse_args()
 
@@ -84,18 +79,10 @@ if __name__ == "__main__":
     print("hidden dim", args.dim)
     print("output", args.output)
     print("graph-range", args.graph_range)
+    if args.store_result:
+        print("will store the pref result")
 
-    if args.format == "csr":
-        layer = SparseMHA
-        preprocess_func = preprocess_CSR
-    elif args.format == "hyper":
-        layer = SparseMHA_hyper
-        preprocess_func = preprocess_Hyper
-    elif args.format == "outdegree":
-        layer = SparseMHA_outdegree
-        preprocess_func = preprocess_Outdegree
-    else:
-        raise ValueError(f"Unsupported format {args.format}")
+    layer, preprocess_func = load_layer_prepfunc(args)
 
     # If CUDA is available, use GPU to accelerate the training, use CPU
     # otherwise.

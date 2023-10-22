@@ -7,3 +7,4 @@ from .gfconv_layer_subgraph import SparseMHA_outdegree, SparseMHA_subgraph
 
 from .gmmconv_layer import GMMConv
 from .GT_layer import choose_GTlayer, GTlayer, GTlayer_mol, GTlayer_SBM
+from .util import load_layer_prepfunc, subgraph_filter
