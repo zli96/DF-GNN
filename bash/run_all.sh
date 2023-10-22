@@ -1,13 +1,5 @@
 #!/bin/bash
-
-datasets=(ogbg-molhiv PATTERN CLUSTER MNIST CIFAR10 Peptides-func Peptides-struct PascalVOC-SP)
-# datasets=(Peptides-func Peptides-struct PascalVOC-SP COCO-SP)
-
-formats=(csr hyper hyper_nofuse outdegree)
-# formats=(hyper)
-
-batch_sizes=(16 32 64 128 256 512 1024 2048 4096)
-# batch_sizes=(4096)
+read -p "Whether use test mode(default=False): " test_flag
 
 data_dir="/workspace2/dataset"
 
@@ -18,28 +10,35 @@ mkdir log/day_${day}
 set -e
 python setup.py develop
 
-for format in ${formats[@]}; do
-    for dataset in ${datasets[@]}; do
+if [ -n "${test_flag}" ]; then
+    datasets=(ogbg-molhiv)
+    formats=(csr hyper hyper_nofuse outdegree)
+    batch_sizes=(16)
+    echo test mode !!!!!!!!!!!!
+else
+    datasets=(ogbg-molhiv PATTERN CLUSTER MNIST CIFAR10 Peptides-func Peptides-struct PascalVOC-SP COCO-SP)
+    formats=(csr hyper hyper_nofuse outdegree)
+    batch_sizes=(16 32 64 128 256 512 1024 2048 4096)
+fi
+
+for dataset in ${datasets[@]}; do
+    for format in ${formats[@]}; do
         config_dir=config/${dataset}_sparse_attention.yaml
-        name=gf_${dataset}_${format}_${Time}
+        name=gf_ds_${dataset}_${format}_${Time}
 
         for bs in ${batch_sizes[@]}; do
-
-            # # run with nolog
-            # cuda-gdb -ex r --args  python -u dgNN/script/test/test_gf.py --data-dir ${data_dir} --format ${format} --config ${config_dir} --batch-size $bs
-            # CUDA_LAUNCH_BLOCKING=1 python -u dgNN/script/test/test_gf.py --data-dir ${data_dir} --format ${format} --config ${config_dir} --batch-size $bs
-            # python -u dgNN/script/test/test_gf.py --data-dir ${data_dir} --format ${format} --config ${config_dir} --batch-size $bs
-            
-            # # run with log
-            python -u dgNN/script/test/test_gf.py --data-dir ${data_dir} --format ${format} --config ${config_dir} --batch-size $bs | tee -a log/day_${day}/${name}.log
-
-            # # run with nohup
-            # echo "nohup python -u dgNN/script/test/test_gf.py --data-dir ${data_dir} --dataset ${dataset} --format ${format} --config ${config_dir} --batch-size $bs  >> log/day_${day}/${name}.log 2>&1 &" | bash;
+            if [ -n "${test_flag}" ]; then
+                # # run with nolog
+                # cuda-gdb -ex r --args  python -u dgNN/script/test/test_gf.py --data-dir ${data_dir} --format ${format} --config ${config_dir} --batch-size $bs
+                # CUDA_LAUNCH_BLOCKING=1 python -u dgNN/script/test/test_gf.py --data-dir ${data_dir} --format ${format} --config ${config_dir} --batch-size $bs
+                python -u dgNN/script/test/test_gf.py --data-dir ${data_dir} --format ${format} --config ${config_dir} --batch-size $bs
+            else
+                # # run with log
+                python -u dgNN/script/test/test_gf.py --data-dir ${data_dir} --format ${format} --config ${config_dir} --batch-size $bs --store-result 2>&1 | tee -a log/day_${day}/${name}.log
+            fi
         done
     done
 done
-
-
 
 # datasets=(ogbg-molhiv PATTERN CLUSTER MNIST CIFAR10)
 
