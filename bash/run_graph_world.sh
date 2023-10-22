@@ -37,7 +37,7 @@ for dim in ${dims[@]}; do
     for avg_degree in ${avg_degrees[@]}; do
         for format in ${formats[@]}; do
             if [ -n "${log_flag}" ]; then
-                name=gf_graphworld_${format}_avgd${avg_degree}_power${power_exponent}_dim${dim}_${Time}
+                name=gf_graphworld_power${power_exponent}_dim${dim}_avgd${avg_degree}_${format}_${Time}
                 log_file=log/day_${day}/${name}.log
             else
                 log_file=/dev/null

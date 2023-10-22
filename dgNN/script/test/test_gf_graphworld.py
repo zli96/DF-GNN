@@ -57,6 +57,7 @@ def train(process_func, layer, dev, args, **kwargs):
             os.path.join(args.output, f"{args.format}_{args.dim}_result.pkl"), "wb"
         ) as f:
             pickle.dump([avg_degrees, time_no_fuse, time_fuse], f)
+        print("-----------dump run result--------------------")
 
     return time_no_fuse, time_fuse
 
