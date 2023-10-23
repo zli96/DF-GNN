@@ -7,6 +7,134 @@
 using namespace std;
 
 template <typename DType>
+__global__ void fused_forward_kernel_hyper2(
+    const int m, const int h, const int f, const int *row, const int *indptr,
+    const int *indices, const DType *val, const DType *Q, const DType *K,
+    const DType *V, DType *out_feat) {
+  // launch dim (32, 8) * (num_nodes/8, 1)
+
+  const int bidx = blockIdx.x;
+  const int hid = blockIdx.y;
+  const int tidx = threadIdx.x;
+  const int tidy = threadIdx.y;
+
+  // the node bound of this block
+  const int blk_node_lb = 8 * bidx;
+  const int blk_node_hb = MIN(blk_node_lb + 8, m);
+
+  // the edge bound of this block
+  const int blk_edge_lb = indptr[blk_node_lb];
+  const int blk_edge_hb = indptr[blk_node_hb];
+
+  // the num of edges in this block
+  const int blk_num_edge = blk_edge_hb - blk_edge_lb;
+
+  const int laneId = tidx % WARP_SIZE;
+
+  // init smem
+  extern __shared__ DType smem[];
+  DType *neigh_nodes_weight = smem;
+
+  // SDDMM, edge parallel
+  int loop = (blk_num_edge + 7) / 8;
+  const int *rowoff = row + blk_edge_lb;
+  const int *indicesoff = indices + blk_edge_lb;
+  const DType *valoff = val + blk_edge_lb;
+
+  for (int i = 0; i < loop; i++) {
+    int curr_edge = i * 8 + tidy;
+    if (curr_edge < blk_num_edge) {
+      const int src = __ldg(rowoff + curr_edge);
+      const int dst = __ldg(indicesoff + curr_edge);
+
+      // the Q feature of row node
+      const DType *Qoff = Q + src * f * h;
+      // the K feature of col node
+      const DType *Koff = K + dst * f * h;
+
+      DType att_val = 0;
+      for (int j = laneId; j < f; j += 64) {
+        att_val += Qoff[hid * f + j] * Koff[hid * f + j];
+        if (j + 32 < f)
+          att_val += Qoff[hid * f + j + 32] * Koff[hid * f + j + 32];
+      }
+#pragma unroll
+      for (int offset = 16; offset > 0; offset /= 2)
+        att_val += __shfl_down_sync(full_mask, att_val, offset);
+      if (laneId == 0) {
+        neigh_nodes_weight[curr_edge] = att_val * valoff[curr_edge];
+      }
+    }
+  }
+  __syncthreads();
+
+  // Softmax+SPMM, node parallel
+  int curr_node = blk_node_lb + tidy;
+  if (curr_node < blk_node_hb) {
+    const int edge_lb = indptr[curr_node];
+    const int edge_hb = indptr[curr_node + 1];
+    const int num_edge = edge_hb - edge_lb;
+
+    DType weightMax = -1e38;
+    const int hf = h * f;
+    // const int hfid = hid * f + tidx;
+
+    DType *neigh_nodes_weight_off =
+        neigh_nodes_weight + (edge_lb - blk_edge_lb);
+
+    loop = (num_edge + WARP_SIZE - 1) / WARP_SIZE;
+    for (int j = 0; j < loop; j++) {
+      DType weight = -1e38;
+      int pid = laneId + (j << 5);
+      if (pid < num_edge) {
+        weight = neigh_nodes_weight_off[pid];
+      }
+      __syncwarp();
+      for (int stride = 16; stride > 0; stride >>= 1) {
+        weight = max(__shfl_xor_sync(0xffffffff, weight, stride, 32), weight);
+      }
+      __syncwarp();
+      weightMax = MAX(weight, weightMax);
+    }
+
+    // compute the sum of exp
+    DType expAll = 0;
+    for (int j = 0; j < loop; j++) {
+      int pid = laneId + (j << 5); // node need to process in loop j
+      DType exptmp = 0;
+      if (pid < num_edge) {
+        DType weight = neigh_nodes_weight_off[pid];
+        exptmp = exp(weight - weightMax);
+        neigh_nodes_weight_off[pid] = exptmp;
+      }
+      __syncwarp();
+      for (int stride = 16; stride > 0; stride >>= 1) {
+        exptmp += __shfl_xor_sync(0xffffffff, exptmp, stride, 32);
+      }
+      __syncwarp();
+      expAll += exptmp;
+    }
+
+    // compute the output
+    int loop_f = (f + WARP_SIZE - 1) / WARP_SIZE;
+    for (int i = 0; i < loop_f; i++) {
+      DType acc = 0;
+      int pid = laneId + (i << 5);
+      for (int j = 0; j < num_edge; j++) {
+        int cid = indices[edge_lb + j];
+        DType attn_val = neigh_nodes_weight_off[j];
+        if (pid < f)
+          acc += attn_val * V[cid * hf + hid * f + pid];
+      }
+      // handle the node with no neighbor
+      if (pid < f)
+        out_feat[curr_node * hf + hid * f + pid] =
+            (expAll != 0) ? acc / expAll : 0;
+    }
+  }
+}
+
+template <typename DType>
 __global__ void
 fused_forward_kernel_hyper(const int blockSize, const int warps_row,
                            const int m, const int h, const int f,
@@ -88,7 +216,7 @@ fused_forward_kernel_hyper(const int blockSize, const int warps_row,
     const int hf = h * f;
     const int hfid = hid * f + tidx;
 
-    const DType *neigh_nodes_weight_off =
+    DType *neigh_nodes_weight_off =
         neigh_nodes_weight + (edge_lb - blk_edge_lb);
 
     loop = (num_edge + WARP_SIZE - 1) / WARP_SIZE;
@@ -114,6 +242,8 @@ fused_forward_kernel_hyper(const int blockSize, const int warps_row,
       if (pid < num_edge) {
         DType weight = neigh_nodes_weight_off[pid];
         exptmp = exp(weight - weightMax);
+        // if(tidx / WARP_SIZE == 0)
+        //   neigh_nodes_weight_off[pid] = exptmp;
       }
       __syncwarp();
       for (int stride = 16; stride > 0; stride >>= 1) {
@@ -130,6 +260,7 @@ fused_forward_kernel_hyper(const int blockSize, const int warps_row,
       int cid = indices[edge_lb + j];
       DType weight = neigh_nodes_weight_off[j];
       attn_val = exp(weight - weightMax);
+      // attn_val = neigh_nodes_weight_off[j];
       if (tidx < f)
         acc += attn_val * V[cid * hf + hfid];
     }
@@ -381,8 +512,22 @@ void gf_forward_hyper_fuse(int m, int nnz, int h, int f, int smem_consume,
                            const int *indptr, const int *indices,
                            const int *rows, const float *val, const float *Q,
                            const float *K, const float *V, float *out_feat) {
-  const int ntx = roundup(f, WARP_SIZE);
-  const int nty = 256 / ntx;
+  // const int ntx = roundup(f, WARP_SIZE);
+  // const int nty = 256 / ntx;
+
+  // const int nbx = (m + nty - 1) / nty;
+  // const int nby = h;
+  // const dim3 nblks(nbx, nby);
+  // const dim3 nthrs(ntx, nty);
+  // const int smem_size = smem_consume * sizeof(float);
+
+  // CUDA_KERNEL_CALL((fused_forward_kernel_hyper<float>), nblks, nthrs,
+  // smem_size,
+  //                  nty, ntx / WARP_SIZE, m, h, f, rows, indptr, indices, val,
+  //                  Q, K, V, out_feat);
+
+  const int ntx = 32;
+  const int nty = 8;
 
   const int nbx = (m + nty - 1) / nty;
   const int nby = h;
@@ -390,9 +535,9 @@ void gf_forward_hyper_fuse(int m, int nnz, int h, int f, int smem_consume,
   const dim3 nthrs(ntx, nty);
   const int smem_size = smem_consume * sizeof(float);
 
-  CUDA_KERNEL_CALL((fused_forward_kernel_hyper<float>), nblks, nthrs, smem_size,
-                   nty, ntx / WARP_SIZE, m, h, f, rows, indptr, indices, val, Q,
-                   K, V, out_feat);
+  CUDA_KERNEL_CALL((fused_forward_kernel_hyper2<float>), nblks, nthrs,
+                   smem_size, m, h, f, rows, indptr, indices, val, Q, K, V,
+                   out_feat);
 }
 
 std::vector<torch::Tensor>
