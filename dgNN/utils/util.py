@@ -143,7 +143,7 @@ def figure_nodes_neigh(dataset_name, num_neigh_per_node):
 
 def check_correct(logits, logits_fuse, params):
     check_same = torch.tensor(
-        [all(i) for i in torch.isclose(logits, logits_fuse, atol=0.1)]
+        [all(i) for i in torch.isclose(logits, logits_fuse, rtol=0.001)]
     )
     if all(check_same):
         print("the results are the same, success!!!!!!!!!!")
@@ -157,7 +157,7 @@ def check_correct(logits, logits_fuse, params):
                 print("neighbor nodes", col_ind[row_ptr[i] : row_ptr[i + 1]])
                 print("nonfuse result", logits[i])
                 print("fuse result", logits_fuse[i])
-                print(torch.isclose(logits[i], logits_fuse[i], atol=0.1))
+                print(torch.isclose(logits[i], logits_fuse[i], rtol=0.001))
                 # pdb.set_trace()
 
 

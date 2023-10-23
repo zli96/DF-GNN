@@ -1,36 +1,24 @@
-read -p "Enter dataset(default=ogbg-molhiv): " dataset
-read -p "Enter dim(default=64): " dim
-read -p "Enter heads(default=1): " heads
-read -p "Enter data dir(default=/workspace2/dataset): " data_dir
+read -p "Whether use test mode(default=False): " test_flag
 
-if [ -z "${dim}" ]; then
-    dim=64
-fi
 if [ -z "${heads}" ]; then
     heads=1
 fi
 if [ -z "${data_dir}" ]; then
     data_dir="/workspace2/dataset"
 fi
-if [ -z "${dataset}" ]; then
-    # dataset="ogbg-molhiv"
 
-    dataset="PATTERN"
-    # dataset="CLUSTER"
-
-    # dataset="Peptides-func"
-    # dataset="Peptides-struct"
-    # dataset="PascalVOC-SP"
-    # dataset="COCO-SP"
+if [ -n "${test_flag}" ]; then
+    datasets=(ogbg-molhiv PATTERN CLUSTER)
+    formats=(hyper)
+    batch_sizes=(4096)
+    dims=(32)
+    echo test mode !!!!!!!!!!!!
+else
+    datasets=(ogbg-molhiv PATTERN CLUSTER MNIST CIFAR10 Peptides-func Peptides-struct PascalVOC-SP COCO-SP)
+    formats=(csr hyper hyper_nofuse outdegree)
+    batch_sizes=(16 32 64 128 256 512 1024 2048 4096)
+    dims=(32 64 128)
 fi
-
-# formats=(csr hyper)
-formats=(hyper hyper_nofuse)
-
-batch_sizes=(1024)
-# batch_sizes=(256 512 1024 2048 4096)
-
-# batch_sizes=(32)
 
 day=$(date +%m_%d)
 Time=$(date +%H_%M_%S)
@@ -38,22 +26,23 @@ mkdir log/day_${day}
 
 set -e
 python setup.py develop
-for bs in ${batch_sizes[@]}; do
-    for format in ${formats[@]}; do
-        # # run with nolog
-        python -u dgNN/script/test/test_gf.py --dim $dim --heads $heads --batch-size $bs --data-dir ${data_dir} --dataset ${dataset} --format ${format}
+for dim in ${dims[@]}; do
+    for dataset in ${datasets[@]}; do
+        for format in ${formats[@]}; do
+            name=gf_${dataset}_${format}_dim${dim}_${Time}
+            for bs in ${batch_sizes[@]}; do
+                # # run with nolog
+                # python -u dgNN/script/test/test_gf.py --dim $dim --heads $heads --batch-size $bs --data-dir ${data_dir} --dataset ${dataset} --format ${format}
 
-        # # run with log
-        # name=gf_tiling_${dataset}_${format}_dim${dim}_h${heads}_bs${bs}_${Time}
-        # python -u dgNN/script/test/test_gf.py --dim $dim --heads $heads --batch-size $bs --data-dir ${data_dir} --dataset ${dataset} --format ${format} | tee log/day_${day}/${name}.log
-        # python -u dgNN/script/test/test_gf_subgraph.py --dim $dim --heads $heads --batch-size $bs --data-dir ${data_dir} --dataset ${dataset} | tee log/day_${day}/gf_subgraph_${dataset}_dim${dim}_h${heads}_bs${bs}_${Time}.log
-        # python -u dgNN/script/test/test_gf_ell.py --dim $dim --heads $heads --batch-size $bs --data-dir ${data_dir} | tee log/day_${day}/gf_ell_dim${dim}_h${heads}_bs${bs}_${comment}_${Time}.log
+                # # run with log
+                python -u dgNN/script/test/test_gf.py --dim $dim  --batch-size $bs --data-dir ${data_dir} --dataset ${dataset} --format ${format} --store-result 2>&1 | tee -a log/day_${day}/${name}.log
 
-        # echo "nohup python -u dgNN/script/test/test_gf.py --dim $dim --heads $heads --batch-size $bs  > log/day_${day}/gf_${dim}_${heads}_${bs}_${comment}_${Time}.log 2>&1 &" | bash;
-        # echo "nohup python -u dgNN/script/test/test_gf_ell.py --dim $dim --heads $heads --batch-size $bs  > log/day_${day}/gf_ell_${dim}_${heads}_${bs}_${comment}_${Time}.log 2>&1 &" | bash;
+                # echo "nohup python -u dgNN/script/test/test_gf.py --dim $dim --heads $heads --batch-size $bs  > log/day_${day}/gf_${dim}_${heads}_${bs}_${comment}_${Time}.log 2>&1 &" | bash;
+                # echo "nohup python -u dgNN/script/test/test_gf_ell.py --dim $dim --heads $heads --batch-size $bs  > log/day_${day}/gf_ell_${dim}_${heads}_${bs}_${comment}_${Time}.log 2>&1 &" | bash;
+            done
+        done
     done
 done
-
 # # full-graph
 # datasets=("cora" "cite" "pubmed")
 # for dataset in ${datasets[@]};

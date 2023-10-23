@@ -156,23 +156,34 @@ def plot_dataset_perf(args):
         time_fuse_all.append(a3)
 
     save_dir = (
-        f"""/workspace2/fuse_attention/figure/dataset/{args.dataset}_dim{args.dim}"""
+        f"""/workspace2/fuse_attention/figure/dataset/dim{args.dim}_{args.dataset}"""
     )
-    title = f"""{args.dataset}, dim={args.dim}"""
+    title = f"""{args.dataset} dataset, dim={args.dim}"""
+
+    # plot elapsed time of diff methods (log coordinate)
     fig = plt.figure(dpi=100, figsize=[12, 8])
     plt.ylabel("Elapsed time", fontsize=20)
     plt.xlabel("Batch Size", fontsize=20)
     for i, format in enumerate(formats):
         plt.plot(batch_sizes, time_fuse_all[i], "o-", label=format)
     plt.plot(batch_sizes, time_no_fuse_all[0], "o-", label="Benchmark")
-    # plt.xscale("log")
     plt.yscale("log")
+    plt.title(title, fontsize=20)
+    plt.legend()
+    plt.savefig(save_dir + "_logtime.png")
 
-    # plt.xticks(batch_sizes)
+    # plot elapsed time of diff methods (standard coordinate)
+    fig = plt.figure(dpi=100, figsize=[12, 8])
+    plt.ylabel("Elapsed time", fontsize=20)
+    plt.xlabel("Batch Size", fontsize=20)
+    for i, format in enumerate(formats):
+        plt.plot(batch_sizes, time_fuse_all[i], "o-", label=format)
+    plt.plot(batch_sizes, time_no_fuse_all[0], "o-", label="Benchmark")
     plt.title(title, fontsize=20)
     plt.legend()
     plt.savefig(save_dir + "_time.png")
 
+    # plot speedup of diff methods (standard coordinate)
     fig = plt.figure(dpi=100, figsize=[12, 8])
     plt.ylabel("Speedup", fontsize=20)
     plt.xlabel("Batch Size", fontsize=20)
@@ -181,8 +192,6 @@ def plot_dataset_perf(args):
         plt.plot(batch_sizes, speedup_mean, "o-", label=format)
     plt.xticks(batch_sizes)
     plt.title(title, fontsize=20)
-    # plt.xscale("log")
-    # plt.yscale("log")
     plt.ylim(bottom=1)
     plt.legend()
     plt.savefig(save_dir + "_speedup.png")
