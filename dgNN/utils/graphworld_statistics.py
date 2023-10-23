@@ -19,7 +19,7 @@ def mean(arr):
 
 
 def main(args):
-    formats = ["outdegree", "csr", "hyper"]
+    formats = ["outdegree", "csr", "hyper", "hyper_nofuse"]
     avg_degrees = [2, 4, 8, 16, 24, 32, 48, 64, 80, 96, 128, 160]
     # avg_degrees = [2, 4, 8, 16, 24, 32, 48, 64, 80, 96, 112,128, 160]
 
@@ -60,7 +60,7 @@ def main(args):
     plt.plot(avg_degree_all[0], time_no_fuse_all[0], "o-", label="Benchmark")
 
     # plt.xticks(avg_degrees)
-    plt.title(title)
+    plt.title(title, fontsize=20)
     plt.legend()
     plt.savefig(save_dir + "_time.png")
 
@@ -71,7 +71,7 @@ def main(args):
         speedup_mean = np.array(time_no_fuse_all[0]) / np.array(time_fuse_all[i])
         plt.plot(avg_degree_all[0], speedup_mean, "o-", label=format)
 
-    plt.title(title)
+    plt.title(title, fontsize=20)
     plt.legend()
     plt.savefig(save_dir + "_speedup.png")
 

@@ -169,7 +169,7 @@ def plot_dataset_perf(args):
     plt.yscale("log")
 
     # plt.xticks(batch_sizes)
-    plt.title(title)
+    plt.title(title, fontsize=20)
     plt.legend()
     plt.savefig(save_dir + "_time.png")
 
@@ -180,7 +180,7 @@ def plot_dataset_perf(args):
         speedup_mean = np.array(time_no_fuse_all[0]) / np.array(time_fuse_all[i])
         plt.plot(batch_sizes, speedup_mean, "o-", label=format)
     plt.xticks(batch_sizes)
-    plt.title(title)
+    plt.title(title, fontsize=20)
     # plt.xscale("log")
     # plt.yscale("log")
     plt.ylim(bottom=1)
