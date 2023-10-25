@@ -1,6 +1,6 @@
 import argparse
 
-import os, pdb, pickle, torch
+import os, pdb, pickle, torch, warnings
 
 import dgl
 
@@ -35,7 +35,11 @@ def train(process_func, layer, dev, args, **kwargs):
             print("graph id", g_id)
             avg_degree = 2 * g.num_edges() / g.num_nodes()
             print("avg degree", avg_degree)
-            print("in degree", torch.mean(g.in_degrees().float()).item())
+            num_neigh = g.out_degrees().float()
+            print("num neigh mean", torch.mean(num_neigh).item())
+            print("num neigh std", torch.std(num_neigh).item())
+            if any(num_neigh == 0):
+                warnings.warn("exit zero-neighbor node")
             avg_degrees.append(avg_degree)
             params = process_func(g, **kwargs)
             g, params = Move2Device([g, params], dev)

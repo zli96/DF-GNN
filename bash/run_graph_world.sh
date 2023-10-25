@@ -20,14 +20,14 @@ echo TASK $TASK
 echo GENERATOR $GENERATOR
 
 if [ -n "${test_flag}" ]; then
-    formats=(csr hyper hyper_nofuse outdegree)
+    formats=(csr)
     avg_degrees=(2)
     dims=(32)
     echo test mode !!!!!!!!!!!!
 else
     formats=(csr hyper hyper_nofuse outdegree)
-    avg_degrees=(2 4 8 16 24 32 48 64 80 96 128 160)
-    dims=(32 64 96 128)
+    avg_degrees=(2 4 8 16 32 48 64 96 128 160)
+    dims=(32 64 128)
 fi
 echo ${avg_degrees[@]}
 power_exponent=9
@@ -47,7 +47,7 @@ for dim in ${dims[@]}; do
             OUTPUT_PATH="/workspace2/dataset/graphworld/${TASK}_${GENERATOR}/power_ex${power_exponent}/avg_d${avg_degree}"
             if [ -n "${test_flag}" ]; then
                 ## test without log
-                python -u dgNN/script/test/test_gf_graphworld.py --dim $dim --data-dir ${data_dir} --format ${format} --output ${OUTPUT_PATH} --rerun --graph-range 1
+                python -u dgNN/script/test/test_gf_graphworld.py --dim $dim --data-dir ${data_dir} --format ${format} --output ${OUTPUT_PATH} --rerun | tee -a test.log
             else
                 python -u dgNN/script/test/test_gf_graphworld.py --dim $dim --data-dir ${data_dir} --format ${format} --output ${OUTPUT_PATH} --rerun --store-result 2>&1 | tee -a $log_file
             fi
