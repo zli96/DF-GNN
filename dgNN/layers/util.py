@@ -7,7 +7,7 @@ from dgl.data import Subset
 
 from .gfconv_layer import SparseMHA
 from .gfconv_layer_hyper import SparseMHA_hyper, SparseMHA_hyper_nofuse
-from .gfconv_layer_subgraph import SparseMHA_outdegree, SparseMHA_subgraph
+from .gfconv_layer_subgraph import SparseMHA_indegree, SparseMHA_subgraph
 
 WARP_SIZE = 32
 
@@ -109,7 +109,7 @@ def cal_available_node(dim, MAX_NEIGH, MAX_LIMIT=64 * 1024 / 4):
     )
 
 
-def preprocess_Outdegree(g, dim):
+def preprocess_indegree(g, dim):
     ## global graph config
     # nodes_subgraph: num of nodes in each sub-graph(accumulate), shape(num_subgraph+1)
     nodes = g.batch_num_nodes()
@@ -118,7 +118,7 @@ def preprocess_Outdegree(g, dim):
     ).int()
     A = g_to_SPmatrix(g)
     N = A.shape[0]
-    out_degree = A.sum(0).int()
+    in_degree = A.sum(0).int()
     num_neighbor = A.sum(1).int()
     if any(num_neighbor == 0):
         warnings.warn("exit zero-degree node")
@@ -140,12 +140,12 @@ def preprocess_Outdegree(g, dim):
     for i in range(g.batch_size):
         node_lb = nodes_subgraph[i]
         node_hb = nodes_subgraph[i + 1]
-        out_degree_local = out_degree[node_lb:node_hb]
-        degree_limit = sum(out_degree_local > 1).item()
+        in_degree_local = in_degree[node_lb:node_hb]
+        degree_limit = sum(in_degree_local > 1).item()
         max_nodes_local = min(max_nodes, degree_limit)
         cumsum += max_nodes_local
         smem_nodes_subgraph.append(cumsum)
-        _, indices = torch.sort(out_degree_local, descending=True)
+        _, indices = torch.sort(in_degree_local, descending=True)
         store_node_subgraph = indices[:max_nodes_local] + node_lb
         store_node += store_node_subgraph.tolist()
         store_flag[store_node_subgraph] = torch.arange(0, max_nodes_local).int()
@@ -241,9 +241,9 @@ def load_layer_prepfunc(args):
     elif args.format == "hyper_nofuse":
         layer = SparseMHA_hyper_nofuse
         preprocess_func = preprocess_Hyper_nofuse
-    elif args.format == "outdegree":
-        layer = SparseMHA_outdegree
-        preprocess_func = preprocess_Outdegree
+    elif args.format == "indegree":
+        layer = SparseMHA_indegree
+        preprocess_func = preprocess_indegree
     elif args.format == "subgraph":
         layer = SparseMHA_subgraph
         preprocess_func = preprocess_SubGraph

@@ -5,7 +5,7 @@ import dgl.sparse as dglsp
 import torch
 import torch.nn as nn
 
-from dgNN.operators.fused_gfconv import GFConvFuse_outdegree, GFConvFuse_subgraph
+from dgNN.operators.fused_gfconv import GFConvFuse_indegree, GFConvFuse_subgraph
 from dgNN.utils import benchmark, Timer
 
 
@@ -59,7 +59,7 @@ class SparseMHA_subgraph(nn.Module):
         return out.reshape(N, -1), elapsed_time * 1000
 
 
-class SparseMHA_outdegree(nn.Module):
+class SparseMHA_indegree(nn.Module):
     """Sparse Multi-head Attention Module"""
 
     def __init__(self, hidden_size, num_heads):
@@ -99,7 +99,7 @@ class SparseMHA_outdegree(nn.Module):
             k = k.transpose(1, 2).contiguous()
             v = v.transpose(1, 2).contiguous()
             out, elapsed_time = benchmark(
-                GFConvFuse_outdegree,
+                GFConvFuse_indegree,
                 row_ptr,
                 col_ind,
                 val,

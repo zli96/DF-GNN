@@ -6,7 +6,7 @@ import torch
 from torch.utils.cpp_extension import load
 
 
-def GFConvFuse_outdegree(
+def GFConvFuse_indegree(
     row_ptr,
     col_ind,
     val,
@@ -18,7 +18,7 @@ def GFConvFuse_outdegree(
     K,
     V,
 ):
-    return FusedGFFunction_outdegree.apply(
+    return FusedGFFunction_indegree.apply(
         row_ptr,
         col_ind,
         val,
@@ -32,7 +32,7 @@ def GFConvFuse_outdegree(
     )
 
 
-class FusedGFFunction_outdegree(torch.autograd.Function):
+class FusedGFFunction_indegree(torch.autograd.Function):
     @staticmethod
     def forward(
         ctx,
@@ -47,7 +47,7 @@ class FusedGFFunction_outdegree(torch.autograd.Function):
         K,
         V,
     ):
-        out_feat = fused_gf.gf_outdegree_forward(
+        out_feat = fused_gf.gf_indegree_forward(
             row_ptr,
             col_ind,
             val,

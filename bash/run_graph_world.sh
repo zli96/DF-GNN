@@ -25,7 +25,7 @@ if [ -n "${test_flag}" ]; then
     dims=(32)
     echo test mode !!!!!!!!!!!!
 else
-    formats=(csr hyper hyper_nofuse outdegree)
+    formats=(csr hyper hyper_nofuse indegree)
     avg_degrees=(2 4 8 16 32 48 64 96 128 160)
     dims=(32 64 128)
 fi

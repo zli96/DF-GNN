@@ -15,7 +15,7 @@ if [ -n "${test_flag}" ]; then
     echo test mode !!!!!!!!!!!!
 else
     datasets=(ogbg-molhiv PATTERN CLUSTER MNIST CIFAR10 Peptides-func Peptides-struct PascalVOC-SP COCO-SP)
-    formats=(csr hyper hyper_nofuse outdegree)
+    formats=(csr hyper hyper_nofuse indegree)
     batch_sizes=(16 32 64 128 256 512 1024 2048 4096)
     dims=(32 64 128)
 fi

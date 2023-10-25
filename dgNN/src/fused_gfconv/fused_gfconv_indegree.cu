@@ -7,7 +7,7 @@
 using namespace std;
 
 template <typename DType>
-__global__ void fused_forward_kernel_outdegree_mul32(
+__global__ void fused_forward_kernel_indegree_mul32(
     const int h, const int f, const int *node_num_ptr,
     const int *smem_nodes_ptr, const int *store_nodes, const int *store_flags,
     const int *indptr, const int *indices, const DType *val, const DType *Q,
@@ -141,7 +141,7 @@ __global__ void fused_forward_kernel_outdegree_mul32(
 }
 
 template <typename DType>
-__global__ void fused_forward_kernel_outdegree(
+__global__ void fused_forward_kernel_indegree(
     const int h, const int f, const int *node_num_ptr,
     const int *smem_nodes_ptr, const int *store_nodes, const int *store_flags,
     const int *indptr, const int *indices, const DType *val, const DType *Q,
@@ -284,12 +284,12 @@ __global__ void fused_forward_kernel_outdegree(
   }
 }
 
-void gf_forward_outdegree(int num_subgraph, int h, int f,
-                          const int *nodes_subgraph,
-                          const int *smem_nodes_subgraph, const int *store_node,
-                          const int *store_flag, const int *indptr,
-                          const int *indices, const float *val, const float *Q,
-                          const float *K, const float *V, float *out_feat) {
+void gf_forward_indegree(int num_subgraph, int h, int f,
+                         const int *nodes_subgraph,
+                         const int *smem_nodes_subgraph, const int *store_node,
+                         const int *store_flag, const int *indptr,
+                         const int *indices, const float *val, const float *Q,
+                         const float *K, const float *V, float *out_feat) {
   const int ntx = roundup(f, WARP_SIZE);
   const int nty = 1024 / ntx;
   const int nbx = num_subgraph;
@@ -299,22 +299,22 @@ void gf_forward_outdegree(int num_subgraph, int h, int f,
   const int smem_size = 1024 * 64;
   // printf("launch dim %d %d %d %d \n", ntx, nty, nbx, nby);
 
-  cudaFuncSetAttribute(fused_forward_kernel_outdegree<float>,
+  cudaFuncSetAttribute(fused_forward_kernel_indegree<float>,
                        cudaFuncAttributeMaxDynamicSharedMemorySize, smem_size);
-  CUDA_KERNEL_CALL((fused_forward_kernel_outdegree<float>), nblks, nthrs,
+  CUDA_KERNEL_CALL((fused_forward_kernel_indegree<float>), nblks, nthrs,
                    smem_size, h, f, nodes_subgraph, smem_nodes_subgraph,
                    store_node, store_flag, indptr, indices, val, Q, K, V,
                    out_feat);
 }
 
-void gf_forward_outdegree_multiple32(int num_subgraph, int h, int f,
-                                     const int *nodes_subgraph,
-                                     const int *smem_nodes_subgraph,
-                                     const int *store_node,
-                                     const int *store_flag, const int *indptr,
-                                     const int *indices, const float *val,
-                                     const float *Q, const float *K,
-                                     const float *V, float *out_feat) {
+void gf_forward_indegree_multiple32(int num_subgraph, int h, int f,
+                                    const int *nodes_subgraph,
+                                    const int *smem_nodes_subgraph,
+                                    const int *store_node,
+                                    const int *store_flag, const int *indptr,
+                                    const int *indices, const float *val,
+                                    const float *Q, const float *K,
+                                    const float *V, float *out_feat) {
   const int ntx = f;        // on feature dimension
   const int nty = 1024 / f; // on out dimension
   const int nbx = num_subgraph;
@@ -324,15 +324,15 @@ void gf_forward_outdegree_multiple32(int num_subgraph, int h, int f,
   const int smem_size = 1024 * 64;
   // printf("launch dim %d %d %d %d \n", ntx, nty, nbx, nby);
 
-  cudaFuncSetAttribute(fused_forward_kernel_outdegree_mul32<float>,
+  cudaFuncSetAttribute(fused_forward_kernel_indegree_mul32<float>,
                        cudaFuncAttributeMaxDynamicSharedMemorySize, smem_size);
-  CUDA_KERNEL_CALL((fused_forward_kernel_outdegree_mul32<float>), nblks, nthrs,
+  CUDA_KERNEL_CALL((fused_forward_kernel_indegree_mul32<float>), nblks, nthrs,
                    smem_size, h, f, nodes_subgraph, smem_nodes_subgraph,
                    store_node, store_flag, indptr, indices, val, Q, K, V,
                    out_feat);
 }
 
-std::vector<torch::Tensor> gf_outdegree_forward_cuda(
+std::vector<torch::Tensor> gf_indegree_forward_cuda(
     torch::Tensor nodes_subgraph, torch::Tensor smem_nodes_subgraph,
     torch::Tensor store_node, torch::Tensor store_flag, torch::Tensor indptr,
     torch::Tensor indices, torch::Tensor val, torch::Tensor Q, torch::Tensor K,
@@ -349,14 +349,14 @@ std::vector<torch::Tensor> gf_outdegree_forward_cuda(
 
   // check whether f is multiples of 32
   if (isMul32(f)) {
-    gf_forward_outdegree_multiple32(
+    gf_forward_indegree_multiple32(
         num_subgraph, h, f, nodes_subgraph.data_ptr<int>(),
         smem_nodes_subgraph.data_ptr<int>(), store_node.data_ptr<int>(),
         store_flag.data_ptr<int>(), indptr.data_ptr<int>(),
         indices.data_ptr<int>(), val.data_ptr<float>(), Q.data_ptr<float>(),
         K.data_ptr<float>(), V.data_ptr<float>(), out_feat.data_ptr<float>());
   } else {
-    gf_forward_outdegree(
+    gf_forward_indegree(
         num_subgraph, h, f, nodes_subgraph.data_ptr<int>(),
         smem_nodes_subgraph.data_ptr<int>(), store_node.data_ptr<int>(),
         store_flag.data_ptr<int>(), indptr.data_ptr<int>(),

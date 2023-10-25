@@ -41,7 +41,7 @@ gf_subgraph_forward_cuda(torch::Tensor nodes_subgraph, torch::Tensor indptr,
                          torch::Tensor indices, torch::Tensor val,
                          torch::Tensor Q, torch::Tensor K, torch::Tensor V);
 
-std::vector<torch::Tensor> gf_outdegree_forward_cuda(
+std::vector<torch::Tensor> gf_indegree_forward_cuda(
     torch::Tensor nodes_subgraph, torch::Tensor smem_nodes_subgraph,
     torch::Tensor store_node, torch::Tensor store_flag, torch::Tensor indptr,
     torch::Tensor indices, torch::Tensor val, torch::Tensor Q, torch::Tensor K,
@@ -240,11 +240,11 @@ gf_subgraph_forward(torch::Tensor nodes_subgraph, torch::Tensor indptr,
 }
 
 std::vector<torch::Tensor>
-gf_outdegree_forward(torch::Tensor indptr, torch::Tensor indices,
-                     torch::Tensor val, torch::Tensor nodes_subgraph,
-                     torch::Tensor smem_nodes_subgraph,
-                     torch::Tensor store_node, torch::Tensor store_flag,
-                     torch::Tensor Q, torch::Tensor K, torch::Tensor V) {
+gf_indegree_forward(torch::Tensor indptr, torch::Tensor indices,
+                    torch::Tensor val, torch::Tensor nodes_subgraph,
+                    torch::Tensor smem_nodes_subgraph, torch::Tensor store_node,
+                    torch::Tensor store_flag, torch::Tensor Q, torch::Tensor K,
+                    torch::Tensor V) {
   // device check
   CHECK_DEVICE(indptr);
   CHECK_DEVICE(indices);
@@ -286,9 +286,9 @@ gf_outdegree_forward(torch::Tensor indptr, torch::Tensor indices,
   // TODO add shape check
   assert(indices.size(0) == val.size(0));
 
-  return gf_outdegree_forward_cuda(nodes_subgraph, smem_nodes_subgraph,
-                                   store_node, store_flag, indptr, indices, val,
-                                   Q, K, V);
+  return gf_indegree_forward_cuda(nodes_subgraph, smem_nodes_subgraph,
+                                  store_node, store_flag, indptr, indices, val,
+                                  Q, K, V);
 }
 
 PYBIND11_MODULE(fused_gfconv, m) {
@@ -302,6 +302,6 @@ PYBIND11_MODULE(fused_gfconv, m) {
         "fused graph transformer forward op in hyper format, two kernels");
   m.def("gf_subgraph_forward", &gf_subgraph_forward,
         "fused graph transformer forward op by subgraph");
-  m.def("gf_outdegree_forward", &gf_outdegree_forward,
-        "fused graph transformer forward op by outdegree");
+  m.def("gf_indegree_forward", &gf_indegree_forward,
+        "fused graph transformer forward op by indegree");
 }

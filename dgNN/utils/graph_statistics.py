@@ -132,7 +132,7 @@ def full_graph_statistics(args):
 
 
 def plot_dataset_perf(args):
-    formats = ["outdegree", "csr", "hyper", "hyper_nofuse"]
+    formats = ["indegree", "csr", "hyper", "hyper_nofuse"]
     batch_sizes = [str(2**i) for i in range(4, 13)]
 
     avg_degree_all = []

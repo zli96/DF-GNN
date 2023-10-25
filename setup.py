@@ -40,7 +40,7 @@ setuptools.setup(
             [
                 "dgNN/src/fused_gfconv/fused_gfconv.cpp",
                 "dgNN/src/fused_gfconv/fused_gfconv_kernel.cu",
-                "dgNN/src/fused_gfconv/fused_gfconv_outdegree.cu",
+                "dgNN/src/fused_gfconv/fused_gfconv_indegree.cu",
                 "dgNN/src/fused_gfconv/fused_gfconv_hyper.cu",
                 "dgNN/src/fused_gfconv/fused_gfconv_subgraph.cu",
                 "dgNN/src/fused_gfconv/fused_gfconv_ell.cu",

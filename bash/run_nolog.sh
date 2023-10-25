@@ -28,7 +28,7 @@ fi
 if [ -z "${format}" ]; then
 	format="csr"
 	# format="hyper"
-	# format="outdegree"
+	# format="indegree"
 fi
 
 set -e
