@@ -29,7 +29,7 @@ __global__ void fused_forward_kernel_hyper2(
   // the num of edges in this block
   const int blk_num_edge = blk_edge_hb - blk_edge_lb;
 
-  const int laneId = tidx % WARP_SIZE;
+  // const int laneId = tidx % WARP_SIZE;
 
   // init smem
   extern __shared__ DType smem[];
@@ -53,7 +53,7 @@ __global__ void fused_forward_kernel_hyper2(
       const DType *Koff = K + dst * f * h;
 
       DType att_val = 0;
-      for (int j = laneId; j < f; j += 64) {
+      for (int j = tidx; j < f; j += 64) {
         att_val += Qoff[hid * f + j] * Koff[hid * f + j];
         if (j + 32 < f)
           att_val += Qoff[hid * f + j + 32] * Koff[hid * f + j + 32];
@@ -61,7 +61,7 @@ __global__ void fused_forward_kernel_hyper2(
 #pragma unroll
       for (int offset = 16; offset > 0; offset /= 2)
         att_val += __shfl_down_sync(full_mask, att_val, offset);
-      if (laneId == 0) {
+      if (tidx == 0) {
         neigh_nodes_weight[curr_edge] = att_val * valoff[curr_edge];
       }
     }
@@ -85,7 +85,7 @@ __global__ void fused_forward_kernel_hyper2(
     loop = (num_edge + WARP_SIZE - 1) / WARP_SIZE;
     for (int j = 0; j < loop; j++) {
       DType weight = -1e38;
-      int pid = laneId + (j << 5);
+      int pid = tidx + (j << 5);
       if (pid < num_edge) {
         weight = neigh_nodes_weight_off[pid];
       }
@@ -100,7 +100,7 @@ __global__ void fused_forward_kernel_hyper2(
     // compute the sum of exp
     DType expAll = 0;
     for (int j = 0; j < loop; j++) {
-      int pid = laneId + (j << 5); // node need to process in loop j
+      int pid = tidx + (j << 5); // node need to process in loop j
       DType exptmp = 0;
       if (pid < num_edge) {
         DType weight = neigh_nodes_weight_off[pid];
@@ -119,7 +119,7 @@ __global__ void fused_forward_kernel_hyper2(
     int loop_f = (f + WARP_SIZE - 1) / WARP_SIZE;
     for (int i = 0; i < loop_f; i++) {
       DType acc = 0;
-      int pid = laneId + (i << 5);
+      int pid = tidx + (i << 5);
       for (int j = 0; j < num_edge; j++) {
         int cid = indices[edge_lb + j];
         DType attn_val = neigh_nodes_weight_off[j];
@@ -484,6 +484,150 @@ __global__ void softMax_SPMM_tiling(const int m, const int nnz, const int h,
   }
   if (fid < f)
     out_feat[rid * hf + hfid] = (partial_sum != 0) ? acc / partial_sum : 0;
+}
+
+template <typename DType>
+__global__ void fused_forward_kernel_hyper_row_switch(
+    const int m, const int h, const int f, const int *row, const int *indptr,
+    const int *indices, const DType *val, const DType *Q, const DType *K,
+    const DType *V, DType *out_feat) {
+  // launch dim (32, 8) * (num_nodes/8, 1)
+  const int bidx = blockIdx.x;
+  const int hid = blockIdx.y;
+  const int tidx = threadIdx.x;
+  const int tidy = threadIdx.y;
+
+  // the node bound of this block
+  const int blk_node_lb = 8 * bidx;
+  const int blk_node_hb = MIN(blk_node_lb + 8, m);
+
+  // the edge bound of this block
+  const int blk_edge_lb = indptr[blk_node_lb];
+  const int blk_edge_hb = indptr[blk_node_hb];
+
+  // the num of edges in this block
+  const int blk_num_edge = blk_edge_hb - blk_edge_lb;
+
+  // const int laneId = tidx % WARP_SIZE;
+
+  // init smem
+  extern __shared__ DType smem[];
+  DType *Q_smem = smem; // [8, f]
+  DType *neigh_nodes_weight = (DType *)&Q_smem[8 * f];
+
+  // SDDMM, edge parallel
+  int nnz_per_warp = (blk_num_edge + 7) / 8;
+  int loop_feat = (f + WARP_SIZE - 1) / WARP_SIZE;
+
+  const int *rowoff = row + blk_edge_lb;
+  const int *indicesoff = indices + blk_edge_lb;
+  const DType *valoff = val + blk_edge_lb;
+  DType *Q_smemoff = Q_smem + tidy * f;
+
+  int src, src_old = -1;
+  int dst;
+  for (int i = 0; i < nnz_per_warp; i++) {
+    int curr_edge = tidy * nnz_per_warp + i;
+    // edge bound for curr block
+    if (curr_edge < blk_num_edge) {
+      src = __ldg(rowoff + curr_edge);
+      dst = __ldg(indicesoff + curr_edge);
+      // RowSwitchFlag = (src == src_old) ? false : true;
+      if (src != src_old) {
+        src_old = src;
+        for (int j = 0; j < loop_feat; j++) {
+          int pid = tidx + (j << 5);
+          if (pid < f) {
+            Q_smemoff[pid] = Q[src_old * f * h + hid * f + pid];
+          }
+        }
+      }
+
+      // // the Q feature of row node
+      // const DType *Qoff = Q + src * f * h;
+      // the K feature of col node
+      const DType *Koff = K + dst * f * h;
+
+      DType att_val = 0;
+      for (int j = tidx; j < f; j += 64) {
+        att_val += Q_smemoff[j] * Koff[hid * f + j];
+        if (j + 32 < f)
+          att_val += Q_smemoff[j + 32] * Koff[hid * f + j + 32];
+      }
+#pragma unroll
+      for (int offset = 16; offset > 0; offset /= 2)
+        att_val += __shfl_down_sync(full_mask, att_val, offset);
+      if (tidx == 0) {
+        neigh_nodes_weight[curr_edge] = att_val * valoff[curr_edge];
+      }
+    }
+  }
+  __syncthreads();
+
+  // Softmax+SPMM, node parallel
+  int curr_node = blk_node_lb + tidy;
+  if (curr_node < blk_node_hb) {
+    const int edge_lb = indptr[curr_node];
+    const int edge_hb = indptr[curr_node + 1];
+    const int num_edge = edge_hb - edge_lb;
+
+    DType weightMax = -1e38;
+    const int hf = h * f;
+    // const int hfid = hid * f + tidx;
+
+    DType *neigh_nodes_weight_off =
+        neigh_nodes_weight + (edge_lb - blk_edge_lb);
+
+    int loop = (num_edge + WARP_SIZE - 1) / WARP_SIZE;
+    for (int j = 0; j < loop; j++) {
+      DType weight = -1e38;
+      int pid = tidx + (j << 5);
+      if (pid < num_edge) {
+        weight = neigh_nodes_weight_off[pid];
+      }
+      __syncwarp();
+      for (int stride = 16; stride > 0; stride >>= 1) {
+        weight = max(__shfl_xor_sync(0xffffffff, weight, stride, 32), weight);
+      }
+      __syncwarp();
+      weightMax = MAX(weight, weightMax);
+    }
+
+    // compute the sum of exp
+    DType expAll = 0;
+    for (int j = 0; j < loop; j++) {
+      int pid = tidx + (j << 5); // node need to process in loop j
+      DType exptmp = 0;
+      if (pid < num_edge) {
+        DType weight = neigh_nodes_weight_off[pid];
+        exptmp = exp(weight - weightMax);
+        neigh_nodes_weight_off[pid] = exptmp;
+      }
+      __syncwarp();
+      for (int stride = 16; stride > 0; stride >>= 1) {
+        exptmp += __shfl_xor_sync(0xffffffff, exptmp, stride, 32);
+      }
+      __syncwarp();
+      expAll += exptmp;
+    }
+
+    // compute the output
+    int loop_f = (f + WARP_SIZE - 1) / WARP_SIZE;
+    for (int i = 0; i < loop_f; i++) {
+      DType acc = 0;
+      int pid = tidx + (i << 5);
+      for (int j = 0; j < num_edge; j++) {
+        int cid = indices[edge_lb + j];
+        DType attn_val = neigh_nodes_weight_off[j];
+        if (pid < f)
+          acc += attn_val * V[cid * hf + hid * f + pid];
+      }
+      // handle the node with no neighbor
+      if (pid < f)
+        out_feat[curr_node * hf + hid * f + pid] =
+            (expAll != 0) ? acc / expAll : 0;
+    }
+  }
 }
 
 void gf_forward_hyper_nofuse(int m, int nnz, int h, int f, int smem_consume,
