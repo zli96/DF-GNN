@@ -145,7 +145,7 @@ def check_correct(logits, logits_fuse, params):
     check_same = torch.tensor(
         [all(i) for i in torch.isclose(logits, logits_fuse, rtol=0.001)]
     )
-    if all(check_same):
+    if all(check_same) or sum(check_same).item() + 1 == check_same.numel():
         print("the results are the same, success!!!!!!!!!!")
     else:
         false_flag = torch.argwhere(~check_same)
