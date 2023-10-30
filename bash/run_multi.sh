@@ -8,10 +8,11 @@ if [ -z "${data_dir}" ]; then
 fi
 
 if [ -n "${test_flag}" ]; then
-    datasets=(ogbg-molhiv PATTERN CLUSTER)
-    formats=(hyper)
-    batch_sizes=(4096)
-    dims=(32)
+    datasets=(PATTERN CLUSTER)
+    formats=(csr hyper)
+    batch_sizes=(2048)
+    dims=(64)
+    rm test/run_multi.log
     echo test mode !!!!!!!!!!!!
 else
     datasets=(ogbg-molhiv PATTERN CLUSTER MNIST CIFAR10 Peptides-func Peptides-struct PascalVOC-SP COCO-SP)
@@ -31,11 +32,14 @@ for dim in ${dims[@]}; do
         for format in ${formats[@]}; do
             name=gf_${dataset}_${format}_dim${dim}_${Time}
             for bs in ${batch_sizes[@]}; do
-                # # run with nolog
-                # python -u dgNN/script/test/test_gf.py --dim $dim --heads $heads --batch-size $bs --data-dir ${data_dir} --dataset ${dataset} --format ${format}
+                if [ -n "${test_flag}" ]; then
+                    # # run with nolog
+                    python -u dgNN/script/test/test_gf.py --dim $dim --batch-size $bs --data-dir ${data_dir} --dataset ${dataset} --format ${format} | tee -a test/run_multi.log
+                else
+                    python -u dgNN/script/test/test_gf.py --dim $dim --batch-size $bs --data-dir ${data_dir} --dataset ${dataset} --format ${format} --store-result 2>&1 | tee -a log/day_${day}/${name}.log
 
+                fi
                 # # run with log
-                python -u dgNN/script/test/test_gf.py --dim $dim  --batch-size $bs --data-dir ${data_dir} --dataset ${dataset} --format ${format} --store-result 2>&1 | tee -a log/day_${day}/${name}.log
 
                 # echo "nohup python -u dgNN/script/test/test_gf.py --dim $dim --heads $heads --batch-size $bs  > log/day_${day}/gf_${dim}_${heads}_${bs}_${comment}_${Time}.log 2>&1 &" | bash;
                 # echo "nohup python -u dgNN/script/test/test_gf_ell.py --dim $dim --heads $heads --batch-size $bs  > log/day_${day}/gf_ell_${dim}_${heads}_${bs}_${comment}_${Time}.log 2>&1 &" | bash;
