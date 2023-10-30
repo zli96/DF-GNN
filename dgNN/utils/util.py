@@ -145,7 +145,7 @@ def check_correct(logits, logits_fuse, params):
     check_same = torch.tensor(
         [all(i) for i in torch.isclose(logits, logits_fuse, rtol=0.001)]
     )
-    if all(check_same) or sum(check_same).item() + 1 == check_same.numel():
+    if all(check_same):
         print("the results are the same, success!!!!!!!!!!")
     else:
         false_flag = torch.argwhere(~check_same)
@@ -155,14 +155,18 @@ def check_correct(logits, logits_fuse, params):
 
         for i in false_flag:
             if not check_same[i]:
-                print(f"error node {i} mismatch")
-                print("neighbor nodes", col_ind[row_ptr[i] : row_ptr[i + 1]])
-                print("nonfuse result", logits[i])
-                print("fuse result", logits_fuse[i])
-                print(torch.isclose(logits[i], logits_fuse[i], rtol=0.001))
-                acc = acc + 1
-            if acc > 5:
-                break
+                chech_same_ele = torch.isclose(logits[i], logits_fuse[i], rtol=0.001)[0]
+                if sum(chech_same_ele).item() + 1 != chech_same_ele.numel():
+                    print(f"error node {i} mismatch")
+                    print("neighbor nodes", col_ind[row_ptr[i] : row_ptr[i + 1]])
+                    print("nonfuse result", logits[i])
+                    print("fuse result", logits_fuse[i])
+                    print(chech_same_ele)
+                    acc = acc + 1
+                if acc > 5:
+                    break
+        if acc == 0:
+            print("the results are the same, success!!!!!!!!!!")
 
 
 def Move2Device(data_list, dev):

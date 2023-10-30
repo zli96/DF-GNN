@@ -1,6 +1,7 @@
 from .edgeconv_layer import EdgeConv
 from .gatconv_layer import GATConv
 from .gatconv_layer_dgNN import GATConv_dgNN
+from .gatconv_layer_hyper import GATConv_hyper
 from .gfconv_layer import SparseMHA
 from .gfconv_layer_ELL import SparseMHA_ELL
 from .gfconv_layer_hyper import SparseMHA_hyper, SparseMHA_hyper_nofuse

@@ -5,7 +5,9 @@ import dgl.sparse as dglsp
 import torch
 from dgl.dataloading import GraphDataLoader
 
-from dgNN.layers import choose_GTlayer, GATConv_dgNN
+from dgNN.layers import choose_GTlayer, GATConv_dgNN, GATConv_hyper
+
+from dgNN.layers.util import preprocess_Hyper
 from dgNN.utils import load_dataset_fn, parser_argument
 
 
@@ -26,7 +28,14 @@ def main(args):
     dev = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     dataset, train_fn, collate_fn = load_dataset_fn(args.dataset, args.data_dir)
-    layer = GATConv_dgNN
+    if args.format == "csr":
+        layer = GATConv_dgNN
+        preprocess_func = preprocess_GAT
+    elif args.format == "hyper":
+        layer = GATConv_hyper
+        preprocess_func = preprocess_Hyper
+    else:
+        raise ValueError(f"Unsupported format {args.format}")
     GTlayer = choose_GTlayer(
         args.dataset, MHAlayer=layer, hidden_size=args.dim, num_heads=args.heads
     )
@@ -38,7 +47,7 @@ def main(args):
         collate_fn=collate_fn,
     )
     time_no_fuse, time_fuse = train_fn(
-        preprocess_GAT, GTlayer, train_dataloader, dev, dim=args.dim
+        preprocess_func, GTlayer, train_dataloader, dev, dim=args.dim
     )
     print("----------------------Result------------------------")
     print(

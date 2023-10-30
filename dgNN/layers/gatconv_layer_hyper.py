@@ -2,7 +2,7 @@ import dgl.sparse as dglsp
 import torch
 from torch import nn
 
-from dgNN.operators.fused_gatconv import GATConvFuse_inference
+from dgNN.operators.fused_gatconv import GATConvFuse_inference_hyper
 from dgNN.utils import Timer
 
 
@@ -42,7 +42,7 @@ class GATConvDGL(nn.Module):
         return dglsp.bspmm(A_atten, Z)
 
 
-class GATConv_dgNN(nn.Module):  # our gat layer
+class GATConv_hyper(nn.Module):  # our gat layer
     def __init__(
         self,
         hidden_size,
@@ -54,7 +54,7 @@ class GATConv_dgNN(nn.Module):  # our gat layer
         activation=None,
         bias=True,
     ):
-        super(GATConv_dgNN, self).__init__()
+        super(GATConv_hyper, self).__init__()
         self.in_feats = hidden_size
         self.out_feats = hidden_size
         self.num_heads = num_heads
@@ -77,7 +77,7 @@ class GATConv_dgNN(nn.Module):  # our gat layer
 
     def forward(self, params, feat, fuse=False):
         N = len(feat)
-        A, row_ptr, col_ind = params
+        A, indptr, indices, rows, _, smem_consume = params
         if fuse:
             for i in range(3):
                 # shape [num_nodes, num_heads, out_feats]
@@ -87,8 +87,15 @@ class GATConv_dgNN(nn.Module):  # our gat layer
                 attn_col = (self.attn_r * h).sum(dim=1)
                 h = h.view(-1, self.num_heads, self.out_feats)
 
-                out = GATConvFuse_inference(
-                    attn_row, attn_col, row_ptr, col_ind, self.negative_slope, h
+                out = GATConvFuse_inference_hyper(
+                    smem_consume,
+                    attn_row,
+                    attn_col,
+                    indptr,
+                    indices,
+                    rows,
+                    self.negative_slope,
+                    h,
                 )
             with Timer() as t:
                 for i in range(100):
@@ -98,12 +105,18 @@ class GATConv_dgNN(nn.Module):  # our gat layer
                     attn_row = (self.attn_l * h).sum(dim=1)
                     attn_col = (self.attn_r * h).sum(dim=1)
                     h = h.view(-1, self.num_heads, self.out_feats)
-                    out = GATConvFuse_inference(
-                        attn_row, attn_col, row_ptr, col_ind, self.negative_slope, h
+                    out = GATConvFuse_inference_hyper(
+                        smem_consume,
+                        attn_row,
+                        attn_col,
+                        indptr,
+                        indices,
+                        rows,
+                        self.negative_slope,
+                        h,
                     )
         else:
             for i in range(3):
-
                 out = self.gat_nofuse(A, feat)
 
             with Timer() as t:
