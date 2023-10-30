@@ -151,6 +151,8 @@ def check_correct(logits, logits_fuse, params):
         false_flag = torch.argwhere(~check_same)
         row_ptr = params[1]
         col_ind = params[2]
+        acc = 0
+
         for i in false_flag:
             if not check_same[i]:
                 print(f"error node {i} mismatch")
@@ -158,7 +160,9 @@ def check_correct(logits, logits_fuse, params):
                 print("nonfuse result", logits[i])
                 print("fuse result", logits_fuse[i])
                 print(torch.isclose(logits[i], logits_fuse[i], rtol=0.001))
-                # pdb.set_trace()
+                acc = acc + 1
+            if acc > 5:
+                break
 
 
 def Move2Device(data_list, dev):

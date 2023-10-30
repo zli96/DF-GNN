@@ -1,65 +1,61 @@
 import argparse
-import time
+
+import dgl.sparse as dglsp
 
 import torch
+from dgl.dataloading import GraphDataLoader
 
-from dgNN.layers import GATConv
+from dgNN.layers import choose_GTlayer, GATConv_dgNN
+from dgNN.utils import load_dataset_fn, parser_argument
+
+
+def preprocess_GAT(g, **args):
+    row_ptr, col_ind, _ = g.adj_tensors("csr")
+    indices = torch.stack(g.edges())
+    N = g.num_nodes()
+    M = g.num_edges()
+    val = torch.ones(M) * 1.5
+    A = dglsp.spmatrix(indices, val=val, shape=(N, N))
+    return A, row_ptr.int(), col_ind.int()
 
 
 def main(args):
 
-    # row_ind=row_ind.to(args.gpu).int()
-    row_ptr = torch.tensor([0, 1, 2, 3, 4])
-    col_ind = torch.tensor([0, 1, 2, 3, 4])
-    row_ptr = row_ptr.to(args.gpu).int()
-    col_ind = col_ind.to(args.gpu).int()
+    # If CUDA is available, use GPU to accelerate the training, use CPU
+    # otherwise.
+    dev = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-    col_ptr = row_ptr
-    row_ind = col_ind
-
-    model = GATConv(args.in_feats, args.out_feats, args.num_heads).to(args.gpu)
-    features = torch.rand(row_ptr.shape[0] - 1, args.in_feats, device=args.gpu)
-
-    # if args.profileio:
-    #     # profile_start()
-    #     model(row_ptr,col_ind,col_ptr,row_ind,features,True)
-    #     # profile_end()
-    #     exit()
-
-    maxMemory = 0
-    for _ in range(5):
-        model(row_ptr, col_ind, col_ptr, row_ind, features)
-        # GPUs = GPUtil.getGPUs()
-        # maxMemory = max(GPUs[args.gpu].memoryUsed, maxMemory)
-
-    torch.cuda.synchronize()
-    start = time.time()
-
-    for epoch in range(args.epochs):
-        model(row_ptr, col_ind, col_ptr, row_ind, features)
-
-    torch.cuda.synchronize()
-    end = time.time()
-    # print(maxMemory)
-    print("gatconv_our forward time:", (end - start) / args.epochs)
+    dataset, train_fn, collate_fn = load_dataset_fn(args.dataset, args.data_dir)
+    layer = GATConv_dgNN
+    GTlayer = choose_GTlayer(
+        args.dataset, MHAlayer=layer, hidden_size=args.dim, num_heads=args.heads
+    )
+    GTlayer = GTlayer.to(dev)
+    train_dataloader = GraphDataLoader(
+        dataset,
+        batch_size=args.batch_size,
+        shuffle=False,
+        collate_fn=collate_fn,
+    )
+    time_no_fuse, time_fuse = train_fn(
+        preprocess_GAT, GTlayer, train_dataloader, dev, dim=args.dim
+    )
+    print("----------------------Result------------------------")
+    print(
+        "no-fuse average time {:.4f} ms".format(
+            sum(time_no_fuse[:-1]) / (len(time_no_fuse) - 1)
+        )
+    )
+    print(
+        "fuse average time {:.4f} ms".format(sum(time_fuse[:-1]) / (len(time_fuse) - 1))
+    )
+    print(sum(time_no_fuse[:-1]) / (len(time_no_fuse) - 1))
+    print(sum(time_fuse[:-1]) / (len(time_fuse) - 1))
 
 
 if __name__ == "__main__":
+    # parse argument
     parser = argparse.ArgumentParser(description="GAT")
-    parser.add_argument("--in_feats", type=int, default=16)
-    parser.add_argument("--out_feats", type=int, default=6)
-    parser.add_argument("--dataset", type=str, default="cora")
-    parser.add_argument(
-        "--gpu", type=int, default=0, help="which GPU to use. Set -1 to use CPU."
-    )
-    parser.add_argument(
-        "--epochs", type=int, default=400, help="number of training epochs"
-    )
-    parser.add_argument(
-        "--num-heads", type=int, default=1, help="number of hidden attention heads"
-    )
-    parser.add_argument("--profileio", type=int, default=0)
-
-    args = parser.parse_args()
+    args = parser_argument(parser)
 
     main(args)
