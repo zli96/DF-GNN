@@ -8,7 +8,7 @@ from dgl.dataloading import GraphDataLoader
 from dgNN.layers import choose_GTlayer, GATConv_dgNN, GATConv_hyper
 
 from dgNN.layers.util import preprocess_Hyper
-from dgNN.utils import load_dataset_fn, parser_argument
+from dgNN.utils import load_dataset_fn, parser_argument, train_profile
 
 
 def preprocess_GAT(g, **args):
@@ -46,20 +46,27 @@ def main(args):
         shuffle=False,
         collate_fn=collate_fn,
     )
-    time_no_fuse, time_fuse = train_fn(
-        preprocess_func, GTlayer, train_dataloader, dev, dim=args.dim
-    )
-    print("----------------------Result------------------------")
-    print(
-        "no-fuse average time {:.4f} ms".format(
-            sum(time_no_fuse[:-1]) / (len(time_no_fuse) - 1)
+    if args.profile:
+        train_profile(
+            preprocess_func, GTlayer, train_dataloader, dev, args.dataset, dim=args.dim
         )
-    )
-    print(
-        "fuse average time {:.4f} ms".format(sum(time_fuse[:-1]) / (len(time_fuse) - 1))
-    )
-    print(sum(time_no_fuse[:-1]) / (len(time_no_fuse) - 1))
-    print(sum(time_fuse[:-1]) / (len(time_fuse) - 1))
+    else:
+        time_no_fuse, time_fuse = train_fn(
+            preprocess_func, GTlayer, train_dataloader, dev, dim=args.dim
+        )
+        print("----------------------Result------------------------")
+        print(
+            "no-fuse average time {:.4f} ms".format(
+                sum(time_no_fuse[:-1]) / (len(time_no_fuse) - 1)
+            )
+        )
+        print(
+            "fuse average time {:.4f} ms".format(
+                sum(time_fuse[:-1]) / (len(time_fuse) - 1)
+            )
+        )
+        print(sum(time_no_fuse[:-1]) / (len(time_no_fuse) - 1))
+        print(sum(time_fuse[:-1]) / (len(time_fuse) - 1))
 
 
 if __name__ == "__main__":

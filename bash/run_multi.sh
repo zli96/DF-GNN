@@ -34,7 +34,7 @@ for dim in ${dims[@]}; do
             for bs in ${batch_sizes[@]}; do
                 if [ -n "${test_flag}" ]; then
                     # # run with nolog
-                    python -u dgNN/script/test/test_gf.py --dim $dim --batch-size $bs --data-dir ${data_dir} --dataset ${dataset} --format ${format} | tee -a test/run_multi.log
+                    python -u dgNN/script/test/test_gf.py --dim $dim --batch-size $bs --data-dir ${data_dir} --dataset ${dataset} --format ${format}
                 else
                     python -u dgNN/script/test/test_gf.py --dim $dim --batch-size $bs --data-dir ${data_dir} --dataset ${dataset} --format ${format} --store-result 2>&1 | tee -a log/day_${day}/${name}.log
 

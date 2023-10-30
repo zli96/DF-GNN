@@ -25,6 +25,8 @@ from torch.utils.data import DataLoader
 
 profiler = ScheduleProfiler.ScheduleProfiler()
 
+datasets_NC = ["PascalVOC-SP", "COCO-SP", "PATTERN", "CLUSTER"]
+
 WARP_SIZE = 32
 
 
@@ -32,7 +34,7 @@ def load_dataset_fn(dataset_name, data_dir):
     train_fn = train
     collate_fn = None
     # train function for node-classification task
-    if dataset_name in ["PascalVOC-SP", "COCO-SP", "PATTERN", "CLUSTER"]:
+    if dataset_name in datasets_NC:
         train_fn = train_SBM
 
     if dataset_name in ["PCQM4Mv2-full", "ogbg-molhiv"]:
@@ -252,27 +254,24 @@ def train_SBM(process_func, layer, train_dataloader, dev, **kwargs):
     return time_no_fuse, time_fuse
 
 
-def train_profile(process_func, layer, train_dataloader, dev, **arg):
+def train_profile(process_func, layer, train_dataloader, dev, dataset_name, **arg):
     print("----------------------Forward------------------------")
-    for i, (batched_g, labels) in enumerate(train_dataloader):
-        # print("----------------------without fuse--------------------------")
-        params = process_func(batched_g)
-        params = [param.to(dev) for param in params]
-        batched_g, labels = batched_g.to(dev), labels.to(dev)
-        profiler.start()
-        logits, elapsed_time = layer(params, batched_g.ndata["feat"], **arg)
-        profiler.stop()
-        # if i > warmup:
-        #     time_no_fuse.append(elapsed_time)
-        #     # print("----------------------with fuse--------------------------")
-        #     logits_fuse, elapsed_time = layer(
-        #         params, batched_g.ndata["feat"], fuse=True
-        #     )
-        #     time_fuse.append(elapsed_time)
-        #     # pdb.set_trace()
-        #     print(f"epoch {i} fused time %.4f" % elapsed_time)
-        #     # if i < 5:
-        #     #     check_correct(logits, logits_fuse, params)
+    if dataset_name in datasets_NC:
+        for i, (batched_g) in enumerate(train_dataloader):
+            # print("----------------------without fuse--------------------------")
+            params = process_func(batched_g, **arg)
+            batched_g, params = Move2Device([batched_g, params], dev)
+            profiler.start()
+            logits, elapsed_time = layer(params, batched_g.ndata["feat"], fuse=True)
+            profiler.stop()
+    else:
+        for i, (batched_g, labels) in enumerate(train_dataloader):
+            # print("----------------------without fuse--------------------------")
+            params = process_func(batched_g, **arg)
+            batched_g, labels, params = Move2Device([batched_g, labels, params], dev)
+            profiler.start()
+            logits, elapsed_time = layer(params, batched_g.ndata["feat"], fuse=True)
+            profiler.stop()
     return
 
 
@@ -362,6 +361,8 @@ def parser_argument(parser):
     parser.add_argument("--dataset", type=str)
     parser.add_argument("--store-result", action="store_true")
     parser.add_argument("--subgraph-filter", action="store_true")
+    parser.add_argument("--profile", action="store_true")
+
     args = parse_args(parser)
     print("Dataset", args.dataset)
     print("format", args.format)
@@ -372,6 +373,8 @@ def parser_argument(parser):
         print("will filter the subgraph bigger than limit")
     if args.store_result:
         print("will store the pref result")
+    if args.profile:
+        print("----------enter the profile mode-------------")
     return args
 
 
