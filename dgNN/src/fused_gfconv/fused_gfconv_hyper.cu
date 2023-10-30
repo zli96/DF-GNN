@@ -512,19 +512,21 @@ __global__ void fused_forward_kernel_hyper_row_switch(
 
   // init smem
   extern __shared__ DType smem[];
-  DType *Q_smem = smem; // [8, f]
-  DType *neigh_nodes_weight = (DType *)&Q_smem[8 * f];
+  // DType *Q_smem = smem; // [8, f]
+  // DType *neigh_nodes_weight = (DType *)&Q_smem[8 * f];
+
+  DType *neigh_nodes_weight = smem; // [8, f]
 
   // SDDMM, edge parallel
   int nnz_per_warp = (blk_num_edge + 7) / 8;
-  int loop_feat = (f + WARP_SIZE - 1) / WARP_SIZE;
+  // int loop_feat = (f + WARP_SIZE - 1) / WARP_SIZE;
 
   const int *rowoff = row + blk_edge_lb;
   const int *indicesoff = indices + blk_edge_lb;
   const DType *valoff = val + blk_edge_lb;
-  DType *Q_smemoff = Q_smem + tidy * f;
+  // DType *Q_smemoff = Q_smem + tidy * f;
 
-  int src, src_old = -1;
+  int src;
   int dst;
   for (int i = 0; i < nnz_per_warp; i++) {
     int curr_edge = tidy * nnz_per_warp + i;
@@ -533,26 +535,27 @@ __global__ void fused_forward_kernel_hyper_row_switch(
       src = __ldg(rowoff + curr_edge);
       dst = __ldg(indicesoff + curr_edge);
       // RowSwitchFlag = (src == src_old) ? false : true;
-      if (src != src_old) {
-        src_old = src;
-        for (int j = 0; j < loop_feat; j++) {
-          int pid = tidx + (j << 5);
-          if (pid < f) {
-            Q_smemoff[pid] = Q[src_old * f * h + hid * f + pid];
-          }
-        }
-      }
+      // if (src != src_old) {
+      //   src_old = src;
+      //   for (int j = 0; j < loop_feat; j++) {
+      //     int pid = tidx + (j << 5);
+      //     if (pid < f) {
+      //       Q_smemoff[pid] = Q[src_old * f * h + hid * f + pid];
+      //     }
+      //   }
+      // }
 
       // // the Q feature of row node
-      // const DType *Qoff = Q + src * f * h;
+      const DType *Qoff = Q + src * f * h + hid * f;
       // the K feature of col node
-      const DType *Koff = K + dst * f * h;
+      const DType *Koff = K + dst * f * h + hid * f;
+      ;
 
       DType att_val = 0;
       for (int j = tidx; j < f; j += 64) {
-        att_val += Q_smemoff[j] * Koff[hid * f + j];
+        att_val += Qoff[j] * Koff[j];
         if (j + 32 < f)
-          att_val += Q_smemoff[j + 32] * Koff[hid * f + j + 32];
+          att_val += Qoff[j + 32] * Koff[j + 32];
       }
 #pragma unroll
       for (int offset = 16; offset > 0; offset /= 2)
@@ -586,6 +589,7 @@ __global__ void fused_forward_kernel_hyper_row_switch(
         weight = neigh_nodes_weight_off[pid];
       }
       __syncwarp();
+#pragma unroll
       for (int stride = 16; stride > 0; stride >>= 1) {
         weight = max(__shfl_xor_sync(0xffffffff, weight, stride, 32), weight);
       }
@@ -604,6 +608,7 @@ __global__ void fused_forward_kernel_hyper_row_switch(
         neigh_nodes_weight_off[pid] = exptmp;
       }
       __syncwarp();
+#pragma unroll
       for (int stride = 16; stride > 0; stride >>= 1) {
         exptmp += __shfl_xor_sync(0xffffffff, exptmp, stride, 32);
       }
@@ -679,7 +684,7 @@ void gf_forward_hyper_fuse(int m, int nnz, int h, int f, int smem_consume,
   const dim3 nthrs(ntx, nty);
   const int smem_size = smem_consume * sizeof(float);
 
-  CUDA_KERNEL_CALL((fused_forward_kernel_hyper2<float>), nblks, nthrs,
+  CUDA_KERNEL_CALL((fused_forward_kernel_hyper_row_switch<float>), nblks, nthrs,
                    smem_size, m, h, f, rows, indptr, indices, val, Q, K, V,
                    out_feat);
 }
