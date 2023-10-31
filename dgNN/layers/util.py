@@ -7,7 +7,11 @@ from dgl.data import Subset
 
 from .gfconv_layer import SparseMHA
 from .gfconv_layer_hyper import SparseMHA_hyper, SparseMHA_hyper_nofuse
-from .gfconv_layer_subgraph import SparseMHA_indegree, SparseMHA_subgraph
+from .gfconv_layer_subgraph import (
+    SparseMHA_indegree,
+    SparseMHA_indegree_hyper,
+    SparseMHA_subgraph,
+)
 
 WARP_SIZE = 32
 
@@ -106,6 +110,78 @@ def cal_available_node(dim, MAX_NEIGH, MAX_LIMIT=64 * 1024 / 4):
     )
     return int(
         (MAX_LIMIT - warpLevelSums_overhead - neigh_nodes_weight_overhead) / (dim * 2)
+    )
+
+
+def preprocess_indegree_hyper(g, dim):
+    ## global graph config
+    # nodes_subgraph: num of nodes in each sub-graph(accumulate), shape(num_subgraph+1)
+    nodes = g.batch_num_nodes()
+    nodes_subgraph = torch.cat(
+        (torch.tensor([0]), torch.cumsum(nodes.clone(), 0))
+    ).int()
+    A = g_to_SPmatrix(g)
+
+    # A.row: the src node of each edge
+    rows = A.row.int()
+    rows = torch.sort(rows).values
+
+    N = A.shape[0]
+    in_degree = A.sum(0).int()
+    num_neighbor = A.sum(1).int()
+    if any(num_neighbor == 0):
+        warnings.warn("exit zero-degree node")
+    max_neighbor = max(num_neighbor).item()
+    max_nodes = cal_available_node(dim, max_neighbor)
+    print("max neighbor", max_neighbor)
+    print("max supported num of nodes", max_nodes)
+
+    ## store_node: the ind ex of nodes stored in smem, shape(num_subgraph*max_nodes,1)
+    ## store_flag: the flag whether stored in smem, shape(N, 1)
+    ## If: -1, not in smem
+    ## If: int, the local index in smem
+    ## smem_nodes_subgraph: num of nodes in smem of each subgraph, shape(num_subgraph+1)
+    store_node = []
+    store_flag = torch.zeros(N, dtype=torch.int) - 1
+    smem_nodes_subgraph = [0]
+    cumsum = 0
+    ## Loop over all subgraph
+    for i in range(g.batch_size):
+        node_lb = nodes_subgraph[i]
+        node_hb = nodes_subgraph[i + 1]
+        in_degree_local = in_degree[node_lb:node_hb]
+        degree_limit = sum(in_degree_local > 1).item()
+        max_nodes_local = min(max_nodes, degree_limit)
+        cumsum += max_nodes_local
+        smem_nodes_subgraph.append(cumsum)
+        _, indices = torch.sort(in_degree_local, descending=True)
+        store_node_subgraph = indices[:max_nodes_local] + node_lb
+        store_node += store_node_subgraph.tolist()
+        store_flag[store_node_subgraph] = torch.arange(0, max_nodes_local).int()
+
+    smem_nodes_subgraph = torch.tensor(smem_nodes_subgraph).int()
+    store_node = torch.tensor(store_node).int()
+
+    ## The CSR format of adj matrix
+    row_ptr, col_ind, val_idx = A.csr()
+    row_ptr = row_ptr.int()
+    col_ind = col_ind.int()
+    val = A.val[val_idx]
+    assert g.batch_size + 1 == nodes_subgraph.shape[0]
+    assert g.batch_size + 1 == smem_nodes_subgraph.shape[0]
+    print(
+        f"{smem_nodes_subgraph[-1].item()} nodes of all {nodes_subgraph[-1].item()} nodes are stored in smem"
+    )
+    return (
+        A,
+        rows,
+        row_ptr,
+        col_ind,
+        val,
+        nodes_subgraph,
+        smem_nodes_subgraph,
+        store_node,
+        store_flag,
     )
 
 
@@ -244,6 +320,9 @@ def load_layer_prepfunc(args):
     elif args.format == "indegree":
         layer = SparseMHA_indegree
         preprocess_func = preprocess_indegree
+    elif args.format == "indegree_hyper":
+        layer = SparseMHA_indegree_hyper
+        preprocess_func = preprocess_indegree_hyper
     elif args.format == "subgraph":
         layer = SparseMHA_subgraph
         preprocess_func = preprocess_SubGraph

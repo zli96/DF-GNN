@@ -47,6 +47,12 @@ std::vector<torch::Tensor> gf_indegree_forward_cuda(
     torch::Tensor indices, torch::Tensor val, torch::Tensor Q, torch::Tensor K,
     torch::Tensor V);
 
+std::vector<torch::Tensor> gf_indegree_hyper_forward_cuda(
+    torch::Tensor nodes_subgraph, torch::Tensor smem_nodes_subgraph,
+    torch::Tensor store_node, torch::Tensor store_flag, torch::Tensor row,
+    torch::Tensor indptr, torch::Tensor indices, torch::Tensor val,
+    torch::Tensor Q, torch::Tensor K, torch::Tensor V);
+
 std::vector<torch::Tensor> gf_forward(torch::Tensor indptr,
                                       torch::Tensor indices, torch::Tensor val,
                                       int smem_consume, torch::Tensor Q,
@@ -291,6 +297,59 @@ gf_indegree_forward(torch::Tensor indptr, torch::Tensor indices,
                                   Q, K, V);
 }
 
+std::vector<torch::Tensor>
+gf_indegree_hyper_forward(torch::Tensor row, torch::Tensor indptr,
+                          torch::Tensor indices, torch::Tensor val,
+                          torch::Tensor nodes_subgraph,
+                          torch::Tensor smem_nodes_subgraph,
+                          torch::Tensor store_node, torch::Tensor store_flag,
+                          torch::Tensor Q, torch::Tensor K, torch::Tensor V) {
+  // device check
+  CHECK_DEVICE(indptr);
+  CHECK_DEVICE(indices);
+  CHECK_DEVICE(val);
+  CHECK_DEVICE(nodes_subgraph);
+  CHECK_DEVICE(smem_nodes_subgraph);
+  CHECK_DEVICE(store_node);
+  CHECK_DEVICE(store_flag);
+  CHECK_DEVICE(Q);
+  CHECK_DEVICE(K);
+  CHECK_DEVICE(V);
+
+  // contiguous check
+  CHECK_CONTIGUOUS(indptr);
+  CHECK_CONTIGUOUS(indices);
+  CHECK_CONTIGUOUS(val);
+  CHECK_CONTIGUOUS(nodes_subgraph);
+  CHECK_CONTIGUOUS(smem_nodes_subgraph);
+  CHECK_CONTIGUOUS(store_node);
+  CHECK_CONTIGUOUS(store_flag);
+  CHECK_CONTIGUOUS(Q);
+  CHECK_CONTIGUOUS(K);
+  CHECK_CONTIGUOUS(V);
+
+  // dtype check
+  assert(indptr.dtype() == torch::kInt32);
+  assert(indices.dtype() == torch::kInt32);
+  assert(nodes_subgraph.dtype() == torch::kInt32);
+  assert(smem_nodes_subgraph.dtype() == torch::kInt32);
+  assert(store_node.dtype() == torch::kInt32);
+  assert(store_flag.dtype() == torch::kInt32);
+
+  assert(val.dtype() == torch::kFloat32);
+  assert(Q.dtype() == torch::kFloat32);
+  assert(K.dtype() == torch::kFloat32);
+  assert(V.dtype() == torch::kFloat32);
+
+  // shape check
+  // TODO add shape check
+  assert(indices.size(0) == val.size(0));
+
+  return gf_indegree_hyper_forward_cuda(nodes_subgraph, smem_nodes_subgraph,
+                                        store_node, store_flag, row, indptr,
+                                        indices, val, Q, K, V);
+}
+
 PYBIND11_MODULE(fused_gfconv, m) {
   m.doc() = "fuse sparse ops in graph transformer into one kernel. ";
   m.def("gf_forward", &gf_forward, "fused graph transformer forward op");
@@ -303,5 +362,7 @@ PYBIND11_MODULE(fused_gfconv, m) {
   m.def("gf_subgraph_forward", &gf_subgraph_forward,
         "fused graph transformer forward op by subgraph");
   m.def("gf_indegree_forward", &gf_indegree_forward,
+        "fused graph transformer forward op by indegree");
+  m.def("gf_indegree_hyper_forward", &gf_indegree_hyper_forward,
         "fused graph transformer forward op by indegree");
 }

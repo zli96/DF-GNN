@@ -6,6 +6,35 @@ import torch
 from torch.utils.cpp_extension import load
 
 
+def GFConvFuse_indegree_hyper(
+    row,
+    row_ptr,
+    col_ind,
+    val,
+    nodes_subgraph,
+    smem_nodes_subgraph,
+    store_node,
+    store_flag,
+    Q,
+    K,
+    V,
+):
+    out_feat = fused_gf.gf_indegree_hyper_forward(
+        row,
+        row_ptr,
+        col_ind,
+        val,
+        nodes_subgraph,
+        smem_nodes_subgraph,
+        store_node,
+        store_flag,
+        Q,
+        K,
+        V,
+    )
+    return out_feat[0]
+
+
 def GFConvFuse_indegree(
     row_ptr,
     col_ind,
