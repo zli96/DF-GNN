@@ -350,23 +350,15 @@ __global__ void fused_inference_kernel_hyper(
   // the num of edges in this block
   const int blk_num_edge = blk_edge_hb - blk_edge_lb;
 
-  // const int laneId = tidx % WARP_SIZE;
-
   // init smem
   extern __shared__ DType smem[];
-  // DType *Q_smem = smem; // [8, f]
-  // DType *neigh_nodes_weight = (DType *)&Q_smem[8 * f];
-
   DType *neigh_nodes_weight = smem; // [8, f]
 
   // SDDMM, edge parallel
   int nnz_per_warp = (blk_num_edge + 7) / 8;
-  // int loop_feat = (f + WARP_SIZE - 1) / WARP_SIZE;
 
   const int *rowoff = row + blk_edge_lb;
   const int *indicesoff = indices + blk_edge_lb;
-
-  extern __shared__ DType val_sh[];
 
   DType weightMax = -1e38;
   // // computing weightMax
