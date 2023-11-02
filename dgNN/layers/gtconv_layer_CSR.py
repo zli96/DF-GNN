@@ -1,6 +1,6 @@
 import pdb
 
-from dgNN.operators.fused_gfconv import GFConvFuse
+from dgNN.operators.fused_gtconv import GTConvFuse
 from dgNN.utils import benchmark
 from .gtconv_layer import SparseMHA
 
@@ -19,7 +19,7 @@ class SparseMHA_CSR(SparseMHA):
             k = k.transpose(1, 2).contiguous()
             v = v.transpose(1, 2).contiguous()
             out, elapsed_time = benchmark(
-                GFConvFuse, indptr, indices, val, smem_consume, q, k, v
+                GTConvFuse, indptr, indices, val, smem_consume, q, k, v
             )
 
             out = out.transpose(1, 2)

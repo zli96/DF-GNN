@@ -83,6 +83,6 @@ def main(args):
 
 if __name__ == "__main__":
     # parse argument
-    parser = argparse.ArgumentParser(description="GF")
+    parser = argparse.ArgumentParser(description="GT")
     args = parser_argument(parser)
     main(args)

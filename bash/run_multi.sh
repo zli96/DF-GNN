@@ -8,9 +8,9 @@ if [ -z "${data_dir}" ]; then
 fi
 
 if [ -n "${test_flag}" ]; then
-    datasets=(PATTERN CLUSTER)
-    formats=(csr hyper)
-    batch_sizes=(2048)
+    datasets=(PATTERN)
+    formats=(csr hyper hyper_nofuse indegree)
+    batch_sizes=(16)
     dims=(64)
     rm test/run_multi.log
     echo test mode !!!!!!!!!!!!
@@ -30,19 +30,18 @@ python setup.py develop
 for dim in ${dims[@]}; do
     for dataset in ${datasets[@]}; do
         for format in ${formats[@]}; do
-            name=gf_${dataset}_${format}_dim${dim}_${Time}
+            name=gt_${dataset}_${format}_dim${dim}_${Time}
             for bs in ${batch_sizes[@]}; do
                 if [ -n "${test_flag}" ]; then
                     # # run with nolog
-                    python -u dgNN/script/test/test_gf.py --dim $dim --batch-size $bs --data-dir ${data_dir} --dataset ${dataset} --format ${format}
+                    python -u dgNN/script/test/test_gt.py --dim $dim --batch-size $bs --data-dir ${data_dir} --dataset ${dataset} --format ${format}
                 else
-                    python -u dgNN/script/test/test_gf.py --dim $dim --batch-size $bs --data-dir ${data_dir} --dataset ${dataset} --format ${format} --store-result 2>&1 | tee -a log/day_${day}/${name}.log
+                    python -u dgNN/script/test/test_gt.py --dim $dim --batch-size $bs --data-dir ${data_dir} --dataset ${dataset} --format ${format} --store-result 2>&1 | tee -a log/day_${day}/${name}.log
 
                 fi
                 # # run with log
 
-                # echo "nohup python -u dgNN/script/test/test_gf.py --dim $dim --heads $heads --batch-size $bs  > log/day_${day}/gf_${dim}_${heads}_${bs}_${comment}_${Time}.log 2>&1 &" | bash;
-                # echo "nohup python -u dgNN/script/test/test_gf_ell.py --dim $dim --heads $heads --batch-size $bs  > log/day_${day}/gf_ell_${dim}_${heads}_${bs}_${comment}_${Time}.log 2>&1 &" | bash;
+                # echo "nohup python -u dgNN/script/test/test_gt.py --dim $dim --heads $heads --batch-size $bs  > log/day_${day}/gt_${dim}_${heads}_${bs}_${comment}_${Time}.log 2>&1 &" | bash;
             done
         done
     done
@@ -52,6 +51,6 @@ done
 # for dataset in ${datasets[@]};
 # do
 #     mkdir log/day_${day}/${dataset}
-#     # python -u dgNN/script/test/test_gf_full_graph.py --dim $dim --heads $heads --dataset $dataset  |tee log/day_${day}/${dataset}/weight_ver_${dim}_${heads}_${Time}.log
+#     # python -u dgNN/script/test/test_gt_full_graph.py --dim $dim --heads $heads --dataset $dataset  |tee log/day_${day}/${dataset}/weight_ver_${dim}_${heads}_${Time}.log
 # 	python dgNN/script/figure/plot_full_graph.py --dataset $dataset > log/${dataset}_neigh_dist.log
 # done

@@ -199,6 +199,6 @@ def plot_dataset_perf(args):
 
 if __name__ == "__main__":
     # Load graph data
-    parser = argparse.ArgumentParser(description="GF")
+    parser = argparse.ArgumentParser(description="GT")
     args = parser_argument(parser)
     plot_dataset_perf(args)

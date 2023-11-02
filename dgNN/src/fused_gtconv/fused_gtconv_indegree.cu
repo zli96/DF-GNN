@@ -457,7 +457,7 @@ __global__ void fused_forward_kernel_indegree(
   }
 }
 
-void gf_forward_indegree(int num_subgraph, int h, int f,
+void gt_forward_indegree(int num_subgraph, int h, int f,
                          const int *nodes_subgraph,
                          const int *smem_nodes_subgraph, const int *store_node,
                          const int *store_flag, const int *indptr,
@@ -480,7 +480,7 @@ void gf_forward_indegree(int num_subgraph, int h, int f,
                    out_feat);
 }
 
-void gf_forward_indegree_hyper(int num_subgraph, int h, int f,
+void gt_forward_indegree_hyper(int num_subgraph, int h, int f,
                                const int *nodes_subgraph,
                                const int *smem_nodes_subgraph,
                                const int *store_node, const int *store_flag,
@@ -505,7 +505,7 @@ void gf_forward_indegree_hyper(int num_subgraph, int h, int f,
                    out_feat);
 }
 
-void gf_forward_indegree_multiple32(int num_subgraph, int h, int f,
+void gt_forward_indegree_multiple32(int num_subgraph, int h, int f,
                                     const int *nodes_subgraph,
                                     const int *smem_nodes_subgraph,
                                     const int *store_node,
@@ -530,7 +530,7 @@ void gf_forward_indegree_multiple32(int num_subgraph, int h, int f,
                    out_feat);
 }
 
-std::vector<torch::Tensor> gf_indegree_forward_cuda(
+std::vector<torch::Tensor> gt_indegree_forward_cuda(
     torch::Tensor nodes_subgraph, torch::Tensor smem_nodes_subgraph,
     torch::Tensor store_node, torch::Tensor store_flag, torch::Tensor indptr,
     torch::Tensor indices, torch::Tensor val, torch::Tensor Q, torch::Tensor K,
@@ -547,14 +547,14 @@ std::vector<torch::Tensor> gf_indegree_forward_cuda(
 
   // check whether f is multiples of 32
   if (isMul32(f)) {
-    gf_forward_indegree_multiple32(
+    gt_forward_indegree_multiple32(
         num_subgraph, h, f, nodes_subgraph.data_ptr<int>(),
         smem_nodes_subgraph.data_ptr<int>(), store_node.data_ptr<int>(),
         store_flag.data_ptr<int>(), indptr.data_ptr<int>(),
         indices.data_ptr<int>(), val.data_ptr<float>(), Q.data_ptr<float>(),
         K.data_ptr<float>(), V.data_ptr<float>(), out_feat.data_ptr<float>());
   } else {
-    gf_forward_indegree(
+    gt_forward_indegree(
         num_subgraph, h, f, nodes_subgraph.data_ptr<int>(),
         smem_nodes_subgraph.data_ptr<int>(), store_node.data_ptr<int>(),
         store_flag.data_ptr<int>(), indptr.data_ptr<int>(),
@@ -565,7 +565,7 @@ std::vector<torch::Tensor> gf_indegree_forward_cuda(
   return {out_feat};
 }
 
-std::vector<torch::Tensor> gf_indegree_hyper_forward_cuda(
+std::vector<torch::Tensor> gt_indegree_hyper_forward_cuda(
     torch::Tensor nodes_subgraph, torch::Tensor smem_nodes_subgraph,
     torch::Tensor store_node, torch::Tensor store_flag, torch::Tensor row,
     torch::Tensor indptr, torch::Tensor indices, torch::Tensor val,
@@ -580,7 +580,7 @@ std::vector<torch::Tensor> gf_indegree_hyper_forward_cuda(
       torch::TensorOptions().dtype(torch::kFloat32).device(torch::kCUDA, devid);
   auto out_feat = torch::zeros({m, h, f}, options);
 
-  gf_forward_indegree_hyper(
+  gt_forward_indegree_hyper(
       num_subgraph, h, f, nodes_subgraph.data_ptr<int>(),
       smem_nodes_subgraph.data_ptr<int>(), store_node.data_ptr<int>(),
       store_flag.data_ptr<int>(), row.data_ptr<int>(), indptr.data_ptr<int>(),

@@ -49,6 +49,6 @@ batch_sizes=(2048)
 logtime=$(date +%m_%d_%H_%M_%S)
 for bs in ${batch_sizes[@]};
 do
-name=ncu_gf_${format}_${dataset}_dim${dim}_head${heads}_bs${bs}_${logtime}
-ncu --set full --import-source yes -c 10 -o log/ncu/day_${day}/${name} -k "fused_forward_kernel_hyper_row_switch" python dgNN/script/test/test_gf.py --format ${format} --dim $dim --heads $heads --batch-size $bs --dataset ${dataset} --data-dir ${data_dir} --profile > log/ncu/day_${day}/${name}.log 2>&1 
+name=ncu_gt_${format}_${dataset}_dim${dim}_head${heads}_bs${bs}_${logtime}
+ncu --set full --import-source yes -c 10 -o log/ncu/day_${day}/${name} -k "fused_forward_kernel_hyper_row_switch" python dgNN/script/test/test_gt.py --format ${format} --dim $dim --heads $heads --batch-size $bs --dataset ${dataset} --data-dir ${data_dir} --profile > log/ncu/day_${day}/${name}.log 2>&1 
 done

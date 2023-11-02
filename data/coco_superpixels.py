@@ -81,7 +81,7 @@ class COCOSuperpixels_DGL(object):
         },
         30: {
             "edge_wt_only_coord": "https://www.dropbox.com/s/hrbfkxmc5z9lsaz/coco_superpixels_edge_wt_only_coord.zip?dl=1",
-            "edge_wt_coord_feat": "https://www.dropbox.com/s/4rfa2d5ij1gfu9b/coco_superpixels_edge_wt_coord_feat.zip?dl=1",
+            "edge_wt_coord_feat": "https://www.dropbox.com/s/4rfa2d5ij1gtu9b/coco_superpixels_edge_wt_coord_feat.zip?dl=1",
             "edge_wt_region_boundary": "https://www.dropbox.com/s/r6ihg1f4pmyjjy0/coco_superpixels_edge_wt_region_boundary.zip?dl=1",
         },
     }

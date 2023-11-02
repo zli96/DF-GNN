@@ -266,47 +266,6 @@ def subgraph_filter(dataset, dataset_name, dim, heads):
     return dataset
 
 
-def preprocess_ELL(
-    g,
-    bucket_sizes=[],
-    num_col_parts=1,
-):
-    raise ValueError("ELL is deprecated ")
-    # indices = torch.stack(g.edges())
-    # N = g.num_nodes()
-    # A = dglsp.spmatrix(indices, shape=(N, N))
-    # row_ptr, col_ind, val_idx = A.csr()
-
-    # row_ptr = row_ptr.int()
-    # col_ind = col_ind.int()
-    # val = A.val[val_idx]
-
-    # # cluster the rows into diff buckets based on its num of neighbors
-    # row_col_ind, _, _ = format_conversion.csr2ell(
-    #     N, N, row_ptr, col_ind, num_col_parts, bucket_sizes
-    # )
-
-    # # num of elements each tb need to process
-    # elements_per_tb = 4
-    # rows_per_tb = []
-    # row_col_ind = row_col_ind[0]
-
-    # # calculate the num of elements each tb need to process
-    # for i, bucket_size in enumerate(bucket_sizes):
-    #     num_elements = len(row_col_ind[i])
-    #     num_rows = elements_per_tb // bucket_size
-    #     rows_per_tb = rows_per_tb + [num_rows] * (num_elements // num_rows)
-    #     res = num_elements % num_rows
-    #     if res != 0:
-    #         rows_per_tb = rows_per_tb + [res]
-    # row_index = torch.cat(row_col_ind, 0).int()
-    # rows_per_tb = torch.cat(
-    #     (torch.tensor([0]), torch.cumsum(torch.tensor(rows_per_tb), 0))
-    # ).int()
-
-    # return A, row_ptr, col_ind, row_index, rows_per_tb, val
-
-
 def load_layer_prepfunc(args):
     if args.format == "csr":
         layer = SparseMHA_CSR

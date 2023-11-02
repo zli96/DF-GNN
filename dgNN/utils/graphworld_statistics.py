@@ -79,7 +79,7 @@ def main(args):
 if __name__ == "__main__":
     # Load graph data
     # parse argument
-    parser = argparse.ArgumentParser(description="GF")
+    parser = argparse.ArgumentParser(description="GT")
     parser.add_argument("--output", type=str)
     parser.add_argument("--dim", type=int, default=32)
     parser.add_argument("--data-dir", type=str, default="./data/OGB")

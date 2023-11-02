@@ -1,12 +1,12 @@
 # import dgNN
 import pdb
 
-import fused_gfconv as fused_gf
+import fused_gtconv as fused_gt
 import torch
 from torch.utils.cpp_extension import load
 
 
-def GFConvFuse_indegree_hyper(
+def GTConvFuse_indegree_hyper(
     row,
     row_ptr,
     col_ind,
@@ -19,7 +19,7 @@ def GFConvFuse_indegree_hyper(
     K,
     V,
 ):
-    out_feat = fused_gf.gf_indegree_hyper_forward(
+    out_feat = fused_gt.gt_indegree_hyper_forward(
         row,
         row_ptr,
         col_ind,
@@ -35,7 +35,7 @@ def GFConvFuse_indegree_hyper(
     return out_feat[0]
 
 
-def GFConvFuse_indegree(
+def GTConvFuse_indegree(
     row_ptr,
     col_ind,
     val,
@@ -47,7 +47,7 @@ def GFConvFuse_indegree(
     K,
     V,
 ):
-    return FusedGFFunction_indegree.apply(
+    return FusedGTFunction_indegree.apply(
         row_ptr,
         col_ind,
         val,
@@ -61,7 +61,7 @@ def GFConvFuse_indegree(
     )
 
 
-class FusedGFFunction_indegree(torch.autograd.Function):
+class FusedGTFunction_indegree(torch.autograd.Function):
     @staticmethod
     def forward(
         ctx,
@@ -76,7 +76,7 @@ class FusedGFFunction_indegree(torch.autograd.Function):
         K,
         V,
     ):
-        out_feat = fused_gf.gf_indegree_forward(
+        out_feat = fused_gt.gt_indegree_forward(
             row_ptr,
             col_ind,
             val,
@@ -91,7 +91,7 @@ class FusedGFFunction_indegree(torch.autograd.Function):
         return out_feat[0]
 
 
-def GFConvFuse_subgraph(
+def GTConvFuse_subgraph(
     nodes_subgraph,
     indptr,
     indices,
@@ -100,7 +100,7 @@ def GFConvFuse_subgraph(
     K,
     V,
 ):
-    return FusedGFFunction_subgraph.apply(
+    return FusedGTFunction_subgraph.apply(
         nodes_subgraph,
         indptr,
         indices,
@@ -111,7 +111,7 @@ def GFConvFuse_subgraph(
     )
 
 
-class FusedGFFunction_subgraph(torch.autograd.Function):
+class FusedGTFunction_subgraph(torch.autograd.Function):
     @staticmethod
     def forward(
         ctx,
@@ -123,7 +123,7 @@ class FusedGFFunction_subgraph(torch.autograd.Function):
         K,
         V,
     ):
-        out_feat = fused_gf.gf_subgraph_forward(
+        out_feat = fused_gt.gt_subgraph_forward(
             nodes_subgraph,
             indptr,
             indices,
@@ -135,7 +135,7 @@ class FusedGFFunction_subgraph(torch.autograd.Function):
         return out_feat[0]
 
 
-def GFConvFuse_hyper(
+def GTConvFuse_hyper(
     indptr,
     indices,
     rows,
@@ -145,7 +145,7 @@ def GFConvFuse_hyper(
     K,
     V,
 ):
-    return FusedGFFunction_hyper.apply(
+    return FusedGTFunction_hyper.apply(
         indptr,
         indices,
         rows,
@@ -157,7 +157,7 @@ def GFConvFuse_hyper(
     )
 
 
-class FusedGFFunction_hyper(torch.autograd.Function):
+class FusedGTFunction_hyper(torch.autograd.Function):
     @staticmethod
     def forward(
         ctx,
@@ -170,7 +170,7 @@ class FusedGFFunction_hyper(torch.autograd.Function):
         K,
         V,
     ):
-        out_feat = fused_gf.gf_hyper_fused_forward(
+        out_feat = fused_gt.gt_hyper_fused_forward(
             indptr,
             indices,
             rows,
@@ -183,7 +183,7 @@ class FusedGFFunction_hyper(torch.autograd.Function):
         return out_feat[0]
 
 
-def GFConvFuse_hyper_nofuse(
+def GTConvFuse_hyper_nofuse(
     indptr,
     indices,
     rows,
@@ -193,7 +193,7 @@ def GFConvFuse_hyper_nofuse(
     K,
     V,
 ):
-    return FusedGFFunction_hyper_nofuse.apply(
+    return FusedGTFunction_hyper_nofuse.apply(
         indptr,
         indices,
         rows,
@@ -205,7 +205,7 @@ def GFConvFuse_hyper_nofuse(
     )
 
 
-class FusedGFFunction_hyper_nofuse(torch.autograd.Function):
+class FusedGTFunction_hyper_nofuse(torch.autograd.Function):
     @staticmethod
     def forward(
         ctx,
@@ -218,7 +218,7 @@ class FusedGFFunction_hyper_nofuse(torch.autograd.Function):
         K,
         V,
     ):
-        out_feat = fused_gf.gf_hyper_nofuse_forward(
+        out_feat = fused_gt.gt_hyper_nofuse_forward(
             indptr,
             indices,
             rows,
@@ -231,7 +231,7 @@ class FusedGFFunction_hyper_nofuse(torch.autograd.Function):
         return out_feat[0]
 
 
-def GFConvFuse(
+def GTConvFuse(
     indptr,
     indices,
     val,
@@ -240,7 +240,7 @@ def GFConvFuse(
     K,
     V,
 ):
-    return FusedGFFunction.apply(
+    return FusedGTFunction.apply(
         indptr,
         indices,
         val,
@@ -251,7 +251,7 @@ def GFConvFuse(
     )
 
 
-class FusedGFFunction(torch.autograd.Function):
+class FusedGTFunction(torch.autograd.Function):
     @staticmethod
     def forward(
         ctx,
@@ -263,7 +263,7 @@ class FusedGFFunction(torch.autograd.Function):
         K,
         V,
     ):
-        out_feat = fused_gf.gf_forward(
+        out_feat = fused_gt.gt_forward(
             indptr,
             indices,
             val,
@@ -336,51 +336,3 @@ class FusedGFFunction(torch.autograd.Function):
     #         grad_feat,
     #         None,
     #     )
-
-
-def GFConvFuse_ELL(
-    indptr,
-    indices,
-    row_index,
-    rows_per_tb,
-    val,
-    Q,
-    K,
-    V,
-):
-    return FusedGFFunction_ELL.apply(
-        indptr,
-        indices,
-        row_index,
-        rows_per_tb,
-        val,
-        Q,
-        K,
-        V,
-    )
-
-
-class FusedGFFunction_ELL(torch.autograd.Function):
-    @staticmethod
-    def forward(
-        ctx,
-        indptr,
-        indices,
-        row_index,
-        rows_per_tb,
-        val,
-        Q,
-        K,
-        V,
-    ):
-        out_feat = fused_gf.gf_ell_forward(
-            indptr,
-            indices,
-            row_index,
-            rows_per_tb,
-            val,
-            Q,
-            K,
-            V,
-        )
-        return out_feat[0]

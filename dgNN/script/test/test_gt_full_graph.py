@@ -8,7 +8,7 @@ from dgNN.utils import load_data_full_graph, preprocess_CSR, preprocess_Hyper
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="GF_full_graph")
+    parser = argparse.ArgumentParser(description="GT_full_graph")
     parser.add_argument("--format", type=str, default="csr")
     parser.add_argument("--dim", type=int, default=64)
     parser.add_argument("--heads", type=int, default=1)

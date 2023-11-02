@@ -237,7 +237,7 @@ __global__ void fused_forward_kernel(const int m, const int nnz, const int h,
     out_feat[rid * h * f + hid * f + fid] = (expAll != 0) ? acc / expAll : 0;
 }
 
-void gf_forward(int m, int nnz, int h, int f, int smem_consume,
+void gt_forward(int m, int nnz, int h, int f, int smem_consume,
                 const int *indptr, const int *indices, const float *val,
                 const float *Q, const float *K, const float *V,
                 float *out_feat) {
@@ -261,7 +261,7 @@ void gf_forward(int m, int nnz, int h, int f, int smem_consume,
   // printf("Time of fused kernel: %f \n", elapsedTime);
 }
 
-void gf_forward_multiple32(int m, int nnz, int h, int f, int smem_consume,
+void gt_forward_multiple32(int m, int nnz, int h, int f, int smem_consume,
                            const int *indptr, const int *indices,
                            const float *val, const float *Q, const float *K,
                            const float *V, float *out_feat) {
@@ -276,7 +276,7 @@ void gf_forward_multiple32(int m, int nnz, int h, int f, int smem_consume,
                    indices, val, Q, K, V, out_feat);
 }
 
-std::vector<torch::Tensor> gf_forward_cuda(torch::Tensor indptr,
+std::vector<torch::Tensor> gt_forward_cuda(torch::Tensor indptr,
                                            torch::Tensor indices,
                                            torch::Tensor val, int smem_consume,
                                            torch::Tensor Q, torch::Tensor K,
@@ -293,12 +293,12 @@ std::vector<torch::Tensor> gf_forward_cuda(torch::Tensor indptr,
 
   // check whether f is multiples of 32
   if (isMul32(f)) {
-    gf_forward_multiple32(m, nnz, h, f, smem_consume, indptr.data_ptr<int>(),
+    gt_forward_multiple32(m, nnz, h, f, smem_consume, indptr.data_ptr<int>(),
                           indices.data_ptr<int>(), val.data_ptr<float>(),
                           Q.data_ptr<float>(), K.data_ptr<float>(),
                           V.data_ptr<float>(), out_feat.data_ptr<float>());
   } else {
-    gf_forward(m, nnz, h, f, smem_consume, indptr.data_ptr<int>(),
+    gt_forward(m, nnz, h, f, smem_consume, indptr.data_ptr<int>(),
                indices.data_ptr<int>(), val.data_ptr<float>(),
                Q.data_ptr<float>(), K.data_ptr<float>(), V.data_ptr<float>(),
                out_feat.data_ptr<float>());

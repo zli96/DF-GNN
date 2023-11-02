@@ -38,7 +38,7 @@ batch_sizes=(32 64 128 256 512 1024 2048 4096)
 logtime=$(date +%m_%d_%H_%M_%S)
 for bs in ${batch_sizes[@]};
 do
-name=nsys_gf_${format}_dim${dim}_head${heads}_bs${bs}_${logtime}
-nsys profile --trace=cuda,cudnn,cublas,osrt,nvtx -o log/nsys/day_${day}/${name} --stats true --force-overwrite true -c cudaProfilerApi --kill none python dgNN/script/test/test_gf_profile.py --format ${format} --dim $dim --heads $heads --batch-size $bs --dataset ${dataset} --data-dir ${data_dir} > log/nsys/day_${day}/${name}.log 2>&1 
+name=nsys_gt_${format}_dim${dim}_head${heads}_bs${bs}_${logtime}
+nsys profile --trace=cuda,cudnn,cublas,osrt,nvtx -o log/nsys/day_${day}/${name} --stats true --force-overwrite true -c cudaProfilerApi --kill none python dgNN/script/test/test_gt_profile.py --format ${format} --dim $dim --heads $heads --batch-size $bs --dataset ${dataset} --data-dir ${data_dir} > log/nsys/day_${day}/${name}.log 2>&1 
 
 done

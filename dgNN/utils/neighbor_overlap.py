@@ -158,7 +158,7 @@ def neigh_overlap_adj_nodes(args):
 
 if __name__ == "__main__":
     # Load graph data
-    parser = argparse.ArgumentParser(description="GF")
+    parser = argparse.ArgumentParser(description="GT")
     parser.add_argument("--dataset", type=str, default="ogbg-molhiv")
     parser.add_argument("--bs", type=int, default=4096)
     parser.add_argument("--dim", type=int, default=64)

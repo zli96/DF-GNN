@@ -62,12 +62,12 @@ Batch dataset:
 * superpixel： CIFAR10, MNIST
 * LRGB: PascalVOC-SP, COCO-SP, Peptides-func, Peptides-struct
 
-For Batch datasets, you can run it by [dgNN/script/test/test_gf.py](dgNN/script/test/test_gf.py)
+For Batch datasets, you can run it by [dgNN/script/test/test_gt.py](dgNN/script/test/test_gt.py)
 
 Full dataset: (only one graph)
 * cora, arxiv, pumbed, cite
 
-For full datasets, you can run it by [dgNN/script/test/test_gf_full_graph.py](dgNN/script/test/test_gf_full_graph.py)
+For full datasets, you can run it by [dgNN/script/test/test_gt_full_graph.py](dgNN/script/test/test_gt_full_graph.py)
 
 ### Experiment plan
 固定节点数

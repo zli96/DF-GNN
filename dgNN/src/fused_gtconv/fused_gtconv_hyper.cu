@@ -523,7 +523,7 @@ __global__ void softMax_SPMM_tiling(const int m, const int nnz, const int h,
     out_feat[rid * hf + hfid] = (partial_sum != 0) ? acc / partial_sum : 0;
 }
 
-void gf_forward_hyper_nofuse(int m, int nnz, int h, int f, int smem_consume,
+void gt_forward_hyper_nofuse(int m, int nnz, int h, int f, int smem_consume,
                              const int *indptr, const int *indices,
                              const int *rows, const float *val, const float *Q,
                              const float *K, const float *V, float *attn_edge,
@@ -545,7 +545,7 @@ void gf_forward_hyper_nofuse(int m, int nnz, int h, int f, int smem_consume,
                    indices, val, V, attn_edge, out_feat);
 }
 
-void gf_forward_hyper_fuse(int m, int nnz, int h, int f, int smem_consume,
+void gt_forward_hyper_fuse(int m, int nnz, int h, int f, int smem_consume,
                            const int *indptr, const int *indices,
                            const int *rows, const float *val, const float *Q,
                            const float *K, const float *V, float *out_feat) {
@@ -580,7 +580,7 @@ void gf_forward_hyper_fuse(int m, int nnz, int h, int f, int smem_consume,
 }
 
 std::vector<torch::Tensor>
-gf_hyper_fused_forward_cuda(torch::Tensor indptr, torch::Tensor indices,
+gt_hyper_fused_forward_cuda(torch::Tensor indptr, torch::Tensor indices,
                             torch::Tensor rows, torch::Tensor val,
                             int smem_consume, torch::Tensor Q, torch::Tensor K,
                             torch::Tensor V) {
@@ -594,12 +594,7 @@ gf_hyper_fused_forward_cuda(torch::Tensor indptr, torch::Tensor indices,
       torch::TensorOptions().dtype(torch::kFloat32).device(torch::kCUDA, devid);
   auto out_feat = torch::zeros({m, h, f}, options);
   auto attn_edge = torch::zeros({nnz * h}, options);
-  // gf_forward_hyper_nofuse(m, nnz, h, f, smem_consume, indptr.data_ptr<int>(),
-  //                   indices.data_ptr<int>(), rows.data_ptr<int>(),
-  //                   val.data_ptr<float>(), Q.data_ptr<float>(),
-  //                   K.data_ptr<float>(), V.data_ptr<float>(),
-  //                   attn_edge.data_ptr<float>(), out_feat.data_ptr<float>());
-  gf_forward_hyper_fuse(m, nnz, h, f, smem_consume, indptr.data_ptr<int>(),
+  gt_forward_hyper_fuse(m, nnz, h, f, smem_consume, indptr.data_ptr<int>(),
                         indices.data_ptr<int>(), rows.data_ptr<int>(),
                         val.data_ptr<float>(), Q.data_ptr<float>(),
                         K.data_ptr<float>(), V.data_ptr<float>(),
@@ -609,7 +604,7 @@ gf_hyper_fused_forward_cuda(torch::Tensor indptr, torch::Tensor indices,
 }
 
 std::vector<torch::Tensor>
-gf_hyper_nofuse_forward_cuda(torch::Tensor indptr, torch::Tensor indices,
+gt_hyper_nofuse_forward_cuda(torch::Tensor indptr, torch::Tensor indices,
                              torch::Tensor rows, torch::Tensor val,
                              int smem_consume, torch::Tensor Q, torch::Tensor K,
                              torch::Tensor V) {
@@ -622,7 +617,7 @@ gf_hyper_nofuse_forward_cuda(torch::Tensor indptr, torch::Tensor indices,
       torch::TensorOptions().dtype(torch::kFloat32).device(torch::kCUDA, devid);
   auto out_feat = torch::zeros({m, h, f}, options);
   auto attn_edge = torch::zeros({nnz * h}, options);
-  gf_forward_hyper_nofuse(
+  gt_forward_hyper_nofuse(
       m, nnz, h, f, smem_consume, indptr.data_ptr<int>(),
       indices.data_ptr<int>(), rows.data_ptr<int>(), val.data_ptr<float>(),
       Q.data_ptr<float>(), K.data_ptr<float>(), V.data_ptr<float>(),

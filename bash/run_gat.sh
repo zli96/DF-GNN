@@ -29,7 +29,7 @@ python setup.py develop
 for dim in ${dims[@]}; do
     for dataset in ${datasets[@]}; do
         for format in ${formats[@]}; do
-            name=gf_${dataset}_${format}_dim${dim}_${Time}
+            name=gt_${dataset}_${format}_dim${dim}_${Time}
             for bs in ${batch_sizes[@]}; do
                 if [ -n "${test_flag}" ]; then
                     # # run with nolog
@@ -40,8 +40,7 @@ for dim in ${dims[@]}; do
                 fi
                 # # run with log
 
-                # echo "nohup python -u dgNN/script/test/test_gf.py --dim $dim --heads $heads --batch-size $bs  > log/day_${day}/gf_${dim}_${heads}_${bs}_${comment}_${Time}.log 2>&1 &" | bash;
-                # echo "nohup python -u dgNN/script/test/test_gf_ell.py --dim $dim --heads $heads --batch-size $bs  > log/day_${day}/gf_ell_${dim}_${heads}_${bs}_${comment}_${Time}.log 2>&1 &" | bash;
+                # echo "nohup python -u dgNN/script/test/test_gt.py --dim $dim --heads $heads --batch-size $bs  > log/day_${day}/gt_${dim}_${heads}_${bs}_${comment}_${Time}.log 2>&1 &" | bash;
             done
         done
     done

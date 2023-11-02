@@ -68,7 +68,7 @@ def train(process_func, layer, dev, args, **kwargs):
 
 if __name__ == "__main__":
     # parse argument
-    parser = argparse.ArgumentParser(description="GF")
+    parser = argparse.ArgumentParser(description="GT")
     parser.add_argument("--output", type=str)
     parser.add_argument("--graph-range", type=int, default=20)
     parser.add_argument("--format", type=str, default="csr")

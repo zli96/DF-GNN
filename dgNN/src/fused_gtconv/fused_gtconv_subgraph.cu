@@ -247,7 +247,7 @@ fused_forward_kernel_subgraph(const int h, const int f, const int *node_num_ptr,
   }
 }
 
-void gf_forward_subgraph(int num_subgraph, int h, int f,
+void gt_forward_subgraph(int num_subgraph, int h, int f,
                          const int *nodes_subgraph, const int *indptr,
                          const int *indices, const float *val, const float *Q,
                          const float *K, const float *V, float *out_feat) {
@@ -290,7 +290,7 @@ void gf_forward_subgraph(int num_subgraph, int h, int f,
   }
 }
 
-void gf_forward_subgraph_multiple32(int num_subgraph, int h, int f,
+void gt_forward_subgraph_multiple32(int num_subgraph, int h, int f,
                                     const int *nodes_subgraph,
                                     const int *indptr, const int *indices,
                                     const float *val, const float *Q,
@@ -335,7 +335,7 @@ void gf_forward_subgraph_multiple32(int num_subgraph, int h, int f,
 }
 
 std::vector<torch::Tensor>
-gf_subgraph_forward_cuda(torch::Tensor nodes_subgraph, torch::Tensor indptr,
+gt_subgraph_forward_cuda(torch::Tensor nodes_subgraph, torch::Tensor indptr,
                          torch::Tensor indices, torch::Tensor val,
                          torch::Tensor Q, torch::Tensor K, torch::Tensor V) {
   // Q: torch.Size([6248, 10, 8])
@@ -350,13 +350,13 @@ gf_subgraph_forward_cuda(torch::Tensor nodes_subgraph, torch::Tensor indptr,
 
   // check whether f is multiples of 32
   if (isMul32(f)) {
-    gf_forward_subgraph_multiple32(
+    gt_forward_subgraph_multiple32(
         num_subgraph, h, f, nodes_subgraph.data_ptr<int>(),
         indptr.data_ptr<int>(), indices.data_ptr<int>(), val.data_ptr<float>(),
         Q.data_ptr<float>(), K.data_ptr<float>(), V.data_ptr<float>(),
         out_feat.data_ptr<float>());
   } else {
-    gf_forward_subgraph(num_subgraph, h, f, nodes_subgraph.data_ptr<int>(),
+    gt_forward_subgraph(num_subgraph, h, f, nodes_subgraph.data_ptr<int>(),
                         indptr.data_ptr<int>(), indices.data_ptr<int>(),
                         val.data_ptr<float>(), Q.data_ptr<float>(),
                         K.data_ptr<float>(), V.data_ptr<float>(),

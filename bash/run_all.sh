@@ -24,17 +24,17 @@ fi
 for dataset in ${datasets[@]}; do
     for format in ${formats[@]}; do
         config_dir=config/${dataset}_sparse_attention.yaml
-        name=gf_ds_${dataset}_${format}_${Time}
+        name=gt_ds_${dataset}_${format}_${Time}
 
         for bs in ${batch_sizes[@]}; do
             if [ -n "${test_flag}" ]; then
                 # # run with nolog
-                # cuda-gdb -ex r --args  python -u dgNN/script/test/test_gf.py --data-dir ${data_dir} --format ${format} --config ${config_dir} --batch-size $bs
-                # CUDA_LAUNCH_BLOCKING=1 python -u dgNN/script/test/test_gf.py --data-dir ${data_dir} --format ${format} --config ${config_dir} --batch-size $bs
-                python -u dgNN/script/test/test_gf.py --data-dir ${data_dir} --format ${format} --config ${config_dir} --batch-size $bs
+                # cuda-gdb -ex r --args  python -u dgNN/script/test/test_gt.py --data-dir ${data_dir} --format ${format} --config ${config_dir} --batch-size $bs
+                # CUDA_LAUNCH_BLOCKING=1 python -u dgNN/script/test/test_gt.py --data-dir ${data_dir} --format ${format} --config ${config_dir} --batch-size $bs
+                python -u dgNN/script/test/test_gt.py --data-dir ${data_dir} --format ${format} --config ${config_dir} --batch-size $bs
             else
                 # # run with log
-                python -u dgNN/script/test/test_gf.py --data-dir ${data_dir} --format ${format} --config ${config_dir} --batch-size $bs --store-result 2>&1 | tee -a log/day_${day}/${name}.log
+                python -u dgNN/script/test/test_gt.py --data-dir ${data_dir} --format ${format} --config ${config_dir} --batch-size $bs --store-result 2>&1 | tee -a log/day_${day}/${name}.log
             fi
         done
     done
@@ -53,9 +53,9 @@ done
 #         config_dir=config/${dataset}_sparse_attention.yaml
 
 #         for format in ${formats[@]}; do
-#             name=gf_subgraph-filter_${dataset}_${format}_${Time}
+#             name=gt_subgraph-filter_${dataset}_${format}_${Time}
 #             # # run with log
-#             python -u dgNN/script/test/test_gf.py --data-dir ${data_dir} --format ${format} --config ${config_dir} --batch-size $bs --subgraph-filter | tee -a log/day_${day}/${name}.log
+#             python -u dgNN/script/test/test_gt.py --data-dir ${data_dir} --format ${format} --config ${config_dir} --batch-size $bs --subgraph-filter | tee -a log/day_${day}/${name}.log
 #         done
 #     done
 # done

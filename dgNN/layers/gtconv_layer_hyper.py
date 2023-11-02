@@ -1,6 +1,6 @@
 import pdb
 
-from dgNN.operators.fused_gfconv import GFConvFuse_hyper, GFConvFuse_hyper_nofuse
+from dgNN.operators.fused_gtconv import GTConvFuse_hyper, GTConvFuse_hyper_nofuse
 from dgNN.utils import benchmark
 from .gtconv_layer import SparseMHA
 
@@ -19,7 +19,7 @@ class SparseMHA_hyper(SparseMHA):
             k = k.transpose(1, 2).contiguous()
             v = v.transpose(1, 2).contiguous()
             out, elapsed_time = benchmark(
-                GFConvFuse_hyper, indptr, indices, rows, val, smem_consume, q, k, v
+                GTConvFuse_hyper, indptr, indices, rows, val, smem_consume, q, k, v
             )
             out = out.transpose(1, 2)
         else:
@@ -42,7 +42,7 @@ class SparseMHA_hyper_nofuse(SparseMHA):
             k = k.transpose(1, 2).contiguous()
             v = v.transpose(1, 2).contiguous()
             out, elapsed_time = benchmark(
-                GFConvFuse_hyper_nofuse,
+                GTConvFuse_hyper_nofuse,
                 indptr,
                 indices,
                 rows,
