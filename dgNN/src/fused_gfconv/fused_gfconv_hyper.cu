@@ -1,4 +1,5 @@
 #include "../util/computeUtil.h"
+#include "../util/helper_math.h"
 #include <cuda.h>
 #include <stdio.h>
 #include <torch/types.h>
@@ -58,6 +59,9 @@ fused_forward_kernel_hyper(const int m, const int h, const int f,
 
       DType att_val = 0;
       for (int j = tidx; j < f; j += 64) {
+        // float2 Q2 = reinterpret_cast<const float2*>(Qoff)[j];
+        // float2 K2 = reinterpret_cast<const float2*>(Koff)[j];
+        // att_val += vecDot2<float2, float>(Q2, K2);
         att_val += Qoff[j] * Koff[j];
         if (j + 32 < f)
           att_val += Qoff[j + 32] * Koff[j + 32];
@@ -124,7 +128,29 @@ fused_forward_kernel_hyper(const int m, const int h, const int f,
 
     // compute the output
     int loop_f = (f + WARP_SIZE - 1) / WARP_SIZE;
-    for (int i = 0; i < loop_f; i++) {
+    // int loop_f = (f + WARP_SIZE* 2 - 1) / WARP_SIZE/2;
+    // float2 * out_feat2 = reinterpret_cast<float2*>(out_feat);
+
+    // for (int i = 0; i < loop_f; i++) {
+    //   float2 acc=make_float2(0,0);
+    //   int pid = tidx + 64 * i;
+    //   for (int j = 0; j < num_edge; j++) {
+    //     int cid = indices[edge_lb + j];
+    //     DType attn_val = neigh_nodes_weight_off[j];
+    //     if (pid < f)
+    //     {
+    //       float2 V2 = reinterpret_cast<const float2*>(V)[(cid * hf + hid *
+    //       f)/2 + pid]; acc += attn_val * V2;
+    //     }
+
+    //   }
+    //   // handle the node with no neighbor
+    //   if (pid < f)
+    //     out_feat2[(curr_node * hf + hid * f)/2 + pid] =
+    //         (expAll != 0) ? acc / expAll : make_float2(0,0);
+    // }
+
+    for (int i = 0; i < loop_f; i += 1) {
       DType acc = 0;
       int pid = tidx + (i << 5);
       for (int j = 0; j < num_edge; j++) {
@@ -164,24 +190,21 @@ __global__ void fused_forward_kernel_hyper_row_switch(
   // the num of edges in this block
   const int blk_num_edge = blk_edge_hb - blk_edge_lb;
 
-  // const int laneId = tidx % WARP_SIZE;
-
   // init smem
-  // extern __shared__ DType smem[];
+  extern __shared__ DType smem[];
+  DType *neigh_nodes_weight = smem; // [8, f]
 
-  // DType *neigh_nodes_weight = smem; // [8, f]
-
-  static __shared__ DType neigh_nodes_weight[WARP_SIZE];
+  float Q_row[32];
 
   // SDDMM, edge parallel
   int nnz_per_warp = (blk_num_edge + blockSize - 1) / blockSize;
-  // int loop_feat = (f + WARP_SIZE - 1) / WARP_SIZE;
 
   const int *rowoff = row + blk_edge_lb;
   const int *indicesoff = indices + blk_edge_lb;
   const DType *valoff = val + blk_edge_lb;
   // DType *Q_smemoff = Q_smem + tidy * f;
 
+  int src_old = -1;
   int src;
   int dst;
   for (int i = 0; i < nnz_per_warp; i++) {
@@ -190,28 +213,20 @@ __global__ void fused_forward_kernel_hyper_row_switch(
     if (curr_edge < blk_num_edge) {
       src = __ldg(rowoff + curr_edge);
       dst = __ldg(indicesoff + curr_edge);
-      // RowSwitchFlag = (src == src_old) ? false : true;
-      // if (src != src_old) {
-      //   src_old = src;
-      //   for (int j = 0; j < loop_feat; j++) {
-      //     int pid = tidx + (j << 5);
-      //     if (pid < f) {
-      //       Q_smemoff[pid] = Q[src_old * f * h + hid * f + pid];
-      //     }
-      //   }
-      // }
-
-      // // the Q feature of row node
-      const DType *Qoff = Q + src * f * h + hid * f;
+      if (src != src_old) {
+        src_old = src;
+        if (tidx * WARP_SIZE < f) {
+          Q_row[tidx] = Q[src_old * f * h + hid * f + tidx];
+        }
+      }
       // the K feature of col node
       const DType *Koff = K + dst * f * h + hid * f;
-      ;
-
       DType att_val = 0;
       for (int j = tidx; j < f; j += 64) {
-        att_val += Qoff[j] * Koff[j];
+        int idx = j / WARP_SIZE;
+        att_val += Q_row[idx] * Koff[2 * j];
         if (j + 32 < f)
-          att_val += Qoff[j + 32] * Koff[j + 32];
+          att_val += Q_row[idx + 1] * Koff[2 * j + 1];
       }
 #pragma unroll
       for (int offset = 16; offset > 0; offset /= 2)
@@ -540,13 +555,13 @@ void gf_forward_hyper_fuse(int m, int nnz, int h, int f, int smem_consume,
   // const int nbx = (m + nty - 1) / nty;
   // const int nby = h;
   // const dim3 nblks(nbx, nby);
-  // const dim3 nthrs(ntx, nty);
+  //` const dim3 nthrs(ntx, nty);
   // const int smem_size = smem_consume * sizeof(float);
 
   // CUDA_KERNEL_CALL((fused_forward_kernel_hyper<float>), nblks, nthrs,
   // smem_size,
   //                  nty, ntx / WARP_SIZE, m, h, f, rows, indptr, indices, val,
-  //                  Q, K, V, out_feat);
+  //                  Q, K, V, out_feat);Z
   // int numSMs;
   // cudaDeviceGetAttribute(&numSMs, cudaDevAttrMultiProcessorCount, 0);
   // printf("num of SM %d \n",numSMs);
