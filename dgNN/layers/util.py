@@ -5,9 +5,9 @@ import torch
 
 from dgl.data import Subset
 
-from .gfconv_layer import SparseMHA
-from .gfconv_layer_hyper import SparseMHA_hyper, SparseMHA_hyper_nofuse
-from .gfconv_layer_subgraph import (
+from .gtconv_layer_CSR import SparseMHA_CSR
+from .gtconv_layer_hyper import SparseMHA_hyper, SparseMHA_hyper_nofuse
+from .gtconv_layer_subgraph import (
     SparseMHA_indegree,
     SparseMHA_indegree_hyper,
     SparseMHA_subgraph,
@@ -309,7 +309,7 @@ def preprocess_ELL(
 
 def load_layer_prepfunc(args):
     if args.format == "csr":
-        layer = SparseMHA
+        layer = SparseMHA_CSR
         preprocess_func = preprocess_CSR
     elif args.format == "hyper":
         layer = SparseMHA_hyper
