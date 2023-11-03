@@ -8,16 +8,18 @@ import sys
 import urllib
 from typing import Optional
 
+from dgl.data import (
+    COCOSuperpixelsDataset,
+    PeptidesFunctionalDataset,
+    PeptidesStructuralDataset,
+    VOCSuperpixelsDataset,
+)
+
 from dgl.data.utils import makedirs
 
-from data.coco_superpixels import COCOSuperpixels_DGL
-
 from data.molecules import MoleculeDataset
-from data.peptides_functional import PeptidesFunctionalDataset_DGL
-from data.peptides_structural import PeptidesStructuralDataset_DGL
 from data.SBMs import SBMsDataset
 from data.superpixels import SuperPixDataset
-from data.voc_superpixels import VOCSuperpixels_DGL
 
 
 def download_url(
@@ -84,12 +86,12 @@ def LoadData(DATASET_NAME, data_dir):
     LRGB_DATASETS = ["PascalVOC-SP", "COCO-SP", "Peptides-func", "Peptides-struct"]
     if DATASET_NAME in LRGB_DATASETS:
         if DATASET_NAME == "PascalVOC-SP":
-            return VOCSuperpixels_DGL(data_dir)
+            return VOCSuperpixelsDataset(data_dir)
         elif DATASET_NAME == "COCO-SP":
-            return COCOSuperpixels_DGL(data_dir)
+            return COCOSuperpixelsDataset(data_dir)
         elif DATASET_NAME == "Peptides-func":
-            return PeptidesFunctionalDataset_DGL(data_dir)
+            return PeptidesFunctionalDataset(data_dir)
         elif DATASET_NAME == "Peptides-struct":
-            return PeptidesStructuralDataset_DGL(data_dir)
+            return PeptidesStructuralDataset(data_dir)
 
     raise ValueError("Unknown dataset: {}".format(DATASET_NAME))
