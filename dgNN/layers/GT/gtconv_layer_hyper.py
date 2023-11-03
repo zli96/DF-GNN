@@ -2,6 +2,7 @@ import pdb
 
 from dgNN.operators.fused_gtconv import GTConvFuse_hyper, GTConvFuse_hyper_nofuse
 from dgNN.utils import benchmark
+
 from .gtconv_layer import SparseMHA
 
 

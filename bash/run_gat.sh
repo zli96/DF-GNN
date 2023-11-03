@@ -10,7 +10,7 @@ fi
 if [ -n "${test_flag}" ]; then
     datasets=(PATTERN CLUSTER ogbg-molhiv MNIST CIFAR10)
     formats=(hyper csr)
-    batch_sizes=(2048)
+    batch_sizes=(16)
     dims=(128)
     echo test mode !!!!!!!!!!!!
 else
@@ -33,7 +33,7 @@ for dim in ${dims[@]}; do
             for bs in ${batch_sizes[@]}; do
                 if [ -n "${test_flag}" ]; then
                     # # run with nolog
-                    python -u dgNN/script/test/test_gat.py --dim $dim --batch-size $bs --data-dir ${data_dir} --dataset ${dataset} --format ${format} --profile
+                    python -u dgNN/script/test/test_gat.py --dim $dim --batch-size $bs --data-dir ${data_dir} --dataset ${dataset} --format ${format}
                 else
                     python -u dgNN/script/test/test_gat.py --dim $dim --batch-size $bs --data-dir ${data_dir} --dataset ${dataset} --format ${format} --store-result 2>&1 | tee -a log/day_${day}/${name}.log
 

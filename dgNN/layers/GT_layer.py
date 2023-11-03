@@ -9,7 +9,7 @@ class GTlayer(nn.Module):
 
     def __init__(self, layer, in_size, hidden_size, num_heads=1):
         super().__init__()
-        self.MHA = layer(hidden_size=hidden_size, num_heads=num_heads)
+        self.MHA = layer
         self.linear = nn.Linear(in_size, hidden_size)
 
     def forward(self, params, X, fuse=False):
@@ -24,7 +24,7 @@ class GTlayer_mol(nn.Module):
 
     def __init__(self, layer, hidden_size=64, num_heads=1):
         super().__init__()
-        self.MHA = layer(hidden_size=hidden_size, num_heads=num_heads)
+        self.MHA = layer
         self.atom_encoder = AtomEncoder(hidden_size)
 
     def forward(self, params, X, fuse=False):
@@ -39,7 +39,7 @@ class GTlayer_SBM(nn.Module):
 
     def __init__(self, layer, in_size=1, hidden_size=64, num_heads=1):
         super().__init__()
-        self.MHA = layer(hidden_size=hidden_size, num_heads=num_heads)
+        self.MHA = layer
         self.embedding_h = nn.Embedding(in_size, hidden_size)
 
     def forward(self, params, X, fuse=False):

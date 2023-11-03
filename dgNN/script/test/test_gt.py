@@ -5,12 +5,13 @@ import torch
 
 from dgl.dataloading import GraphDataLoader
 
-from dgNN.layers import choose_GTlayer, load_layer_prepfunc, subgraph_filter
+from dgNN.layers import choose_GTlayer, load_layer_GT, load_prepfunc, subgraph_filter
 from dgNN.utils import load_dataset_fn, mkdir, parser_argument, train_profile
 
 
 def main(args):
-    layer, preprocess_func = load_layer_prepfunc(args)
+    layer = load_layer_GT(args)
+    preprocess_func = load_prepfunc(args)
 
     # If CUDA is available, use GPU to accelerate the training, use CPU
     # otherwise.

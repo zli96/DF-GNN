@@ -1,11 +1,9 @@
 import pdb
-import time
 
 import dgl.sparse as dglsp
-import torch
 import torch.nn as nn
 
-from dgNN.utils import benchmark, Timer
+from dgNN.utils import Timer
 
 
 class SparseMHA(nn.Module):

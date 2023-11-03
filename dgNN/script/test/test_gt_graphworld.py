@@ -2,9 +2,7 @@ import argparse
 
 import os, pdb, pickle, torch, warnings
 
-import dgl
-
-from dgNN.layers import GTlayer, load_layer_prepfunc
+from dgNN.layers import GTlayer, load_layer_GT, load_prepfunc
 from dgNN.utils import check_correct, Move2Device
 
 
@@ -87,7 +85,8 @@ if __name__ == "__main__":
     if args.store_result:
         print("will store the pref result")
 
-    layer, preprocess_func = load_layer_prepfunc(args)
+    layer = load_layer_GT(args)
+    preprocess_func = load_prepfunc(args)
 
     # If CUDA is available, use GPU to accelerate the training, use CPU
     # otherwise.

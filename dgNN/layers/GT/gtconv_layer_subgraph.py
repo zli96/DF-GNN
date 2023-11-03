@@ -6,6 +6,7 @@ from dgNN.operators.fused_gtconv import (
     GTConvFuse_subgraph,
 )
 from dgNN.utils import benchmark
+
 from .gtconv_layer import SparseMHA
 
 

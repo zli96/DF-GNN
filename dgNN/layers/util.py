@@ -5,13 +5,17 @@ import torch
 
 from dgl.data import Subset
 
-from .gtconv_layer_CSR import SparseMHA_CSR
-from .gtconv_layer_hyper import SparseMHA_hyper, SparseMHA_hyper_nofuse
-from .gtconv_layer_subgraph import (
+from .GAT.gatconv_layer_dgNN import GATConv_dgNN
+from .GAT.gatconv_layer_hyper import GATConv_hyper
+
+from .GT.gtconv_layer_CSR import SparseMHA_CSR
+from .GT.gtconv_layer_hyper import SparseMHA_hyper, SparseMHA_hyper_nofuse
+from .GT.gtconv_layer_subgraph import (
     SparseMHA_indegree,
     SparseMHA_indegree_hyper,
     SparseMHA_subgraph,
 )
+
 
 WARP_SIZE = 32
 
@@ -266,25 +270,47 @@ def subgraph_filter(dataset, dataset_name, dim, heads):
     return dataset
 
 
-def load_layer_prepfunc(args):
+def load_layer_GT(args):
     if args.format == "csr":
-        layer = SparseMHA_CSR
+        layer = SparseMHA_CSR(args.dim, args.heads)
+    elif args.format == "hyper":
+        layer = SparseMHA_hyper(args.dim, args.heads)
+    elif args.format == "hyper_nofuse":
+        layer = SparseMHA_hyper_nofuse(args.dim, args.heads)
+    elif args.format == "indegree":
+        layer = SparseMHA_indegree(args.dim, args.heads)
+    elif args.format == "indegree_hyper":
+        layer = SparseMHA_indegree_hyper(args.dim, args.heads)
+    elif args.format == "subgraph":
+        layer = SparseMHA_subgraph(args.dim, args.heads)
+    else:
+        raise ValueError(f"Unsupported format {args.format} in GTconv")
+    return layer
+
+
+def load_layer_GAT(args):
+    if args.format == "csr":
+        layer = GATConv_dgNN(args.dim, args.dim, args.heads)
+    elif args.format == "hyper":
+        layer = GATConv_hyper(args.dim, args.dim, args.heads)
+    else:
+        raise ValueError(f"Unsupported format {args.format} in GATconv")
+    return layer
+
+
+def load_prepfunc(args):
+    if args.format == "csr":
         preprocess_func = preprocess_CSR
     elif args.format == "hyper":
-        layer = SparseMHA_hyper
         preprocess_func = preprocess_Hyper
     elif args.format == "hyper_nofuse":
-        layer = SparseMHA_hyper_nofuse
         preprocess_func = preprocess_Hyper_nofuse
     elif args.format == "indegree":
-        layer = SparseMHA_indegree
         preprocess_func = preprocess_indegree
     elif args.format == "indegree_hyper":
-        layer = SparseMHA_indegree_hyper
         preprocess_func = preprocess_indegree_hyper
     elif args.format == "subgraph":
-        layer = SparseMHA_subgraph
         preprocess_func = preprocess_SubGraph
     else:
         raise ValueError(f"Unsupported format {args.format}")
-    return layer, preprocess_func
+    return preprocess_func
