@@ -4,7 +4,7 @@ import torch.nn.functional as F
 from ogb.graphproppred.mol_encoder import AtomEncoder
 
 # For dataset with node feature: MNIST, CIFAR10, cora
-class GTlayer(nn.Module):
+class Model(nn.Module):
     """Graph Transformer Layer"""
 
     def __init__(self, layer, in_size, hidden_size, num_heads=1):
@@ -19,7 +19,7 @@ class GTlayer(nn.Module):
 
 
 # For molcular dataset: ogbg-molhiv, ogbg-molpcba
-class GTlayer_mol(nn.Module):
+class Model_mol(nn.Module):
     """Graph Transformer Layer"""
 
     def __init__(self, layer, hidden_size=64, num_heads=1):
@@ -34,7 +34,7 @@ class GTlayer_mol(nn.Module):
 
 
 # For dataset need embedding: PATTERN, CLUSTER
-class GTlayer_SBM(nn.Module):
+class Model_Emb(nn.Module):
     """Graph Transformer Layer"""
 
     def __init__(self, layer, in_size=1, hidden_size=64, num_heads=1):
@@ -48,23 +48,23 @@ class GTlayer_SBM(nn.Module):
         return h
 
 
-def choose_GTlayer(dataset_name, MHAlayer, hidden_size, num_heads):
+def choose_Model(dataset_name, MHAlayer, hidden_size, num_heads):
     if dataset_name in [
         "ogbg-molhiv",
         "ogbg-molpcba",
         "Peptides-func",
         "Peptides-struct",
     ]:
-        return GTlayer_mol(MHAlayer, hidden_size, num_heads)
+        return Model_mol(MHAlayer, hidden_size, num_heads)
     elif dataset_name == "PATTERN":
-        return GTlayer_SBM(MHAlayer, 3, hidden_size, num_heads)
+        return Model_Emb(MHAlayer, 3, hidden_size, num_heads)
     elif dataset_name == "CLUSTER":
-        return GTlayer_SBM(MHAlayer, 7, hidden_size, num_heads)
+        return Model_Emb(MHAlayer, 7, hidden_size, num_heads)
     elif dataset_name == "MNIST":
-        return GTlayer(MHAlayer, 3, hidden_size, num_heads)
+        return Model(MHAlayer, 3, hidden_size, num_heads)
     elif dataset_name == "CIFAR10":
-        return GTlayer(MHAlayer, 5, hidden_size, num_heads)
+        return Model(MHAlayer, 5, hidden_size, num_heads)
     elif dataset_name in ["PascalVOC-SP", "COCO-SP"]:
-        return GTlayer(MHAlayer, 14, hidden_size, num_heads)
+        return Model(MHAlayer, 14, hidden_size, num_heads)
     else:
         raise ValueError(f"unknown dataset {dataset_name}")

@@ -186,7 +186,7 @@ def Move2Device(data_list, dev):
     return data_dev
 
 
-def train(process_func, layer, train_dataloader, dev, **kwargs):
+def train(process_func, model, train_dataloader, dev, **kwargs):
     print("----------------------Forward------------------------")
     time_no_fuse = []
     time_fuse = []
@@ -201,13 +201,13 @@ def train(process_func, layer, train_dataloader, dev, **kwargs):
         params = process_func(batched_g, **kwargs)
         batched_g, labels, params = Move2Device([batched_g, labels, params], dev)
         ## run by DGL sparse API
-        logits, elapsed_time = layer(params, batched_g.ndata["feat"])
+        logits, elapsed_time = model(params, batched_g.ndata["feat"])
         print(f"epoch {i} non-fused time %.4f" % elapsed_time)
 
         if i >= warmup:
             time_no_fuse.append(elapsed_time)
             ## run by fuse attention
-            logits_fuse, elapsed_time = layer(
+            logits_fuse, elapsed_time = model(
                 params, batched_g.ndata["feat"], fuse=True
             )
             time_fuse.append(elapsed_time)
@@ -220,7 +220,7 @@ def train(process_func, layer, train_dataloader, dev, **kwargs):
     return time_no_fuse, time_fuse
 
 
-def train_SBM(process_func, layer, train_dataloader, dev, **kwargs):
+def train_SBM(process_func, model, train_dataloader, dev, **kwargs):
     print("----------------------Forward------------------------")
     time_no_fuse = []
     time_fuse = []
@@ -236,12 +236,12 @@ def train_SBM(process_func, layer, train_dataloader, dev, **kwargs):
         batched_g, params = Move2Device([batched_g, params], dev)
 
         ## run by DGL sparse API
-        logits, elapsed_time = layer(params, batched_g.ndata["feat"])
+        logits, elapsed_time = model(params, batched_g.ndata["feat"])
         print(f"epoch {i} non-fused time %.4f" % elapsed_time)
         if i >= warmup:
             time_no_fuse.append(elapsed_time)
             ## run by fuse attention
-            logits_fuse, elapsed_time = layer(
+            logits_fuse, elapsed_time = model(
                 params, batched_g.ndata["feat"], fuse=True
             )
             time_fuse.append(elapsed_time)
@@ -254,7 +254,7 @@ def train_SBM(process_func, layer, train_dataloader, dev, **kwargs):
     return time_no_fuse, time_fuse
 
 
-def train_profile(process_func, layer, train_dataloader, dev, dataset_name, **arg):
+def train_profile(process_func, model, train_dataloader, dev, dataset_name, **arg):
     print("----------------------Forward------------------------")
     if dataset_name in datasets_NC:
         for i, (batched_g) in enumerate(train_dataloader):
@@ -262,7 +262,7 @@ def train_profile(process_func, layer, train_dataloader, dev, dataset_name, **ar
             params = process_func(batched_g, **arg)
             batched_g, params = Move2Device([batched_g, params], dev)
             profiler.start()
-            logits, elapsed_time = layer(params, batched_g.ndata["feat"], fuse=True)
+            logits, elapsed_time = model(params, batched_g.ndata["feat"], fuse=True)
             profiler.stop()
     else:
         for i, (batched_g, labels) in enumerate(train_dataloader):
@@ -270,12 +270,12 @@ def train_profile(process_func, layer, train_dataloader, dev, dataset_name, **ar
             params = process_func(batched_g, **arg)
             batched_g, labels, params = Move2Device([batched_g, labels, params], dev)
             profiler.start()
-            logits, elapsed_time = layer(params, batched_g.ndata["feat"], fuse=True)
+            logits, elapsed_time = model(params, batched_g.ndata["feat"], fuse=True)
             profiler.stop()
     return
 
 
-def train_profile_SBM(process_func, layer, train_dataloader, dev, **arg):
+def train_profile_SBM(process_func, model, train_dataloader, dev, **arg):
     print("----------------------Forward------------------------")
     for i, (batched_g) in enumerate(train_dataloader):
         # print("----------------------without fuse--------------------------")
@@ -283,12 +283,12 @@ def train_profile_SBM(process_func, layer, train_dataloader, dev, **arg):
         params = [param.to(dev) for param in params]
         batched_g = batched_g.to(dev)
         profiler.start()
-        logits, elapsed_time = layer(params, batched_g.ndata["feat"], **arg)
+        logits, elapsed_time = model(params, batched_g.ndata["feat"], **arg)
         profiler.stop()
         # if i > warmup:
         #     time_no_fuse.append(elapsed_time)
         #     # print("----------------------with fuse--------------------------")
-        #     logits_fuse, elapsed_time = layer(
+        #     logits_fuse, elapsed_time = model(
         #         params, batched_g.ndata["feat"], fuse=True
         #     )
         #     time_fuse.append(elapsed_time)

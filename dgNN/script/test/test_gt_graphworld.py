@@ -2,7 +2,7 @@ import argparse
 
 import os, pdb, pickle, torch, warnings
 
-from dgNN.layers import GTlayer, load_layer_GT, load_prepfunc
+from dgNN.layers import load_layer_GT, load_prepfunc, Model
 from dgNN.utils import check_correct, Move2Device
 
 
@@ -93,14 +93,14 @@ if __name__ == "__main__":
     dev = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     # load dataset
-    layer = GTlayer(layer, 16, args.dim, args.heads)
-    layer = layer.to(dev)
-    print("GTlayer", layer)
+    model = Model(layer, 16, args.dim, args.heads)
+    model = model.to(dev)
+    print("GTmodel", model)
 
     if args.rerun or not os.path.exists(
         os.path.join(args.output, f"{args.format}_result.pkl")
     ):
-        time_no_fuse, time_fuse = train(preprocess_func, layer, dev, args, dim=args.dim)
+        time_no_fuse, time_fuse = train(preprocess_func, model, dev, args, dim=args.dim)
     else:
         with open(os.path.join(args.output, f"{args.format}_result.pkl"), "rb") as f:
             _, time_no_fuse, time_fuse = pickle.load(f)

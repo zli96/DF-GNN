@@ -5,7 +5,7 @@ import torch
 
 from dgl.dataloading import GraphDataLoader
 
-from dgNN.layers import choose_GTlayer, load_layer_GT, load_prepfunc, subgraph_filter
+from dgNN.layers import choose_Model, load_layer_GT, load_prepfunc, subgraph_filter
 from dgNN.utils import load_dataset_fn, mkdir, parser_argument, train_profile
 
 
@@ -17,11 +17,11 @@ def main(args):
     # otherwise.
     dev = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-    GTlayer = choose_GTlayer(
+    model = choose_Model(
         args.dataset, MHAlayer=layer, hidden_size=args.dim, num_heads=args.heads
     )
-    GTlayer = GTlayer.to(dev)
-    print("GTlayer", GTlayer)
+    model = model.to(dev)
+    print("model", model)
     # load dataset
     dataset, train_fn, collate_fn = load_dataset_fn(args.dataset, args.data_dir)
     if args.subgraph_filter:
@@ -45,11 +45,11 @@ def main(args):
         )
     if args.profile:
         train_profile(
-            preprocess_func, GTlayer, train_dataloader, dev, args.dataset, dim=args.dim
+            preprocess_func, model, train_dataloader, dev, args.dataset, dim=args.dim
         )
     else:
         time_no_fuse, time_fuse = train_fn(
-            preprocess_func, GTlayer, train_dataloader, dev, dim=args.dim
+            preprocess_func, model, train_dataloader, dev, dim=args.dim
         )
 
         print("----------------------Result------------------------")

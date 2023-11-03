@@ -3,7 +3,7 @@ import argparse
 import torch
 from dgl.dataloading import GraphDataLoader
 
-from dgNN.layers import choose_GTlayer, load_layer_GAT, load_prepfunc
+from dgNN.layers import choose_Model, load_layer_GAT, load_prepfunc
 from dgNN.utils import load_dataset_fn, parser_argument, train_profile
 
 
@@ -17,10 +17,12 @@ def main(args):
     dataset, train_fn, collate_fn = load_dataset_fn(args.dataset, args.data_dir)
     layer = load_layer_GAT(args)
     preprocess_func = load_prepfunc(args)
-    GTlayer = choose_GTlayer(
+    model = choose_Model(
         args.dataset, MHAlayer=layer, hidden_size=args.dim, num_heads=args.heads
     )
-    GTlayer = GTlayer.to(dev)
+    model = model.to(dev)
+    print("model", model)
+
     train_dataloader = GraphDataLoader(
         dataset,
         batch_size=args.batch_size,
@@ -31,12 +33,12 @@ def main(args):
     # profile mode
     if args.profile:
         train_profile(
-            preprocess_func, GTlayer, train_dataloader, dev, args.dataset, dim=args.dim
+            preprocess_func, model, train_dataloader, dev, args.dataset, dim=args.dim
         )
     # normal run
     else:
         time_no_fuse, time_fuse = train_fn(
-            preprocess_func, GTlayer, train_dataloader, dev, dim=args.dim
+            preprocess_func, model, train_dataloader, dev, dim=args.dim
         )
         print("----------------------Result------------------------")
         print(
