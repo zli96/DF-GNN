@@ -215,8 +215,12 @@ __global__ void fused_forward_kernel_hyper_row_switch(
       dst = __ldg(indicesoff + curr_edge);
       if (src != src_old) {
         src_old = src;
-        if (tidx * WARP_SIZE < f) {
-          Q_row[tidx] = Q[src_old * f * h + hid * f + tidx];
+        for (int j = tidx; j < f; j += 64) {
+          int pid = j / WARP_SIZE;
+          Q_row[pid] = Q[src_old * f * h + hid * f + j];
+          if (j + 32 < f) {
+            Q_row[pid + 1] = Q[src_old * f * h + hid * f + j + 32];
+          }
         }
       }
       // the K feature of col node
@@ -224,9 +228,9 @@ __global__ void fused_forward_kernel_hyper_row_switch(
       DType att_val = 0;
       for (int j = tidx; j < f; j += 64) {
         int idx = j / WARP_SIZE;
-        att_val += Q_row[idx] * Koff[2 * j];
+        att_val += Q_row[idx] * Koff[j];
         if (j + 32 < f)
-          att_val += Q_row[idx + 1] * Koff[2 * j + 1];
+          att_val += Q_row[idx + 1] * Koff[j + 32];
       }
 #pragma unroll
       for (int offset = 16; offset > 0; offset /= 2)
