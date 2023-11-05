@@ -31,12 +31,11 @@ WARP_SIZE = 32
 
 
 def load_dataset_fn(dataset_name, data_dir):
-    train_fn = train
-    collate_fn = None
-    # train function for node-classification task
+    train_fn = train_Graph
     if dataset_name in datasets_NC:
-        train_fn = train_SBM
+        train_fn = train_Node
 
+    collate_fn = None
     if dataset_name in ["PCQM4Mv2-full", "ogbg-molhiv"]:
         if dataset_name == "PCQM4Mv2-full":
             dataset = DglPCQM4Mv2Dataset(root=data_dir)
@@ -49,23 +48,16 @@ def load_dataset_fn(dataset_name, data_dir):
         dataset_all = LoadData(dataset_name, data_dir)
         dataset = dataset_all.train
         collate_fn = dataset_all.collate
-        # # TODO collate work?
-        # train_dataloader = GraphDataLoader(
-        #     trainset, batch_size=batch_size, shuffle=False, collate_fn=dataset.collate
-        # )
     elif dataset_name in ["Peptides-func", "Peptides-struct"]:
         dataset = LoadData(dataset_name, data_dir)
-
-    if dataset_name in ["PascalVOC-SP", "COCO-SP"]:
+    elif dataset_name in ["PascalVOC-SP", "COCO-SP"]:
         dataset = LoadData(dataset_name, data_dir)
     elif dataset_name == "PATTERN":
         dataset = PATTERNDataset(mode="train", raw_dir=data_dir)
     elif dataset_name == "CLUSTER":
         dataset = CLUSTERDataset(mode="train", raw_dir=data_dir)
-
-    if dataset == None:
+    else:
         raise ValueError(f"unknown dataset {dataset_name}")
-
     return dataset, train_fn, collate_fn
 
 
@@ -186,7 +178,8 @@ def Move2Device(data_list, dev):
     return data_dev
 
 
-def train(process_func, model, train_dataloader, dev, **kwargs):
+def train_Graph(process_func, model, train_dataloader, dev, **kwargs):
+    r"""training function for the graph-level task"""
     print("----------------------Forward------------------------")
     time_no_fuse = []
     time_fuse = []
@@ -220,7 +213,8 @@ def train(process_func, model, train_dataloader, dev, **kwargs):
     return time_no_fuse, time_fuse
 
 
-def train_SBM(process_func, model, train_dataloader, dev, **kwargs):
+def train_Node(process_func, model, train_dataloader, dev, **kwargs):
+    r"""training function for the node-level task"""
     print("----------------------Forward------------------------")
     time_no_fuse = []
     time_fuse = []
