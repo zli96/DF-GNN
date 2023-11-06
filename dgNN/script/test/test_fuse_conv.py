@@ -48,8 +48,15 @@ def main(args):
 
     # profile mode
     if args.profile:
+        fuse_flag = args.format != "nofuse"
         train_profile(
-            preprocess_func, model, train_dataloader, dev, args.dataset, dim=args.dim
+            preprocess_func,
+            model,
+            train_dataloader,
+            dev,
+            args.dataset,
+            fuse_flag,
+            dim=args.dim,
         )
     # normal run
     else:
