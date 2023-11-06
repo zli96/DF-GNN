@@ -8,10 +8,11 @@ if [ -z "${data_dir}" ]; then
 fi
 
 if [ -n "${test_flag}" ]; then
-	datasets=(PATTERN CLUSTER)
+	datasets=(PATTERN)
 	formats=(hyper)
 	batch_sizes=(2048)
-	dims=(128)
+	dims=(64)
+	rm test/run_multi.log
 	echo test mode !!!!!!!!!!!!
 else
 	datasets=(ogbg-molhiv PATTERN CLUSTER MNIST CIFAR10 Peptides-func Peptides-struct PascalVOC-SP COCO-SP)
@@ -33,9 +34,9 @@ for dim in ${dims[@]}; do
 			for bs in ${batch_sizes[@]}; do
 				if [ -n "${test_flag}" ]; then
 					# # run with nolog
-					python -u dgNN/script/test/test_fuse_conv.py --dim $dim --batch-size $bs --data-dir ${data_dir} --dataset ${dataset} --format ${format} --conv dotgat
+					python -u dgNN/script/test/test_fuse_conv.py --dim $dim --batch-size $bs --data-dir ${data_dir} --dataset ${dataset} --format ${format} --conv gt
 				else
-					python -u dgNN/script/test/test_fuse_conv.py --dim $dim --batch-size $bs --data-dir ${data_dir} --dataset ${dataset} --format ${format} --conv dotgat --store-result 2>&1 | tee -a log/day_${day}/${name}.log
+					python -u dgNN/script/test/test_fuse_conv.py --dim $dim --batch-size $bs --data-dir ${data_dir} --dataset ${dataset} --format ${format} --conv gt --store-result 2>&1 | tee -a log/day_${day}/${name}.log
 
 				fi
 				# # run with log
@@ -45,3 +46,11 @@ for dim in ${dims[@]}; do
 		done
 	done
 done
+# # full-graph
+# datasets=("cora" "cite" "pubmed")
+# for dataset in ${datasets[@]};
+# do
+#     mkdir log/day_${day}/${dataset}
+#     # python -u dgNN/script/test/test_gt_full_graph.py --dim $dim --heads $heads --dataset $dataset  |tee log/day_${day}/${dataset}/weight_ver_${dim}_${heads}_${Time}.log
+# 	python dgNN/script/figure/plot_full_graph.py --dataset $dataset > log/${dataset}_neigh_dist.log
+# done

@@ -359,7 +359,7 @@ def parser_argument(parser):
     parser.add_argument("--profile", action="store_true")
 
     args = parse_args(parser)
-    print("Graph conv", args.conv)
+    print("GraphConv", args.conv)
     print("Dataset", args.dataset)
     print("format", args.format)
     print("hidden dim", args.dim)

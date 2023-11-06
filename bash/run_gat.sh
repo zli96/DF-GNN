@@ -1,23 +1,23 @@
 read -p "Whether use test mode(default=False): " test_flag
 
 if [ -z "${heads}" ]; then
-    heads=1
+	heads=1
 fi
 if [ -z "${data_dir}" ]; then
-    data_dir="/workspace2/dataset"
+	data_dir="/workspace2/dataset"
 fi
 
 if [ -n "${test_flag}" ]; then
-    datasets=(PATTERN CLUSTER ogbg-molhiv MNIST CIFAR10)
-    formats=(hyper csr)
-    batch_sizes=(16)
-    dims=(128)
-    echo test mode !!!!!!!!!!!!
+	datasets=(PATTERN CLUSTER ogbg-molhiv MNIST CIFAR10)
+	formats=(hyper csr)
+	batch_sizes=(16)
+	dims=(128)
+	echo test mode !!!!!!!!!!!!
 else
-    datasets=(ogbg-molhiv PATTERN CLUSTER MNIST CIFAR10 Peptides-func Peptides-struct PascalVOC-SP COCO-SP)
-    formats=(csr hyper hyper_nofuse indegree)
-    batch_sizes=(16 32 64 128 256 512 1024 2048 4096)
-    dims=(32 64 128)
+	datasets=(ogbg-molhiv PATTERN CLUSTER MNIST CIFAR10 Peptides-func Peptides-struct PascalVOC-SP COCO-SP)
+	formats=(csr hyper hyper_nofuse indegree)
+	batch_sizes=(16 32 64 128 256 512 1024 2048 4096)
+	dims=(32 64 128)
 fi
 
 day=$(date +%m_%d)
@@ -27,21 +27,21 @@ mkdir log/day_${day}
 set -e
 python setup.py develop
 for dim in ${dims[@]}; do
-    for dataset in ${datasets[@]}; do
-        for format in ${formats[@]}; do
-            name=gt_${dataset}_${format}_dim${dim}_${Time}
-            for bs in ${batch_sizes[@]}; do
-                if [ -n "${test_flag}" ]; then
-                    # # run with nolog
-                    python -u dgNN/script/test/test_gat.py --dim $dim --batch-size $bs --data-dir ${data_dir} --dataset ${dataset} --format ${format}
-                else
-                    python -u dgNN/script/test/test_gat.py --dim $dim --batch-size $bs --data-dir ${data_dir} --dataset ${dataset} --format ${format} --store-result 2>&1 | tee -a log/day_${day}/${name}.log
+	for dataset in ${datasets[@]}; do
+		for format in ${formats[@]}; do
+			name=gt_${dataset}_${format}_dim${dim}_${Time}
+			for bs in ${batch_sizes[@]}; do
+				if [ -n "${test_flag}" ]; then
+					# # run with nolog
+					python -u dgNN/script/test/test_fuse_conv.py --dim $dim --batch-size $bs --data-dir ${data_dir} --dataset ${dataset} --format ${format} --conv gat
+				else
+					python -u dgNN/script/test/test_fuse_conv.py --dim $dim --batch-size $bs --data-dir ${data_dir} --dataset ${dataset} --format ${format} --conv gat --store-result 2>&1 | tee -a log/day_${day}/${name}.log
 
-                fi
-                # # run with log
+				fi
+				# # run with log
 
-                # echo "nohup python -u dgNN/script/test/test_gt.py --dim $dim --heads $heads --batch-size $bs  > log/day_${day}/gt_${dim}_${heads}_${bs}_${comment}_${Time}.log 2>&1 &" | bash;
-            done
-        done
-    done
+				# echo "nohup python -u dgNN/script/test/test_gt.py --dim $dim --heads $heads --batch-size $bs  > log/day_${day}/gt_${dim}_${heads}_${bs}_${comment}_${Time}.log 2>&1 &" | bash;
+			done
+		done
+	done
 done

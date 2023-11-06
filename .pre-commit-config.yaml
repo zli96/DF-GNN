@@ -11,3 +11,7 @@
     rev: v16.0.6
     hooks:
       - id: clang-format
+  - repo: https://github.com/cisagov/pre-commit-shfmt
+    rev: v0.0.2
+    hooks:
+      - id: shfmt
