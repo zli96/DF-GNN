@@ -1,5 +1,6 @@
 import warnings
 
+import dgl
 import dgl.sparse as dglsp
 import torch
 
@@ -9,6 +10,7 @@ from .GAT.gatconv_layer_dgNN import GATConv_dgNN
 from .GAT.gatconv_layer_hyper import GATConv_hyper
 
 from .GAT_DOT.dotgatconv_layer_hyper import DOTGATConv_hyper
+from .GAT_DOT.dotgatconv_layer_tile import DOTGATConv_tile
 
 from .GT.gtconv_layer_CSR import SparseMHA_CSR
 from .GT.gtconv_layer_hyper import SparseMHA_hyper, SparseMHA_hyper_nofuse
@@ -47,6 +49,22 @@ def preprocess_CSR(g, **args):
     return A, row_ptr, col_ind, val, smem_consume
 
 
+def preprocess_CSR_g(g, dim):
+    g = dgl.add_self_loop(g)
+    A = g_to_SPmatrix(g)
+    # using max_degree to cal max smem consume
+    max_degree = int(max(A.sum(1)).item())
+    smem_consume = (max_degree + WARP_SIZE - 1) // WARP_SIZE * WARP_SIZE
+    print("preprocess smem consume", smem_consume)
+
+    # the CSR format of adj matrix
+    row_ptr, col_ind, val_idx = A.csr()
+    row_ptr = row_ptr.int()
+    col_ind = col_ind.int()
+    val = A.val[val_idx] / (dim**0.5)
+    return g, row_ptr, col_ind, val, smem_consume
+
+
 def preprocess_Hyper(g, **args):
     A = g_to_SPmatrix(g)
 
@@ -68,6 +86,7 @@ def preprocess_Hyper(g, **args):
 
 
 def preprocess_Hyper_g(g, dim):
+    g = dgl.add_self_loop(g)
     A = g_to_SPmatrix(g)
 
     # using max_degree to cal max smem consume
@@ -323,6 +342,10 @@ def load_layer_GAT(args):
 def load_layer_DOTGAT(args):
     if args.format == "hyper":
         layer = DOTGATConv_hyper(args.dim, args.dim, args.heads)
+    elif args.format == "tile":
+        layer = DOTGATConv_tile(args.dim, args.dim, args.heads)
+    elif args.profile and args.format == "nofuse":
+        layer = DOTGATConv_hyper(args.dim, args.dim, args.heads)
     else:
         raise ValueError(f"Unsupported format {args.format} in GATconv")
     return layer
@@ -332,8 +355,13 @@ def load_prepfunc(args):
     if args.conv == "dotgat":
         if args.format == "hyper":
             preprocess_func = preprocess_Hyper_g
+        elif args.format == "tile":
+            preprocess_func = preprocess_CSR_g
+        elif args.profile and args.format == "nofuse":
+            preprocess_func = preprocess_Hyper_g
         else:
             raise ValueError(f"Unsupported format {args.format}")
+
     else:
         if args.format == "csr":
             preprocess_func = preprocess_CSR

@@ -48,6 +48,15 @@ setuptools.setup(
             extra_link_args=["-lcurand", "-lcusparse"],
         ),
         CUDAExtension(
+            "package.fused_dotgatconv",
+            [
+                "dgNN/src/fused_dotgatconv/fused_dotgatconv.cpp",
+                "dgNN/src/fused_dotgatconv/fused_dotgatconv_tile.cu",
+            ],
+            extra_compile_args={"cxx": [], "nvcc": ["-arch=sm_75", "-lineinfo"]},
+            extra_link_args=["-lcurand", "-lcusparse"],
+        ),
+        CUDAExtension(
             "package.fused_edgeconv",
             [
                 "dgNN/src/fused_edgeconv/fused_edgeconv.cpp",

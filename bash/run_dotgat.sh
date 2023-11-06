@@ -8,10 +8,10 @@ if [ -z "${data_dir}" ]; then
 fi
 
 if [ -n "${test_flag}" ]; then
-	datasets=(PATTERN CLUSTER)
-	formats=(hyper)
+	datasets=(PATTERN)
+	formats=(tile hyper)
 	batch_sizes=(2048)
-	dims=(128)
+	dims=(64)
 	echo test mode !!!!!!!!!!!!
 else
 	datasets=(ogbg-molhiv PATTERN CLUSTER MNIST CIFAR10 Peptides-func Peptides-struct PascalVOC-SP COCO-SP)
