@@ -8,6 +8,8 @@ from dgl.data import Subset
 from .GAT.gatconv_layer_dgNN import GATConv_dgNN
 from .GAT.gatconv_layer_hyper import GATConv_hyper
 
+from .GAT_DOT.dotgatconv_layer_hyper import DOTGATConv_hyper
+
 from .GT.gtconv_layer_CSR import SparseMHA_CSR
 from .GT.gtconv_layer_hyper import SparseMHA_hyper, SparseMHA_hyper_nofuse
 from .GT.gtconv_layer_subgraph import (
@@ -24,7 +26,7 @@ def g_to_SPmatrix(g):
     indices = torch.stack(g.edges())
     N = g.num_nodes()
     M = g.num_edges()
-    val = torch.ones(M) * 1.5
+    val = torch.ones(M)
     A = dglsp.spmatrix(indices, val=val, shape=(N, N))
     return A
 
@@ -63,6 +65,26 @@ def preprocess_Hyper(g, **args):
     col_ind = col_ind.int()
     val = A.val[val_idx]
     return A, row_ptr, col_ind, rows, val, smem_consume
+
+
+def preprocess_Hyper_g(g, dim):
+    A = g_to_SPmatrix(g)
+
+    # using max_degree to cal max smem consume
+    max_degree = int(max(A.sum(1)).item())
+    smem_consume = (max_degree * 8 + WARP_SIZE - 1) // WARP_SIZE * WARP_SIZE
+    print("preprocess smem consume", smem_consume)
+
+    # A.row: the src node of each edge
+    rows = A.row.int()
+    rows = torch.sort(rows).values
+
+    # the CSR format of adj matrix
+    row_ptr, col_ind, val_idx = A.csr()
+    row_ptr = row_ptr.int()
+    col_ind = col_ind.int()
+    val = A.val[val_idx] / (dim**0.5)
+    return g, row_ptr, col_ind, rows, val, smem_consume
 
 
 def preprocess_Hyper_nofuse(g, **args):
@@ -298,19 +320,33 @@ def load_layer_GAT(args):
     return layer
 
 
-def load_prepfunc(args):
-    if args.format == "csr":
-        preprocess_func = preprocess_CSR
-    elif args.format == "hyper":
-        preprocess_func = preprocess_Hyper
-    elif args.format == "hyper_nofuse":
-        preprocess_func = preprocess_Hyper_nofuse
-    elif args.format == "indegree":
-        preprocess_func = preprocess_indegree
-    elif args.format == "indegree_hyper":
-        preprocess_func = preprocess_indegree_hyper
-    elif args.format == "subgraph":
-        preprocess_func = preprocess_SubGraph
+def load_layer_DOTGAT(args):
+    if args.format == "hyper":
+        layer = DOTGATConv_hyper(args.dim, args.dim, args.heads)
     else:
-        raise ValueError(f"Unsupported format {args.format}")
+        raise ValueError(f"Unsupported format {args.format} in GATconv")
+    return layer
+
+
+def load_prepfunc(args):
+    if args.conv == "dotgat":
+        if args.format == "hyper":
+            preprocess_func = preprocess_Hyper_g
+        else:
+            raise ValueError(f"Unsupported format {args.format}")
+    else:
+        if args.format == "csr":
+            preprocess_func = preprocess_CSR
+        elif args.format == "hyper":
+            preprocess_func = preprocess_Hyper
+        elif args.format == "hyper_nofuse":
+            preprocess_func = preprocess_Hyper_nofuse
+        elif args.format == "indegree":
+            preprocess_func = preprocess_indegree
+        elif args.format == "indegree_hyper":
+            preprocess_func = preprocess_indegree_hyper
+        elif args.format == "subgraph":
+            preprocess_func = preprocess_SubGraph
+        else:
+            raise ValueError(f"Unsupported format {args.format}")
     return preprocess_func

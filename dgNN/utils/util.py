@@ -347,6 +347,7 @@ def parse_args(parser):
 
 def parser_argument(parser):
     parser.add_argument("--config", type=str)
+    parser.add_argument("--conv", type=str, default="gt")
     parser.add_argument("--format", type=str, default="csr")
     parser.add_argument("--dim", type=int)
     parser.add_argument("--heads", type=int, default=1)
@@ -358,6 +359,7 @@ def parser_argument(parser):
     parser.add_argument("--profile", action="store_true")
 
     args = parse_args(parser)
+    print("Graph conv", args.conv)
     print("Dataset", args.dataset)
     print("format", args.format)
     print("hidden dim", args.dim)
