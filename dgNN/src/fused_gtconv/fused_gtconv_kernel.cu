@@ -169,7 +169,7 @@ __global__ void fused_forward_kernel(const int m, const int nnz, const int h,
   extern __shared__ DType smem[];
   DType *neigh_nodes_weight = smem;
   DType weightMax = -1e38;
-
+  const DType *valoff = val + lb;
   // init the shared memory
   DType Q_i = 0;
   if (fid < f) {
@@ -189,16 +189,16 @@ __global__ void fused_forward_kernel(const int m, const int nnz, const int h,
     weight_partial = warpReduceSum(weight_partial, f_mul_32);
     if (laneId == 0)
       warpLevelSums[warpId] = weight_partial;
-    namedBarrierSync(0, f_mul_32);
+    __syncthreads();
 
     weight_partial = (fid < f_mul_32 / WARP_SIZE) ? warpLevelSums[laneId] : 0;
     if (warpId == 0)
       weight_partial = warpReduceSum(weight_partial, f_mul_32 / WARP_SIZE);
     if (fid == 0) {
-      neigh_nodes_weight[j] = weight_partial;
+      neigh_nodes_weight[j] = weight_partial * valoff[j];
     }
+    __syncthreads();
 
-    namedBarrierSync(0, f_mul_32);
     weight = neigh_nodes_weight[j];
     weightMax = MAX(weight, weightMax);
   }
