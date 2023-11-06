@@ -1,4 +1,3 @@
-# import dgNN
 import fused_gtconv as fused_gt
 import torch
 
