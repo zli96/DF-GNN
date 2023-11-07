@@ -1,6 +1,5 @@
 import os
 
-import pdb
 import pickle, sys
 
 import dgl.sparse as dglsp
@@ -132,14 +131,24 @@ def full_graph_statistics(args):
 
 
 def plot_dataset_perf(args):
-    formats = ["indegree", "csr", "hyper", "hyper_nofuse"]
+    formats = ["hyper", "indegree", "csr", "hyper_nofuse"]
+    formats_label = [
+        "All fuse(hyper)",
+        "All fuse(indegree)",
+        "All fuse(csr)",
+        "Fuse softmax&SPMM",
+    ]
+    if args.conv == "dotgat":
+        formats = ["hyper", "tile"]
+        formats_label = ["All fuse(hyper)", "All fuse(tile`)"]
     batch_sizes = [str(2**i) for i in range(4, 13)]
 
-    avg_degree_all = []
     time_no_fuse_all = []
     time_fuse_all = []
 
-    result_dir = os.path.join("/workspace2/fuse_attention", "dataset", args.dataset)
+    result_dir = os.path.join(
+        "/workspace2/fuse_attention", "dataset", args.dataset, args.conv
+    )
 
     for i, format in enumerate(formats):
         a2 = []
@@ -155,18 +164,16 @@ def plot_dataset_perf(args):
         time_no_fuse_all.append(a2)
         time_fuse_all.append(a3)
 
-    save_dir = (
-        f"""/workspace2/fuse_attention/figure/dataset/dim{args.dim}_{args.dataset}"""
-    )
+    save_dir = f"""/workspace2/fuse_attention/figure/dataset/{args.conv}/dim{args.dim}_{args.dataset}"""
     title = f"""{args.dataset} dataset, dim={args.dim}"""
 
     # plot elapsed time of diff methods (log coordinate)
     fig = plt.figure(dpi=100, figsize=[12, 8])
     plt.ylabel("Elapsed time", fontsize=20)
     plt.xlabel("Batch Size", fontsize=20)
-    for i, format in enumerate(formats):
-        plt.plot(batch_sizes, time_fuse_all[i], "o-", label=format)
-    plt.plot(batch_sizes, time_no_fuse_all[0], "o-", label="Benchmark")
+    for i, label in enumerate(formats_label):
+        plt.plot(batch_sizes, time_fuse_all[i], "o-", label=label)
+    plt.plot(batch_sizes, time_no_fuse_all[0], "o-", label="No fuse(DGL)")
     plt.yscale("log")
     plt.title(title, fontsize=20)
     plt.legend()
@@ -176,9 +183,9 @@ def plot_dataset_perf(args):
     fig = plt.figure(dpi=100, figsize=[12, 8])
     plt.ylabel("Elapsed time", fontsize=20)
     plt.xlabel("Batch Size", fontsize=20)
-    for i, format in enumerate(formats):
-        plt.plot(batch_sizes, time_fuse_all[i], "o-", label=format)
-    plt.plot(batch_sizes, time_no_fuse_all[0], "o-", label="Benchmark")
+    for i, label in enumerate(formats_label):
+        plt.plot(batch_sizes, time_fuse_all[i], "o-", label=label)
+    plt.plot(batch_sizes, time_no_fuse_all[0], "o-", label="No fuse(DGL)")
     plt.title(title, fontsize=20)
     plt.legend()
     plt.savefig(save_dir + "_time.png")
@@ -187,9 +194,9 @@ def plot_dataset_perf(args):
     fig = plt.figure(dpi=100, figsize=[12, 8])
     plt.ylabel("Speedup", fontsize=20)
     plt.xlabel("Batch Size", fontsize=20)
-    for i, format in enumerate(formats):
+    for i, label in enumerate(formats_label):
         speedup_mean = np.array(time_no_fuse_all[0]) / np.array(time_fuse_all[i])
-        plt.plot(batch_sizes, speedup_mean, "o-", label=format)
+        plt.plot(batch_sizes, speedup_mean, "o-", label=label)
     plt.xticks(batch_sizes)
     plt.title(title, fontsize=20)
     plt.ylim(bottom=1)
