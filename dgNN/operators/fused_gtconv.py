@@ -182,7 +182,7 @@ class FusedGTFunction_hyper(torch.autograd.Function):
         return out_feat[0]
 
 
-def GTConvFuse_hyper_nofuse(
+def GTConvFuse_softmax(
     indptr,
     indices,
     rows,
@@ -192,7 +192,7 @@ def GTConvFuse_hyper_nofuse(
     K,
     V,
 ):
-    return FusedGTFunction_hyper_nofuse.apply(
+    return FusedGTFunction_softmax.apply(
         indptr,
         indices,
         rows,
@@ -204,7 +204,7 @@ def GTConvFuse_hyper_nofuse(
     )
 
 
-class FusedGTFunction_hyper_nofuse(torch.autograd.Function):
+class FusedGTFunction_softmax(torch.autograd.Function):
     @staticmethod
     def forward(
         ctx,

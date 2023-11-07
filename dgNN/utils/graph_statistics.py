@@ -131,7 +131,7 @@ def full_graph_statistics(args):
 
 
 def plot_dataset_perf(args):
-    formats = ["hyper", "indegree", "csr", "hyper_nofuse"]
+    formats = ["hyper", "indegree", "csr", "softmax"]
     formats_label = [
         "All fuse(hyper)",
         "All fuse(indegree)",

@@ -1,6 +1,5 @@
-import pdb
 
-from dgNN.operators.fused_gtconv import GTConvFuse_hyper, GTConvFuse_hyper_nofuse
+from dgNN.operators.fused_gtconv import GTConvFuse_hyper, GTConvFuse_softmax
 from dgNN.utils import benchmark
 
 from .gtconv_layer import SparseMHA
@@ -29,7 +28,7 @@ class SparseMHA_hyper(SparseMHA):
         return out.reshape(N, -1), elapsed_time * 1000
 
 
-class SparseMHA_hyper_nofuse(SparseMHA):
+class SparseMHA_softmax(SparseMHA):
     def forward(self, params, h, fuse=False):
         N = len(h)
         q = self.q_proj(h).reshape(N, self.head_dim, self.num_heads)
@@ -43,7 +42,7 @@ class SparseMHA_hyper_nofuse(SparseMHA):
             k = k.transpose(1, 2).contiguous()
             v = v.transpose(1, 2).contiguous()
             out, elapsed_time = benchmark(
-                GTConvFuse_hyper_nofuse,
+                GTConvFuse_softmax,
                 indptr,
                 indices,
                 rows,

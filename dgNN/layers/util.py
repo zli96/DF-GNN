@@ -13,7 +13,7 @@ from .GAT_DOT.dotgatconv_layer_hyper import DOTGATConv_hyper
 from .GAT_DOT.dotgatconv_layer_tile import DOTGATConv_tile
 
 from .GT.gtconv_layer_CSR import SparseMHA_CSR
-from .GT.gtconv_layer_hyper import SparseMHA_hyper, SparseMHA_hyper_nofuse
+from .GT.gtconv_layer_hyper import SparseMHA_hyper, SparseMHA_softmax
 from .GT.gtconv_layer_subgraph import (
     SparseMHA_indegree,
     SparseMHA_indegree_hyper,
@@ -106,7 +106,7 @@ def preprocess_Hyper_g(g, dim):
     return g, row_ptr, col_ind, rows, val, smem_consume
 
 
-def preprocess_Hyper_nofuse(g, **args):
+def preprocess_softmax(g, **args):
     A = g_to_SPmatrix(g)
 
     # using max_degree to cal max smem consume
@@ -316,8 +316,8 @@ def load_layer_GT(args):
         layer = SparseMHA_CSR(args.dim, args.heads)
     elif args.format == "hyper":
         layer = SparseMHA_hyper(args.dim, args.heads)
-    elif args.format == "hyper_nofuse":
-        layer = SparseMHA_hyper_nofuse(args.dim, args.heads)
+    elif args.format == "softmax":
+        layer = SparseMHA_softmax(args.dim, args.heads)
     elif args.format == "indegree":
         layer = SparseMHA_indegree(args.dim, args.heads)
     elif args.format == "indegree_hyper":
@@ -367,8 +367,8 @@ def load_prepfunc(args):
             preprocess_func = preprocess_CSR
         elif args.format == "hyper":
             preprocess_func = preprocess_Hyper
-        elif args.format == "hyper_nofuse":
-            preprocess_func = preprocess_Hyper_nofuse
+        elif args.format == "softmax":
+            preprocess_func = preprocess_softmax
         elif args.format == "indegree":
             preprocess_func = preprocess_indegree
         elif args.format == "indegree_hyper":

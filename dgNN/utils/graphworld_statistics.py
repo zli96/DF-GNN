@@ -1,7 +1,6 @@
 import argparse
 import os
 
-import pdb
 import pickle
 import sys
 
@@ -19,7 +18,7 @@ def mean(arr):
 
 
 def main(args):
-    formats = ["indegree", "csr", "hyper", "hyper_nofuse"]
+    formats = ["indegree", "csr", "hyper", "softmax"]
     avg_degrees = [2, 4, 8, 16, 32, 48, 64, 96, 128, 160]
     # avg_degrees = [2, 4, 8, 16, 24, 32, 48, 64, 80, 96, 112,128, 160]
 
