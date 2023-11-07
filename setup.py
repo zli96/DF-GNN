@@ -39,9 +39,10 @@ setuptools.setup(
             "package.fused_gtconv",
             [
                 "dgNN/src/fused_gtconv/fused_gtconv.cpp",
-                "dgNN/src/fused_gtconv/fused_gtconv_kernel.cu",
+                "dgNN/src/fused_gtconv/fused_gtconv_csr.cu",
                 "dgNN/src/fused_gtconv/fused_gtconv_indegree.cu",
                 "dgNN/src/fused_gtconv/fused_gtconv_hyper.cu",
+                "dgNN/src/fused_gtconv/fused_gtconv_softmax.cu",
                 "dgNN/src/fused_gtconv/fused_gtconv_subgraph.cu",
             ],
             extra_compile_args={"cxx": [], "nvcc": ["-arch=sm_75", "-lineinfo"]},

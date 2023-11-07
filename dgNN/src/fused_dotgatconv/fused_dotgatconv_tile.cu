@@ -7,10 +7,9 @@
 using namespace std;
 
 template <typename DType>
-__global__ void fused_dotgat_tile(const int m, const int h, const int f,
-                                  const int *indptr, const int *indices,
-                                  const DType *val, const DType *H,
-                                  DType *out_feat) {
+__global__ void fused_dotgat_tile(const int h, const int f, const int *indptr,
+                                  const int *indices, const DType *val,
+                                  const DType *H, DType *out_feat) {
   const int rid = blockIdx.x;                     // loop over row of adj matrix
   const int hid = blockIdx.y;                     // loop over heads
   const int fid = threadIdx.y * 32 + threadIdx.x; // loop over feature dim
@@ -84,7 +83,7 @@ dotgat_tile_forward_cuda(torch::Tensor indptr, torch::Tensor indices,
   const dim3 nthrs(ntx, nty);
   const int smem_size = smem_consume * sizeof(float);
 
-  CUDA_KERNEL_CALL((fused_dotgat_tile<float>), nblks, nthrs, smem_size, m, h, f,
+  CUDA_KERNEL_CALL((fused_dotgat_tile<float>), nblks, nthrs, smem_size, h, f,
                    indptr.data_ptr<int>(), indices.data_ptr<int>(),
                    val.data_ptr<float>(), H.data_ptr<float>(),
                    out_feat.data_ptr<float>());

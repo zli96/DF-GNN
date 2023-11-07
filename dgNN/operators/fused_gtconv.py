@@ -1,5 +1,4 @@
 # import dgNN
-import pdb
 
 import fused_gtconv as fused_gt
 import torch
@@ -170,7 +169,7 @@ class FusedGTFunction_hyper(torch.autograd.Function):
         K,
         V,
     ):
-        out_feat = fused_gt.gt_hyper_fused_forward(
+        out_feat = fused_gt.gt_hyper_forward(
             indptr,
             indices,
             rows,
@@ -218,7 +217,7 @@ class FusedGTFunction_hyper_nofuse(torch.autograd.Function):
         K,
         V,
     ):
-        out_feat = fused_gt.gt_hyper_nofuse_forward(
+        out_feat = fused_gt.gt_softmax_forward(
             indptr,
             indices,
             rows,
@@ -263,7 +262,7 @@ class FusedGTFunction(torch.autograd.Function):
         K,
         V,
     ):
-        out_feat = fused_gt.gt_forward(
+        out_feat = fused_gt.gt_csr_forward(
             indptr,
             indices,
             val,

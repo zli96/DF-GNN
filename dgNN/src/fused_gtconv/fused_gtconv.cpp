@@ -12,23 +12,20 @@
 #define CHECK_CONTIGUOUS(x)                                                    \
   TORCH_CHECK(x.is_contiguous(), #x " must be contiguous")
 
-std::vector<torch::Tensor> gt_forward_cuda(torch::Tensor indptr,
-                                           torch::Tensor indices,
-                                           torch::Tensor val, int smem_consume,
-                                           torch::Tensor Q, torch::Tensor K,
-                                           torch::Tensor V);
+std::vector<torch::Tensor>
+gt_csr_forward_cuda(torch::Tensor indptr, torch::Tensor indices,
+                    torch::Tensor val, int smem_consume, torch::Tensor Q,
+                    torch::Tensor K, torch::Tensor V);
 
 std::vector<torch::Tensor>
-gt_hyper_fused_forward_cuda(torch::Tensor indptr, torch::Tensor indices,
-                            torch::Tensor rows, torch::Tensor val,
-                            int smem_consume, torch::Tensor Q, torch::Tensor K,
-                            torch::Tensor V);
+gt_hyper_forward_cuda(torch::Tensor indptr, torch::Tensor indices,
+                      torch::Tensor rows, torch::Tensor val, int smem_consume,
+                      torch::Tensor Q, torch::Tensor K, torch::Tensor V);
 
 std::vector<torch::Tensor>
-gt_hyper_nofuse_forward_cuda(torch::Tensor indptr, torch::Tensor indices,
-                             torch::Tensor rows, torch::Tensor val,
-                             int smem_consume, torch::Tensor Q, torch::Tensor K,
-                             torch::Tensor V);
+gt_softmax_forward_cuda(torch::Tensor indptr, torch::Tensor indices,
+                        torch::Tensor rows, torch::Tensor val, int smem_consume,
+                        torch::Tensor Q, torch::Tensor K, torch::Tensor V);
 
 std::vector<torch::Tensor>
 gt_subgraph_forward_cuda(torch::Tensor nodes_subgraph, torch::Tensor indptr,
@@ -47,10 +44,11 @@ std::vector<torch::Tensor> gt_indegree_hyper_forward_cuda(
     torch::Tensor indptr, torch::Tensor indices, torch::Tensor val,
     torch::Tensor Q, torch::Tensor K, torch::Tensor V);
 
-std::vector<torch::Tensor> gt_forward(torch::Tensor indptr,
-                                      torch::Tensor indices, torch::Tensor val,
-                                      int smem_consume, torch::Tensor Q,
-                                      torch::Tensor K, torch::Tensor V) {
+std::vector<torch::Tensor> gt_csr_forward(torch::Tensor indptr,
+                                          torch::Tensor indices,
+                                          torch::Tensor val, int smem_consume,
+                                          torch::Tensor Q, torch::Tensor K,
+                                          torch::Tensor V) {
   // device check
   CHECK_DEVICE(indptr);
   CHECK_DEVICE(indices);
@@ -79,13 +77,13 @@ std::vector<torch::Tensor> gt_forward(torch::Tensor indptr,
   // TODO add shape check
   assert(indices.size(0) == val.size(0));
 
-  return gt_forward_cuda(indptr, indices, val, smem_consume, Q, K, V);
+  return gt_csr_forward_cuda(indptr, indices, val, smem_consume, Q, K, V);
 }
 
 std::vector<torch::Tensor>
-gt_hyper_fused_forward(torch::Tensor indptr, torch::Tensor indices,
-                       torch::Tensor rows, torch::Tensor val, int smem_consume,
-                       torch::Tensor Q, torch::Tensor K, torch::Tensor V) {
+gt_hyper_forward(torch::Tensor indptr, torch::Tensor indices,
+                 torch::Tensor rows, torch::Tensor val, int smem_consume,
+                 torch::Tensor Q, torch::Tensor K, torch::Tensor V) {
   // device check
   CHECK_DEVICE(indptr);
   CHECK_DEVICE(indices);
@@ -117,14 +115,14 @@ gt_hyper_fused_forward(torch::Tensor indptr, torch::Tensor indices,
   // TODO add shape check
   assert(indices.size(0) == val.size(0));
 
-  return gt_hyper_fused_forward_cuda(indptr, indices, rows, val, smem_consume,
-                                     Q, K, V);
+  return gt_hyper_forward_cuda(indptr, indices, rows, val, smem_consume, Q, K,
+                               V);
 }
 
 std::vector<torch::Tensor>
-gt_hyper_nofuse_forward(torch::Tensor indptr, torch::Tensor indices,
-                        torch::Tensor rows, torch::Tensor val, int smem_consume,
-                        torch::Tensor Q, torch::Tensor K, torch::Tensor V) {
+gt_softmax_forward(torch::Tensor indptr, torch::Tensor indices,
+                   torch::Tensor rows, torch::Tensor val, int smem_consume,
+                   torch::Tensor Q, torch::Tensor K, torch::Tensor V) {
   // device check
   CHECK_DEVICE(indptr);
   CHECK_DEVICE(indices);
@@ -156,8 +154,8 @@ gt_hyper_nofuse_forward(torch::Tensor indptr, torch::Tensor indices,
   // TODO add shape check
   assert(indices.size(0) == val.size(0));
 
-  return gt_hyper_nofuse_forward_cuda(indptr, indices, rows, val, smem_consume,
-                                      Q, K, V);
+  return gt_softmax_forward_cuda(indptr, indices, rows, val, smem_consume, Q, K,
+                                 V);
 }
 
 std::vector<torch::Tensor>
@@ -306,10 +304,11 @@ gt_indegree_hyper_forward(torch::Tensor row, torch::Tensor indptr,
 
 PYBIND11_MODULE(fused_gtconv, m) {
   m.doc() = "fuse sparse ops in graph transformer into one kernel. ";
-  m.def("gt_forward", &gt_forward, "fused graph transformer forward op");
-  m.def("gt_hyper_fused_forward", &gt_hyper_fused_forward,
+  m.def("gt_csr_forward", &gt_csr_forward,
+        "fused graph transformer forward op");
+  m.def("gt_hyper_forward", &gt_hyper_forward,
         "fused graph transformer forward op in hyper format, one kernel");
-  m.def("gt_hyper_nofuse_forward", &gt_hyper_nofuse_forward,
+  m.def("gt_softmax_forward", &gt_softmax_forward,
         "fused graph transformer forward op in hyper format, two kernels");
   m.def("gt_subgraph_forward", &gt_subgraph_forward,
         "fused graph transformer forward op by subgraph");
