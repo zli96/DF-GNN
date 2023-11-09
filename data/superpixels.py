@@ -283,6 +283,7 @@ class SuperPixDataset(torch.utils.data.Dataset):
         print("[I] Loading dataset %s..." % (name))
         self.name = name
         data_dir = os.path.join(data_dir, "superpixels")
+        os.makedirs(data_dir,exist_ok=True)
         with open(os.path.join(data_dir, f"{name}.pkl"), "rb") as f:
             f = pickle.load(f)
             self.train = f[0]

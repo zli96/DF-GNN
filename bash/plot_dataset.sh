@@ -1,7 +1,7 @@
 conv=gt
 echo plot ${conv}
 data_dir="/workspace2/dataset"
-datasets=(Peptides-func Peptides-struct PascalVOC-SP COCO-SP PascalVOC-SP ogbg-molhiv PATTERN CLUSTER MNIST CIFAR10)
+datasets=(Peptides-func Peptides-struct PascalVOC-SP COCO-SP ogbg-molhiv PATTERN CLUSTER MNIST CIFAR10)
 # datasets=(ogbg-molhiv)
 
 # for dataset in ${datasets[@]}; do
