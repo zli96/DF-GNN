@@ -7,7 +7,7 @@ import dgl
 import dgl.sparse as dglsp
 import torch
 
-from dgNN.layers import GTlayer, SparseMHA, SparseMHA_hyper
+from dgNN.layers import GTlayer, SparseMHA, SparseMHA_hyper_inference_timing
 from dgNN.utils import preprocess_CSR, preprocess_Hyper
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -49,7 +49,7 @@ if __name__ == "__main__":
         layer = SparseMHA
         preprocess_func = preprocess_CSR
     elif args.format == "hyper":
-        layer = SparseMHA_hyper
+        layer = SparseMHA_hyper_inference_timing
         preprocess_func = preprocess_Hyper
     else:
         raise ValueError(f"Unsupported format {args.format}")

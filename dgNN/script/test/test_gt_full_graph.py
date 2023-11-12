@@ -3,7 +3,7 @@ import pdb
 
 import torch
 
-from dgNN.layers import GTlayer, SparseMHA, SparseMHA_hyper
+from dgNN.layers import GTlayer, SparseMHA, SparseMHA_hyper_inference_timing
 from dgNN.utils import load_data_full_graph, preprocess_CSR, preprocess_Hyper
 
 
@@ -25,7 +25,7 @@ if __name__ == "__main__":
         layer = SparseMHA
         preprocess_func = preprocess_CSR
     elif args.format == "hyper":
-        layer = SparseMHA_hyper
+        layer = SparseMHA_hyper_inference_timing
         preprocess_func = preprocess_Hyper
     else:
         raise ValueError(f"Unsupported format {args.format}")
