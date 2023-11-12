@@ -1,5 +1,7 @@
-
-from dgNN.operators.fused_gtconv import GTConvFuse_hyper, GTConvFuse_softmax
+from dgNN.operators.fused_gtconv import (
+    GTConvFuse_inference_hyper,
+    GTConvFuse_inference_softmax,
+)
 from dgNN.utils import benchmark
 
 from .gtconv_layer import SparseMHA
@@ -19,7 +21,15 @@ class SparseMHA_hyper(SparseMHA):
             k = k.transpose(1, 2).contiguous()
             v = v.transpose(1, 2).contiguous()
             out, elapsed_time = benchmark(
-                GTConvFuse_hyper, indptr, indices, rows, val, smem_consume, q, k, v
+                GTConvFuse_inference_hyper,
+                indptr,
+                indices,
+                rows,
+                val,
+                smem_consume,
+                q,
+                k,
+                v,
             )
             out = out.transpose(1, 2)
         else:
@@ -42,7 +52,7 @@ class SparseMHA_softmax(SparseMHA):
             k = k.transpose(1, 2).contiguous()
             v = v.transpose(1, 2).contiguous()
             out, elapsed_time = benchmark(
-                GTConvFuse_softmax,
+                GTConvFuse_inference_softmax,
                 indptr,
                 indices,
                 rows,

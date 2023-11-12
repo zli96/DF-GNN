@@ -1,4 +1,3 @@
-# import dgNN
 import fused_gatconv as fused_gat
 import torch
 from torch.utils.cpp_extension import load

@@ -13,8 +13,7 @@ if [ -n "${test_flag}" ]; then
 	datasets=(PATTERN)
 	formats=(csr hyper softmax indegree)
 	batch_sizes=(16)
-	dims=(64 63)
-	rm test/run_multi.log
+	dims=(64)
 	echo test mode !!!!!!!!!!!!
 else
 	datasets=(ogbg-molhiv PATTERN CLUSTER MNIST CIFAR10 Peptides-func Peptides-struct PascalVOC-SP COCO-SP)

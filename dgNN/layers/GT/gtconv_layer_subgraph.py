@@ -1,9 +1,7 @@
-import pdb
-
 from dgNN.operators.fused_gtconv import (
-    GTConvFuse_indegree,
-    GTConvFuse_indegree_hyper,
-    GTConvFuse_subgraph,
+    GTConvFuse_inference_indegree,
+    GTConvFuse_inference_indegree_hyper,
+    GTConvFuse_inference_subgraph,
 )
 from dgNN.utils import benchmark
 
@@ -24,7 +22,14 @@ class SparseMHA_subgraph(SparseMHA):
             k = k.transpose(1, 2).contiguous()
             v = v.transpose(1, 2).contiguous()
             out, elapsed_time = benchmark(
-                GTConvFuse_subgraph, nodes_subgraph, indptr, indices, val, q, k, v
+                GTConvFuse_inference_subgraph,
+                nodes_subgraph,
+                indptr,
+                indices,
+                val,
+                q,
+                k,
+                v,
             )
             out = out.transpose(1, 2)
         else:
@@ -56,7 +61,7 @@ class SparseMHA_indegree(SparseMHA):
             k = k.transpose(1, 2).contiguous()
             v = v.transpose(1, 2).contiguous()
             out, elapsed_time = benchmark(
-                GTConvFuse_indegree,
+                GTConvFuse_inference_indegree,
                 row_ptr,
                 col_ind,
                 val,
@@ -99,7 +104,7 @@ class SparseMHA_indegree_hyper(SparseMHA):
             k = k.transpose(1, 2).contiguous()
             v = v.transpose(1, 2).contiguous()
             out, elapsed_time = benchmark(
-                GTConvFuse_indegree_hyper,
+                GTConvFuse_inference_indegree_hyper,
                 row,
                 row_ptr,
                 col_ind,
