@@ -1,9 +1,121 @@
-# import dgNN
-
 import fused_gtconv as fused_gt
 import torch
-from torch.utils.cpp_extension import load
 
+def GTConvFuse_inference_hyper(
+    indptr,
+    indices,
+    rows,
+    val,
+    smem_consume,
+    Q,
+    K,
+    V,
+):
+    out_feat = fused_gt.gt_hyper_inference(
+        indptr,
+        indices,
+        rows,
+        val,
+        smem_consume,
+        Q,
+        K,
+        V,
+    )
+    return out_feat[0]
+
+
+def GTConvFuse_hyper(
+    indptr,
+    indices,
+    rows,
+    val,
+    smem_consume,
+    Q,
+    K,
+    V,
+):
+    return FusedGTFunction_hyper.apply(
+        indptr,
+        indices,
+        rows,
+        val,
+        smem_consume,
+        Q,
+        K,
+        V,
+    )
+
+
+class FusedGTFunction_hyper(torch.autograd.Function):
+    @staticmethod
+    def forward(
+        ctx,
+        indptr,
+        indices,
+        rows,
+        val,
+        smem_consume,
+        Q,
+        K,
+        V,
+    ):
+        out_feat, edge_max, edge_sum = fused_gt.gt_hyper_forward(
+            indptr,
+            indices,
+            rows,
+            val,
+            smem_consume,
+            Q,
+            K,
+            V,
+        )
+        ctx.save_for_backward(
+            indptr,
+            indices,
+            rows,
+            val,
+            Q,
+            K,
+            V,
+        )
+        return out_feat
+    
+    @staticmethod
+    def backward(ctx, grad_out):
+        (
+            indptr,
+            indices,
+            rows,
+            val,
+            Q,
+            K,
+            V,
+        ) = ctx.saved_tensors
+        grad_out = grad_out.contiguous()
+        print('start backward')
+        grad_Q,grad_K,grad_V, = fused_gt.gt_backward(
+            indptr,
+            indices,
+            rows,
+            val,
+            Q,
+            K,
+            V,
+        )
+        # print('end backward')
+        # print(torch.isnan(grad_feat).sum())
+        # print(torch.isnan(grad_attn_row).sum())
+        # print(torch.isnan(grad_attn_col).sum())
+        return (
+            None,
+            None,
+            None,
+            None,
+            None,
+            grad_Q,
+            grad_K,
+            grad_V,
+        )
 
 def GTConvFuse_inference_indegree_hyper(
     row,
@@ -18,7 +130,7 @@ def GTConvFuse_inference_indegree_hyper(
     K,
     V,
 ):
-    out_feat = fused_gt.gt_indegree_hyper_forward(
+    out_feat = fused_gt.gt_indegree_hyper_inference(
         row,
         row_ptr,
         col_ind,
@@ -46,7 +158,7 @@ def GTConvFuse_inference_indegree(
     K,
     V,
 ):
-    out_feat = fused_gt.gt_indegree_forward(
+    out_feat = fused_gt.gt_indegree_inference(
         row_ptr,
         col_ind,
         val,
@@ -70,7 +182,7 @@ def GTConvFuse_inference_subgraph(
     K,
     V,
 ):
-    out_feat = fused_gt.gt_subgraph_forward(
+    out_feat = fused_gt.gt_subgraph_inference(
         nodes_subgraph,
         indptr,
         indices,
@@ -80,55 +192,6 @@ def GTConvFuse_inference_subgraph(
         V,
     )
     return out_feat[0]
-
-
-def GTConvFuse_inference_hyper(
-    indptr,
-    indices,
-    rows,
-    val,
-    smem_consume,
-    Q,
-    K,
-    V,
-):
-    out_feat = fused_gt.gt_hyper_forward(
-        indptr,
-        indices,
-        rows,
-        val,
-        smem_consume,
-        Q,
-        K,
-        V,
-    )
-    return out_feat[0]
-
-
-# class FusedGTFunction_hyper(torch.autograd.Function):
-#     @staticmethod
-#     def forward(
-#         ctx,
-#         indptr,
-#         indices,
-#         rows,
-#         val,
-#         smem_consume,
-#         Q,
-#         K,
-#         V,
-#     ):
-#         out_feat = fused_gt.gt_hyper_forward(
-#             indptr,
-#             indices,
-#             rows,
-#             val,
-#             smem_consume,
-#             Q,
-#             K,
-#             V,
-#         )
-#         return out_feat[0]
 
 
 def GTConvFuse_inference_softmax(
@@ -141,7 +204,7 @@ def GTConvFuse_inference_softmax(
     K,
     V,
 ):
-    out_feat = fused_gt.gt_softmax_forward(
+    out_feat = fused_gt.gt_softmax_inference(
         indptr,
         indices,
         rows,
@@ -163,7 +226,7 @@ def GTConvFuse_inference_csr(
     K,
     V,
 ):
-    out_feat = fused_gt.gt_csr_forward(
+    out_feat = fused_gt.gt_csr_inference(
         indptr,
         indices,
         val,

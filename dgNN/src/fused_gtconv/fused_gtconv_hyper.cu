@@ -168,7 +168,7 @@ __global__ void fused_gt_hyper(const int m, const int h, const int f,
 }
 
 template <typename DType>
-__global__ void fused_forward_kernel_hyper_row_switch(
+__global__ void fused_inference_kernel_hyper_row_switch(
     const int m, const int h, const int f, const int *row, const int *indptr,
     const int *indices, const DType *val, const DType *Q, const DType *K,
     const DType *V, DType *out_feat) {
@@ -312,7 +312,7 @@ __global__ void fused_forward_kernel_hyper_row_switch(
 }
 
 std::vector<torch::Tensor>
-gt_hyper_forward_cuda(torch::Tensor indptr, torch::Tensor indices,
+gt_hyper_inference_cuda(torch::Tensor indptr, torch::Tensor indices,
                       torch::Tensor rows, torch::Tensor val, int smem_consume,
                       torch::Tensor Q, torch::Tensor K, torch::Tensor V) {
   // Q: torch.Size([6248, 10, 8])

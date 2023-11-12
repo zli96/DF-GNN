@@ -7,7 +7,7 @@
 using namespace std;
 
 template <typename DType>
-__global__ void fused_forward_kernel_tiling_mul32(
+__global__ void fused_inference_kernel_tiling_mul32(
     const int m, const int nnz, const int h, const int f, const int *indptr,
     const int *indices, const DType *val, const DType *Q, const DType *K,
     const DType *V, DType *out_feat) {
@@ -156,7 +156,7 @@ __global__ void fused_gt_csr(const int h, const int f, const int *indptr,
     out_feat[rid * h * f + hid * f + fid] = (expAll != 0) ? acc / expAll : 0;
 }
 
-void gt_csr_forward_launch(int m, int nnz, int h, int f, int smem_consume,
+void gt_csr_inference_launch(int m, int nnz, int h, int f, int smem_consume,
                            const int *indptr, const int *indices,
                            const float *val, const float *Q, const float *K,
                            const float *V, float *out_feat) {
@@ -181,7 +181,7 @@ void gt_csr_forward_launch(int m, int nnz, int h, int f, int smem_consume,
 }
 
 std::vector<torch::Tensor>
-gt_csr_forward_cuda(torch::Tensor indptr, torch::Tensor indices,
+gt_csr_inference_cuda(torch::Tensor indptr, torch::Tensor indices,
                     torch::Tensor val, int smem_consume, torch::Tensor Q,
                     torch::Tensor K, torch::Tensor V) {
   // Q: torch.Size([6248, 10, 8])
@@ -194,7 +194,7 @@ gt_csr_forward_cuda(torch::Tensor indptr, torch::Tensor indices,
       torch::TensorOptions().dtype(torch::kFloat32).device(torch::kCUDA, devid);
   auto out_feat = torch::zeros({m, h, f}, options);
 
-  gt_csr_forward_launch(m, nnz, h, f, smem_consume, indptr.data_ptr<int>(),
+  gt_csr_inference_launch(m, nnz, h, f, smem_consume, indptr.data_ptr<int>(),
                         indices.data_ptr<int>(), val.data_ptr<float>(),
                         Q.data_ptr<float>(), K.data_ptr<float>(),
                         V.data_ptr<float>(), out_feat.data_ptr<float>());

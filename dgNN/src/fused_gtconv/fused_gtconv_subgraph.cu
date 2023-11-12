@@ -7,7 +7,7 @@
 using namespace std;
 
 template <typename DType, int BLOCK_SIZE, int LOG_BLOCK_SIZE>
-__global__ void fused_forward_kernel_subgraph_mul32(
+__global__ void fused_inference_kernel_subgraph_mul32(
     const int h, const int f, const int *node_num_ptr, const int *indptr,
     const int *indices, const DType *val, const DType *Q, const DType *K,
     const DType *V, DType *out_feat) {
@@ -124,7 +124,7 @@ __global__ void fused_forward_kernel_subgraph_mul32(
 
 template <typename DType, int BLOCK_SIZE, int LOG_BLOCK_SIZE>
 __global__ void
-fused_forward_kernel_subgraph(const int h, const int f, const int *node_num_ptr,
+fused_inference_kernel_subgraph(const int h, const int f, const int *node_num_ptr,
                               const int *indptr, const int *indices,
                               const DType *val, const DType *Q, const DType *K,
                               const DType *V, DType *out_feat) {
@@ -247,7 +247,7 @@ fused_forward_kernel_subgraph(const int h, const int f, const int *node_num_ptr,
   }
 }
 
-void gt_forward_subgraph(int num_subgraph, int h, int f,
+void gt_inference_subgraph(int num_subgraph, int h, int f,
                          const int *nodes_subgraph, const int *indptr,
                          const int *indices, const float *val, const float *Q,
                          const float *K, const float *V, float *out_feat) {
@@ -262,26 +262,26 @@ void gt_forward_subgraph(int num_subgraph, int h, int f,
   // printf("launch dim %d %d %d %d \n", ntx, nty, nbx, nby);
   switch (nty) {
   case 8:
-    cudaFuncSetAttribute(fused_forward_kernel_subgraph<float, 8, 3>,
+    cudaFuncSetAttribute(fused_inference_kernel_subgraph<float, 8, 3>,
                          cudaFuncAttributeMaxDynamicSharedMemorySize,
                          smem_size);
-    CUDA_KERNEL_CALL((fused_forward_kernel_subgraph<float, 8, 3>), nblks, nthrs,
+    CUDA_KERNEL_CALL((fused_inference_kernel_subgraph<float, 8, 3>), nblks, nthrs,
                      smem_size, h, f, nodes_subgraph, indptr, indices, val, Q,
                      K, V, out_feat);
     break;
   case 16:
-    cudaFuncSetAttribute(fused_forward_kernel_subgraph<float, 16, 4>,
+    cudaFuncSetAttribute(fused_inference_kernel_subgraph<float, 16, 4>,
                          cudaFuncAttributeMaxDynamicSharedMemorySize,
                          smem_size);
-    CUDA_KERNEL_CALL((fused_forward_kernel_subgraph<float, 16, 4>), nblks,
+    CUDA_KERNEL_CALL((fused_inference_kernel_subgraph<float, 16, 4>), nblks,
                      nthrs, smem_size, h, f, nodes_subgraph, indptr, indices,
                      val, Q, K, V, out_feat);
     break;
   case 32:
-    cudaFuncSetAttribute(fused_forward_kernel_subgraph<float, 32, 5>,
+    cudaFuncSetAttribute(fused_inference_kernel_subgraph<float, 32, 5>,
                          cudaFuncAttributeMaxDynamicSharedMemorySize,
                          smem_size);
-    CUDA_KERNEL_CALL((fused_forward_kernel_subgraph<float, 32, 5>), nblks,
+    CUDA_KERNEL_CALL((fused_inference_kernel_subgraph<float, 32, 5>), nblks,
                      nthrs, smem_size, h, f, nodes_subgraph, indptr, indices,
                      val, Q, K, V, out_feat);
     break;
@@ -290,7 +290,7 @@ void gt_forward_subgraph(int num_subgraph, int h, int f,
   }
 }
 
-void gt_forward_subgraph_multiple32(int num_subgraph, int h, int f,
+void gt_inference_subgraph_multiple32(int num_subgraph, int h, int f,
                                     const int *nodes_subgraph,
                                     const int *indptr, const int *indices,
                                     const float *val, const float *Q,
@@ -306,26 +306,26 @@ void gt_forward_subgraph_multiple32(int num_subgraph, int h, int f,
   // printf("launch dim %d %d %d %d \n", ntx, nty, nbx, nby);
   switch (nty) {
   case 8:
-    cudaFuncSetAttribute(fused_forward_kernel_subgraph_mul32<float, 8, 3>,
+    cudaFuncSetAttribute(fused_inference_kernel_subgraph_mul32<float, 8, 3>,
                          cudaFuncAttributeMaxDynamicSharedMemorySize,
                          smem_size);
-    CUDA_KERNEL_CALL((fused_forward_kernel_subgraph_mul32<float, 8, 3>), nblks,
+    CUDA_KERNEL_CALL((fused_inference_kernel_subgraph_mul32<float, 8, 3>), nblks,
                      nthrs, smem_size, h, f, nodes_subgraph, indptr, indices,
                      val, Q, K, V, out_feat);
     break;
   case 16:
-    cudaFuncSetAttribute(fused_forward_kernel_subgraph_mul32<float, 16, 4>,
+    cudaFuncSetAttribute(fused_inference_kernel_subgraph_mul32<float, 16, 4>,
                          cudaFuncAttributeMaxDynamicSharedMemorySize,
                          smem_size);
-    CUDA_KERNEL_CALL((fused_forward_kernel_subgraph_mul32<float, 16, 4>), nblks,
+    CUDA_KERNEL_CALL((fused_inference_kernel_subgraph_mul32<float, 16, 4>), nblks,
                      nthrs, smem_size, h, f, nodes_subgraph, indptr, indices,
                      val, Q, K, V, out_feat);
     break;
   case 32:
-    cudaFuncSetAttribute(fused_forward_kernel_subgraph_mul32<float, 32, 5>,
+    cudaFuncSetAttribute(fused_inference_kernel_subgraph_mul32<float, 32, 5>,
                          cudaFuncAttributeMaxDynamicSharedMemorySize,
                          smem_size);
-    CUDA_KERNEL_CALL((fused_forward_kernel_subgraph_mul32<float, 32, 5>), nblks,
+    CUDA_KERNEL_CALL((fused_inference_kernel_subgraph_mul32<float, 32, 5>), nblks,
                      nthrs, smem_size, h, f, nodes_subgraph, indptr, indices,
                      val, Q, K, V, out_feat);
     break;
@@ -335,7 +335,7 @@ void gt_forward_subgraph_multiple32(int num_subgraph, int h, int f,
 }
 
 std::vector<torch::Tensor>
-gt_subgraph_forward_cuda(torch::Tensor nodes_subgraph, torch::Tensor indptr,
+gt_subgraph_inference_cuda(torch::Tensor nodes_subgraph, torch::Tensor indptr,
                          torch::Tensor indices, torch::Tensor val,
                          torch::Tensor Q, torch::Tensor K, torch::Tensor V) {
   // Q: torch.Size([6248, 10, 8])
@@ -350,13 +350,13 @@ gt_subgraph_forward_cuda(torch::Tensor nodes_subgraph, torch::Tensor indptr,
 
   // check whether f is multiples of 32
   if (isMul32(f)) {
-    gt_forward_subgraph_multiple32(
+    gt_inference_subgraph_multiple32(
         num_subgraph, h, f, nodes_subgraph.data_ptr<int>(),
         indptr.data_ptr<int>(), indices.data_ptr<int>(), val.data_ptr<float>(),
         Q.data_ptr<float>(), K.data_ptr<float>(), V.data_ptr<float>(),
         out_feat.data_ptr<float>());
   } else {
-    gt_forward_subgraph(num_subgraph, h, f, nodes_subgraph.data_ptr<int>(),
+    gt_inference_subgraph(num_subgraph, h, f, nodes_subgraph.data_ptr<int>(),
                         indptr.data_ptr<int>(), indices.data_ptr<int>(),
                         val.data_ptr<float>(), Q.data_ptr<float>(),
                         K.data_ptr<float>(), V.data_ptr<float>(),

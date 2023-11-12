@@ -324,7 +324,7 @@ fused_gt_indegree(const int h, const int f, const int *node_num_ptr,
   }
 }
 
-void gt_indegree_forward_launch(int num_subgraph, int h, int f,
+void gt_indegree_inference_launch(int num_subgraph, int h, int f,
                                 const int *nodes_subgraph,
                                 const int *smem_nodes_subgraph,
                                 const int *store_node, const int *store_flag,
@@ -348,7 +348,7 @@ void gt_indegree_forward_launch(int num_subgraph, int h, int f,
                    indptr, indices, val, Q, K, V, out_feat);
 }
 
-void gt_forward_indegree_hyper(int num_subgraph, int h, int f,
+void gt_inference_indegree_hyper(int num_subgraph, int h, int f,
                                const int *nodes_subgraph,
                                const int *smem_nodes_subgraph,
                                const int *store_node, const int *store_flag,
@@ -372,7 +372,7 @@ void gt_forward_indegree_hyper(int num_subgraph, int h, int f,
                    store_flag, row, indptr, indices, val, Q, K, V, out_feat);
 }
 
-std::vector<torch::Tensor> gt_indegree_forward_cuda(
+std::vector<torch::Tensor> gt_indegree_inference_cuda(
     torch::Tensor nodes_subgraph, torch::Tensor smem_nodes_subgraph,
     torch::Tensor store_node, torch::Tensor store_flag, torch::Tensor indptr,
     torch::Tensor indices, torch::Tensor val, torch::Tensor Q, torch::Tensor K,
@@ -387,7 +387,7 @@ std::vector<torch::Tensor> gt_indegree_forward_cuda(
       torch::TensorOptions().dtype(torch::kFloat32).device(torch::kCUDA, devid);
   auto out_feat = torch::zeros({m, h, f}, options);
 
-  gt_indegree_forward_launch(
+  gt_indegree_inference_launch(
       num_subgraph, h, f, nodes_subgraph.data_ptr<int>(),
       smem_nodes_subgraph.data_ptr<int>(), store_node.data_ptr<int>(),
       store_flag.data_ptr<int>(), indptr.data_ptr<int>(),
@@ -397,7 +397,7 @@ std::vector<torch::Tensor> gt_indegree_forward_cuda(
   return {out_feat};
 }
 
-std::vector<torch::Tensor> gt_indegree_hyper_forward_cuda(
+std::vector<torch::Tensor> gt_indegree_hyper_inference_cuda(
     torch::Tensor nodes_subgraph, torch::Tensor smem_nodes_subgraph,
     torch::Tensor store_node, torch::Tensor store_flag, torch::Tensor row,
     torch::Tensor indptr, torch::Tensor indices, torch::Tensor val,
@@ -412,7 +412,7 @@ std::vector<torch::Tensor> gt_indegree_hyper_forward_cuda(
       torch::TensorOptions().dtype(torch::kFloat32).device(torch::kCUDA, devid);
   auto out_feat = torch::zeros({m, h, f}, options);
 
-  gt_forward_indegree_hyper(
+  gt_inference_indegree_hyper(
       num_subgraph, h, f, nodes_subgraph.data_ptr<int>(),
       smem_nodes_subgraph.data_ptr<int>(), store_node.data_ptr<int>(),
       store_flag.data_ptr<int>(), row.data_ptr<int>(), indptr.data_ptr<int>(),

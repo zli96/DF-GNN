@@ -13,38 +13,38 @@
   TORCH_CHECK(x.is_contiguous(), #x " must be contiguous")
 
 std::vector<torch::Tensor>
-gt_csr_forward_cuda(torch::Tensor indptr, torch::Tensor indices,
+gt_csr_inference_cuda(torch::Tensor indptr, torch::Tensor indices,
                     torch::Tensor val, int smem_consume, torch::Tensor Q,
                     torch::Tensor K, torch::Tensor V);
 
 std::vector<torch::Tensor>
-gt_hyper_forward_cuda(torch::Tensor indptr, torch::Tensor indices,
+gt_hyper_inference_cuda(torch::Tensor indptr, torch::Tensor indices,
                       torch::Tensor rows, torch::Tensor val, int smem_consume,
                       torch::Tensor Q, torch::Tensor K, torch::Tensor V);
 
 std::vector<torch::Tensor>
-gt_softmax_forward_cuda(torch::Tensor indptr, torch::Tensor indices,
+gt_softmax_inference_cuda(torch::Tensor indptr, torch::Tensor indices,
                         torch::Tensor rows, torch::Tensor val, int smem_consume,
                         torch::Tensor Q, torch::Tensor K, torch::Tensor V);
 
 std::vector<torch::Tensor>
-gt_subgraph_forward_cuda(torch::Tensor nodes_subgraph, torch::Tensor indptr,
+gt_subgraph_inference_cuda(torch::Tensor nodes_subgraph, torch::Tensor indptr,
                          torch::Tensor indices, torch::Tensor val,
                          torch::Tensor Q, torch::Tensor K, torch::Tensor V);
 
-std::vector<torch::Tensor> gt_indegree_forward_cuda(
+std::vector<torch::Tensor> gt_indegree_inference_cuda(
     torch::Tensor nodes_subgraph, torch::Tensor smem_nodes_subgraph,
     torch::Tensor store_node, torch::Tensor store_flag, torch::Tensor indptr,
     torch::Tensor indices, torch::Tensor val, torch::Tensor Q, torch::Tensor K,
     torch::Tensor V);
 
-std::vector<torch::Tensor> gt_indegree_hyper_forward_cuda(
+std::vector<torch::Tensor> gt_indegree_hyper_inference_cuda(
     torch::Tensor nodes_subgraph, torch::Tensor smem_nodes_subgraph,
     torch::Tensor store_node, torch::Tensor store_flag, torch::Tensor row,
     torch::Tensor indptr, torch::Tensor indices, torch::Tensor val,
     torch::Tensor Q, torch::Tensor K, torch::Tensor V);
 
-std::vector<torch::Tensor> gt_csr_forward(torch::Tensor indptr,
+std::vector<torch::Tensor> gt_csr_inference(torch::Tensor indptr,
                                           torch::Tensor indices,
                                           torch::Tensor val, int smem_consume,
                                           torch::Tensor Q, torch::Tensor K,
@@ -77,11 +77,11 @@ std::vector<torch::Tensor> gt_csr_forward(torch::Tensor indptr,
   // TODO add shape check
   assert(indices.size(0) == val.size(0));
 
-  return gt_csr_forward_cuda(indptr, indices, val, smem_consume, Q, K, V);
+  return gt_csr_inference_cuda(indptr, indices, val, smem_consume, Q, K, V);
 }
 
 std::vector<torch::Tensor>
-gt_hyper_forward(torch::Tensor indptr, torch::Tensor indices,
+gt_hyper_inference(torch::Tensor indptr, torch::Tensor indices,
                  torch::Tensor rows, torch::Tensor val, int smem_consume,
                  torch::Tensor Q, torch::Tensor K, torch::Tensor V) {
   // device check
@@ -115,12 +115,12 @@ gt_hyper_forward(torch::Tensor indptr, torch::Tensor indices,
   // TODO add shape check
   assert(indices.size(0) == val.size(0));
 
-  return gt_hyper_forward_cuda(indptr, indices, rows, val, smem_consume, Q, K,
+  return gt_hyper_inference_cuda(indptr, indices, rows, val, smem_consume, Q, K,
                                V);
 }
 
 std::vector<torch::Tensor>
-gt_softmax_forward(torch::Tensor indptr, torch::Tensor indices,
+gt_softmax_inference(torch::Tensor indptr, torch::Tensor indices,
                    torch::Tensor rows, torch::Tensor val, int smem_consume,
                    torch::Tensor Q, torch::Tensor K, torch::Tensor V) {
   // device check
@@ -154,12 +154,12 @@ gt_softmax_forward(torch::Tensor indptr, torch::Tensor indices,
   // TODO add shape check
   assert(indices.size(0) == val.size(0));
 
-  return gt_softmax_forward_cuda(indptr, indices, rows, val, smem_consume, Q, K,
+  return gt_softmax_inference_cuda(indptr, indices, rows, val, smem_consume, Q, K,
                                  V);
 }
 
 std::vector<torch::Tensor>
-gt_subgraph_forward(torch::Tensor nodes_subgraph, torch::Tensor indptr,
+gt_subgraph_inference(torch::Tensor nodes_subgraph, torch::Tensor indptr,
                     torch::Tensor indices, torch::Tensor val, torch::Tensor Q,
                     torch::Tensor K, torch::Tensor V) {
   // device check
@@ -193,12 +193,12 @@ gt_subgraph_forward(torch::Tensor nodes_subgraph, torch::Tensor indptr,
   // TODO add shape check
   assert(indices.size(0) == val.size(0));
 
-  return gt_subgraph_forward_cuda(nodes_subgraph, indptr, indices, val, Q, K,
+  return gt_subgraph_inference_cuda(nodes_subgraph, indptr, indices, val, Q, K,
                                   V);
 }
 
 std::vector<torch::Tensor>
-gt_indegree_forward(torch::Tensor indptr, torch::Tensor indices,
+gt_indegree_inference(torch::Tensor indptr, torch::Tensor indices,
                     torch::Tensor val, torch::Tensor nodes_subgraph,
                     torch::Tensor smem_nodes_subgraph, torch::Tensor store_node,
                     torch::Tensor store_flag, torch::Tensor Q, torch::Tensor K,
@@ -244,13 +244,13 @@ gt_indegree_forward(torch::Tensor indptr, torch::Tensor indices,
   // TODO add shape check
   assert(indices.size(0) == val.size(0));
 
-  return gt_indegree_forward_cuda(nodes_subgraph, smem_nodes_subgraph,
+  return gt_indegree_inference_cuda(nodes_subgraph, smem_nodes_subgraph,
                                   store_node, store_flag, indptr, indices, val,
                                   Q, K, V);
 }
 
 std::vector<torch::Tensor>
-gt_indegree_hyper_forward(torch::Tensor row, torch::Tensor indptr,
+gt_indegree_hyper_inference(torch::Tensor row, torch::Tensor indptr,
                           torch::Tensor indices, torch::Tensor val,
                           torch::Tensor nodes_subgraph,
                           torch::Tensor smem_nodes_subgraph,
@@ -297,23 +297,23 @@ gt_indegree_hyper_forward(torch::Tensor row, torch::Tensor indptr,
   // TODO add shape check
   assert(indices.size(0) == val.size(0));
 
-  return gt_indegree_hyper_forward_cuda(nodes_subgraph, smem_nodes_subgraph,
+  return gt_indegree_hyper_inference_cuda(nodes_subgraph, smem_nodes_subgraph,
                                         store_node, store_flag, row, indptr,
                                         indices, val, Q, K, V);
 }
 
 PYBIND11_MODULE(fused_gtconv, m) {
   m.doc() = "fuse sparse ops in graph transformer into one kernel. ";
-  m.def("gt_csr_forward", &gt_csr_forward,
-        "fused graph transformer forward op");
-  m.def("gt_hyper_forward", &gt_hyper_forward,
-        "fused graph transformer forward op in hyper format, one kernel");
-  m.def("gt_softmax_forward", &gt_softmax_forward,
-        "fused graph transformer forward op in hyper format, two kernels");
-  m.def("gt_subgraph_forward", &gt_subgraph_forward,
-        "fused graph transformer forward op by subgraph");
-  m.def("gt_indegree_forward", &gt_indegree_forward,
-        "fused graph transformer forward op by indegree");
-  m.def("gt_indegree_hyper_forward", &gt_indegree_hyper_forward,
-        "fused graph transformer forward op by indegree");
+  m.def("gt_csr_inference", &gt_csr_inference,
+        "fused graph transformer inference op");
+  m.def("gt_hyper_inference", &gt_hyper_inference,
+        "fused graph transformer inference op in hyper format, one kernel");
+  m.def("gt_softmax_inference", &gt_softmax_inference,
+        "fused graph transformer inference op in hyper format, two kernels");
+  m.def("gt_subgraph_inference", &gt_subgraph_inference,
+        "fused graph transformer inference op by subgraph");
+  m.def("gt_indegree_inference", &gt_indegree_inference,
+        "fused graph transformer inference op by indegree");
+  m.def("gt_indegree_hyper_inference", &gt_indegree_hyper_inference,
+        "fused graph transformer inference op by indegree");
 }
