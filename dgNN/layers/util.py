@@ -13,7 +13,8 @@ from .GAT_DOT.dotgatconv_layer_hyper import DOTGATConv_hyper
 from .GAT_DOT.dotgatconv_layer_tile import DOTGATConv_tile
 
 from .GT.gtconv_layer_CSR import SparseMHA_CSR
-from .GT.gtconv_layer_hyper import SparseMHA_hyper, SparseMHA_softmax
+from .GT.gtconv_layer_hyper import SparseMHA_hyper
+from .GT.gtconv_layer_softmax import SparseMHA_softmax
 from .GT.gtconv_layer_subgraph import (
     SparseMHA_indegree,
     SparseMHA_indegree_hyper,

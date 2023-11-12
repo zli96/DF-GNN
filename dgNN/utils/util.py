@@ -31,9 +31,9 @@ WARP_SIZE = 32
 
 
 def load_dataset_fn(dataset_name, data_dir):
-    train_fn = train_Graph
+    train_fn = inference_Graph_level
     if dataset_name in datasets_NC:
-        train_fn = train_Node
+        train_fn = inference_Node_level
 
     collate_fn = None
     if dataset_name in ["PCQM4Mv2-full", "ogbg-molhiv"]:
@@ -178,7 +178,7 @@ def Move2Device(data_list, dev):
     return data_dev
 
 
-def train_Graph(process_func, model, train_dataloader, dev, **kwargs):
+def inference_Graph_level(process_func, model, train_dataloader, dev, **kwargs):
     r"""training function for the graph-level task"""
     print("----------------------Forward------------------------")
     time_no_fuse = []
@@ -194,12 +194,14 @@ def train_Graph(process_func, model, train_dataloader, dev, **kwargs):
         params = process_func(batched_g, **kwargs)
         batched_g, labels, params = Move2Device([batched_g, labels, params], dev)
         ## run by DGL sparse API
+        model.eval()
         logits, elapsed_time = model(params, batched_g.ndata["feat"])
         print(f"epoch {i} non-fused time %.4f" % elapsed_time)
 
         if i >= warmup:
             time_no_fuse.append(elapsed_time)
             ## run by fuse attention
+            model.eval()
             logits_fuse, elapsed_time = model(
                 params, batched_g.ndata["feat"], fuse=True
             )
@@ -213,7 +215,7 @@ def train_Graph(process_func, model, train_dataloader, dev, **kwargs):
     return time_no_fuse, time_fuse
 
 
-def train_Node(process_func, model, train_dataloader, dev, **kwargs):
+def inference_Node_level(process_func, model, train_dataloader, dev, **kwargs):
     r"""training function for the node-level task"""
     print("----------------------Forward------------------------")
     time_no_fuse = []
@@ -230,11 +232,13 @@ def train_Node(process_func, model, train_dataloader, dev, **kwargs):
         batched_g, params = Move2Device([batched_g, params], dev)
 
         ## run by DGL sparse API
+        model.eval()
         logits, elapsed_time = model(params, batched_g.ndata["feat"])
         print(f"epoch {i} non-fused time %.4f" % elapsed_time)
         if i >= warmup:
             time_no_fuse.append(elapsed_time)
             ## run by fuse attention
+            model.eval()
             logits_fuse, elapsed_time = model(
                 params, batched_g.ndata["feat"], fuse=True
             )
