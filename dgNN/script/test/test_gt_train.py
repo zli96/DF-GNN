@@ -58,18 +58,24 @@ def train(process_func, model, train_dataloader, dev, fuse_flag):
         print(model.MHA.q_proj.weight.grad.shape)
         print(model.MHA.k_proj.weight.grad.shape)
         print(model.MHA.v_proj.weight.grad.shape)
-        # q_grad = model.MHA.q_proj.weight.grad
+        model.MHA.q_proj.weight.grad
+        v_grad = model.MHA.v_proj.weight.grad
+        model.zero_grad()
         # print(model.MHA.q_proj.weight.grad)
         # print(model.MHA.k_proj.weight.grad)
         # print(model.MHA.v_proj.weight.grad)
         model.train()
         logits_fused = model(params, batched_g.ndata["feat"], fuse=True)
         loss = loss_fcn(logits_fused.squeeze(), batched_g.ndata["label"].float())
+        print("check forward correct")
         check_correct(logits, logits_fused, params)
-        # loss.backward()
-        # ## Backward check
+        loss.backward()
+        ## Backward check
+        print("check forward correct")
         # print(model.MHA.q_proj.weight.grad)
-        # print(torch.isclose(q_grad,model.MHA.q_proj.weight.grad))
+        # print(v_grad[0])
+        # print(model.MHA.v_proj.weight.grad[0])
+        check_correct(v_grad, model.MHA.v_proj.weight.grad, params)
         break
 
 

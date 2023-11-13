@@ -90,13 +90,14 @@ def preprocess_Hyper_fw_bw(g, **args):
     A = g_to_SPmatrix(g)
 
     # using max_degree to cal max smem consume
-    max_degree = int(max(A.sum(1)).item())
+    max_degree = int(max(max(A.sum(1)).item(), max(A.sum(0)).item()))
     smem_consume = (max_degree * 8 + WARP_SIZE - 1) // WARP_SIZE * WARP_SIZE
     print("preprocess smem consume", smem_consume)
-
     # A.row: the src node of each edge
     rows = A.row.int()
     rows = torch.sort(rows).values
+    # cols = A.col.int()
+    # cols = torch.sort(cols).values
 
     # the CSR format of adj matrix
     row_ptr, col_ind, val_idx = A.csr()
@@ -108,7 +109,8 @@ def preprocess_Hyper_fw_bw(g, **args):
     col_ptr, row_ind, val_idx = A.csc()
     col_ptr = col_ptr.int()
     row_ind = row_ind.int()
-    return A, row_ptr, col_ind, rows, val, col_ptr, row_ind, val_idx, smem_consume
+    val_idx = A.val[val_idx]
+    return A, rows, row_ptr, col_ind, val, col_ptr, row_ind, val_idx, smem_consume
 
 
 def preprocess_Hyper_g(g, dim):

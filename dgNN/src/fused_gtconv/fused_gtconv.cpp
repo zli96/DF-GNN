@@ -93,28 +93,24 @@ gt_hyper_forward(torch::Tensor row_ptr, torch::Tensor col_ind,
                                val_idx, smem_consume, Q, K, V);
 }
 
-std::vector<torch::Tensor> gt_backward_cuda(
-    float negative_slope, float attn_drop, torch::Tensor row_ptr,
-    torch::Tensor col_ind, torch::Tensor col_ptr, torch::Tensor row_ind,
-    torch::Tensor permute, torch::Tensor edge_max, torch::Tensor edge_sum,
-    torch::Tensor edge_mask, torch::Tensor in_feat, torch::Tensor attn_row,
-    torch::Tensor attn_col, torch::Tensor grad);
+std::vector<torch::Tensor>
+gt_backward_cuda(torch::Tensor row_ptr, torch::Tensor col_ind,
+                 torch::Tensor rows, torch::Tensor val, torch::Tensor col_ptr,
+                 torch::Tensor row_ind, torch::Tensor val_idx, int smem_consume,
+                 torch::Tensor Q, torch::Tensor K, torch::Tensor V,
+                 torch::Tensor edge_max, torch::Tensor edge_sum,
+                 torch::Tensor grad);
 
 std::vector<torch::Tensor>
-gt_backward(float negative_slope, float attn_drop, torch::Tensor row_ptr,
-            torch::Tensor col_ind, torch::Tensor col_ptr, torch::Tensor row_ind,
-            torch::Tensor permute, torch::Tensor edge_max,
-            torch::Tensor edge_sum, torch::Tensor edge_mask,
-            torch::Tensor in_feat, torch::Tensor attn_row,
-            torch::Tensor attn_col, torch::Tensor grad) {
+gt_backward(torch::Tensor row_ptr, torch::Tensor col_ind, torch::Tensor rows,
+            torch::Tensor val, torch::Tensor col_ptr, torch::Tensor row_ind,
+            torch::Tensor val_idx, int smem_consume, torch::Tensor Q,
+            torch::Tensor K, torch::Tensor V, torch::Tensor edge_max,
+            torch::Tensor edge_sum, torch::Tensor grad) {
   assert(row_ptr.device().type() == torch::kCUDA);
   assert(col_ind.device().type() == torch::kCUDA);
   assert(col_ptr.device().type() == torch::kCUDA);
   assert(row_ind.device().type() == torch::kCUDA);
-  assert(permute.device().type() == torch::kCUDA);
-  // assert(permute2.device().type() == torch::kCUDA);
-  // assert(edge_softmax_csr.device().type() == torch::kCUDA);
-  // assert(edge_relu_csr.device().type() == torch::kCUDA);
   assert(edge_max.device().type() == torch::kCUDA);
   assert(edge_sum.device().type() == torch::kCUDA);
   assert(edge_mask.device().type() == torch::kCUDA);
@@ -127,38 +123,28 @@ gt_backward(float negative_slope, float attn_drop, torch::Tensor row_ptr,
   assert(col_ind.is_contiguous());
   assert(col_ptr.is_contiguous());
   assert(row_ind.is_contiguous());
-  assert(permute.is_contiguous());
-  // assert(permute2.is_contiguous());
-  // assert(edge_softmax_csr.is_contiguous());
-  // assert(edge_relu_csr.is_contiguous());
   assert(edge_max.is_contiguous());
   assert(edge_sum.is_contiguous());
-  assert(edge_mask.is_contiguous());
-  assert(in_feat.is_contiguous());
-  assert(attn_row.is_contiguous());
-  assert(attn_col.is_contiguous());
+  assert(Q.is_contiguous());
+  assert(K.is_contiguous());
+  assert(V.is_contiguous());
   assert(grad.is_contiguous());
 
   assert(row_ptr.dtype() == torch::kInt32);
   assert(col_ind.dtype() == torch::kInt32);
   assert(col_ptr.dtype() == torch::kInt32);
   assert(row_ind.dtype() == torch::kInt32);
-  assert(permute.dtype() == torch::kInt32);
-  // assert(permute2.dtype() == torch::kInt32);
-  // assert(edge_softmax_csr.dtype() == torch::kFloat32);
-  // assert(edge_relu_csr.dtype() == torch::kFloat32);
+
   assert(edge_max.dtype() == torch::kFloat32);
   assert(edge_sum.dtype() == torch::kFloat32);
-  assert(edge_mask.dtype() == torch::kFloat32);
-  assert(in_feat.dtype() == torch::kFloat32);
-  assert(attn_row.dtype() == torch::kFloat32);
-  assert(attn_col.dtype() == torch::kFloat32);
+  assert(Q.dtype() == torch::kFloat32);
+  assert(K.dtype() == torch::kFloat32);
+  assert(V.dtype() == torch::kFloat32);
   assert(grad.dtype() == torch::kFloat32);
-  // printf("gat backward\n");
 
-  return gt_backward_cuda(negative_slope, attn_drop, row_ptr, col_ind, col_ptr,
-                          row_ind, permute, edge_max, edge_sum, edge_mask,
-                          in_feat, attn_row, attn_col, grad);
+  return gt_backward_cuda(row_ptr, col_ind, rows, val, col_ptr, row_ind,
+                          val_idx, smem_consume, Q, K, V, edge_max, edge_sum,
+                          grad);
 }
 
 std::vector<torch::Tensor> gt_csr_inference(torch::Tensor indptr,
