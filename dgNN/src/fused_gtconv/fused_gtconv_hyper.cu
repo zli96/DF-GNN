@@ -313,8 +313,8 @@ __global__ void fused_inference_kernel_hyper_row_switch(
 
 std::vector<torch::Tensor>
 gt_hyper_inference_cuda(torch::Tensor indptr, torch::Tensor indices,
-                      torch::Tensor rows, torch::Tensor val, int smem_consume,
-                      torch::Tensor Q, torch::Tensor K, torch::Tensor V) {
+                        torch::Tensor rows, torch::Tensor val, int smem_consume,
+                        torch::Tensor Q, torch::Tensor K, torch::Tensor V) {
   // Q: torch.Size([6248, 10, 8])
   const auto m = indptr.size(0) - 1; // num of nodes
   const auto nnz = indices.size(0);  // num of edges
@@ -341,4 +341,114 @@ gt_hyper_inference_cuda(torch::Tensor indptr, torch::Tensor indices,
                    V.data_ptr<float>(), out_feat.data_ptr<float>());
 
   return {out_feat};
+}
+
+std::vector<torch::Tensor>
+gt_hyper_forward_cuda(torch::Tensor row_ptr, torch::Tensor col_ind,
+                      torch::Tensor rows, torch::Tensor val,
+                      torch::Tensor col_ptr, torch::Tensor row_ind,
+                      torch::Tensor val_idx, int smem_consume, torch::Tensor Q,
+                      torch::Tensor K, torch::Tensor V) {
+  // Q: torch.Size([6248, 10, 8])
+  const auto m = row_ptr.size(0) - 1; // num of nodes
+  const auto nnz = col_ind.size(0);   // num of edges
+  const auto h = Q.size(1);           // num of heads
+  const auto f = Q.size(2);           // num of feats
+  auto devid = row_ptr.device().index();
+  auto options =
+      torch::TensorOptions().dtype(torch::kFloat32).device(torch::kCUDA, devid);
+  auto out_feat = torch::zeros({m, h, f}, options);
+  auto edge_max = torch::empty({m, h}, options);
+  auto edge_sum = torch::empty({m, h}, options);
+
+  const int ntx = 32;
+  const int nty = 8;
+
+  const int nbx = (m + nty - 1) / nty;
+  const int nby = h;
+  const dim3 nblks(nbx, nby);
+  const dim3 nthrs(ntx, nty);
+  const int smem_size = smem_consume * sizeof(float);
+
+  CUDA_KERNEL_CALL((fused_gt_hyper<float>), nblks, nthrs, smem_size, m, h, f,
+                   rows.data_ptr<int>(), row_ptr.data_ptr<int>(),
+                   col_ind.data_ptr<int>(), val.data_ptr<float>(),
+                   Q.data_ptr<float>(), K.data_ptr<float>(),
+                   V.data_ptr<float>(), out_feat.data_ptr<float>());
+
+  return {out_feat, edge_max, edge_sum};
+}
+
+void gt_backward(int m, int nnz, int h, int f, float negative_slope,
+                 float attn_drop, int *row_ptr, int *col_ind, int *col_ptr,
+                 int *row_ind, int *permute, float *edge_max, float *edge_sum,
+                 float *edge_mask, float *in_feat, float *attn_row,
+                 float *attn_col,
+                 float *grad,          // input grad
+                 float *grad_edge_csr, // temp grad
+                 // float *grad_edge_for_gather_csr, //temp grad
+                 float *grad_feat,     // output grad
+                 float *grad_attn_row, // output grad
+                 float *grad_attn_col) // output grad
+{
+  // int seed = time(0);
+  // // if (f > 64)
+  // // {
+  // mhspmm_backward_kernel<<<dim3(m, h, 1), dim3(32, (f + 31) / 32, 1),
+  //                          32 * (sizeof(float) + sizeof(int))>>>(
+  //     m, nnz, h, f, negative_slope, attn_drop, row_ptr, col_ind, col_ptr,
+  //     row_ind, permute, edge_max, edge_sum, edge_mask, attn_row, attn_col,
+  //     grad, grad_feat);
+  // }
+  // else
+  // {
+  //   mhspmm_backward_kernel_small_f<<<dim3(m, 1, 1), dim3(32, h, 1), 32 * h *
+  //   sizeof(float)>>>(
+  //       m, nnz, h, f, negative_slope, attn_drop, row_ptr, col_ind, col_ptr,
+  //       row_ind,permute, edge_max, edge_sum, edge_mask, attn_row, attn_col,
+  //       grad, grad_feat);
+  // }
+
+  // mhsddmm<<<dim3(nnz / 16 + (nnz & 15), h, 1), dim3(32, 4, 1)>>>(
+  //     m, f, h, nnz, row_ptr, col_ind, grad, in_feat, grad_edge_csr);
+
+  // fused_backward_kernel<<<dim3(m, 1, 1), dim3(32, h, 1)>>>(
+  //     m, nnz, h, f, attn_drop, row_ptr, col_ind, negative_slope, edge_max,
+  //     edge_sum, edge_mask, attn_row, attn_col, grad_edge_csr, grad_attn_row,
+  //     grad_attn_col);
+
+  // gather_col<<<dim3(m, 1, 1), dim3(32, h, 1)>>>(m, nnz, h, f, col_ptr,
+  // permute, grad_edge_for_gather_csr, grad_attn_col);
+}
+
+std::vector<torch::Tensor> gt_backward_cuda(
+    float negative_slope, float attn_drop, torch::Tensor row_ptr,
+    torch::Tensor col_ind, torch::Tensor col_ptr, torch::Tensor row_ind,
+    torch::Tensor permute, torch::Tensor edge_max, torch::Tensor edge_sum,
+    torch::Tensor edge_mask, torch::Tensor in_feat, torch::Tensor attn_row,
+    torch::Tensor attn_col, torch::Tensor grad) {
+
+  const auto m = row_ptr.size(0) - 1;
+  const auto nnz = col_ind.size(0);
+  const auto h = in_feat.size(1);
+  const auto f = in_feat.size(2);
+  auto devid = row_ptr.device().index();
+  auto options =
+      torch::TensorOptions().dtype(torch::kFloat32).device(torch::kCUDA, devid);
+  auto grad_edge_csr = torch::empty({nnz, h}, options);
+  auto grad_feat = torch::empty({m, h, f}, options);
+  auto grad_attn_row = torch::empty({m, h}, options);
+  auto grad_attn_col = torch::zeros({m, h}, options);
+
+  gt_backward(m, nnz, h, f, negative_slope, attn_drop, row_ptr.data_ptr<int>(),
+              col_ind.data_ptr<int>(), col_ptr.data_ptr<int>(),
+              row_ind.data_ptr<int>(), permute.data_ptr<int>(),
+              edge_max.data_ptr<float>(), edge_sum.data_ptr<float>(),
+              edge_mask.data_ptr<float>(), in_feat.data_ptr<float>(),
+              attn_row.data_ptr<float>(), attn_col.data_ptr<float>(),
+              grad.data_ptr<float>(), grad_edge_csr.data_ptr<float>(),
+              grad_feat.data_ptr<float>(), grad_attn_row.data_ptr<float>(),
+              grad_attn_col.data_ptr<float>());
+
+  return {grad_feat, grad_attn_row, grad_attn_col};
 }

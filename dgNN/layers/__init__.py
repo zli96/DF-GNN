@@ -16,5 +16,6 @@ from .util import (
     load_layer_GAT,
     load_layer_GT,
     load_prepfunc,
+    preprocess_Hyper_fw_bw,
     subgraph_filter,
 )

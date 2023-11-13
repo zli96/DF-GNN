@@ -5,9 +5,9 @@ import torch
 import torch.nn as nn
 from dgl.dataloading import GraphDataLoader
 
-from dgNN.layers import load_prepfunc, SparseMHA_hyper
+from dgNN.layers import load_prepfunc, preprocess_Hyper_fw_bw, SparseMHA_hyper
 
-from dgNN.utils import load_dataset_fn, parser_argument
+from dgNN.utils import check_correct, load_dataset_fn, parser_argument
 
 
 class GTModel(nn.Module):
@@ -58,13 +58,18 @@ def train(process_func, model, train_dataloader, dev, fuse_flag):
         print(model.MHA.q_proj.weight.grad.shape)
         print(model.MHA.k_proj.weight.grad.shape)
         print(model.MHA.v_proj.weight.grad.shape)
-        print(model.MHA.q_proj.weight.grad)
-        print(model.MHA.k_proj.weight.grad)
-        print(model.MHA.v_proj.weight.grad)
+        # q_grad = model.MHA.q_proj.weight.grad
+        # print(model.MHA.q_proj.weight.grad)
+        # print(model.MHA.k_proj.weight.grad)
+        # print(model.MHA.v_proj.weight.grad)
         model.train()
-        logits = model(params, batched_g.ndata["feat"], fuse=True)
-        loss = loss_fcn(logits.squeeze(), batched_g.ndata["label"].float())
-        loss.backward()
+        logits_fused = model(params, batched_g.ndata["feat"], fuse=True)
+        loss = loss_fcn(logits_fused.squeeze(), batched_g.ndata["label"].float())
+        check_correct(logits, logits_fused, params)
+        # loss.backward()
+        # ## Backward check
+        # print(model.MHA.q_proj.weight.grad)
+        # print(torch.isclose(q_grad,model.MHA.q_proj.weight.grad))
         break
 
 
@@ -78,7 +83,7 @@ def main(args):
     dataset, train_fn, collate_fn = load_dataset_fn(args.dataset, args.data_dir)
     layer = SparseMHA_hyper(args.dim, args.heads)
 
-    preprocess_func = load_prepfunc(args)
+    preprocess_func = preprocess_Hyper_fw_bw
     model = GTModel(layer, hidden_size=args.dim, outsize=1)
     model = model.to(dev)
     print("model", model)
