@@ -96,20 +96,18 @@ def preprocess_Hyper_fw_bw(g, **args):
     # A.row: the src node of each edge
     rows = A.row.int()
     rows = torch.sort(rows).values
-    # cols = A.col.int()
-    # cols = torch.sort(cols).values
 
     # the CSR format of adj matrix
     row_ptr, col_ind, val_idx = A.csr()
     row_ptr = row_ptr.int()
     col_ind = col_ind.int()
     val = A.val[val_idx]
+    A_csr = dglsp.from_csr(indptr=row_ptr, indices=col_ind, val=val)
 
     # the CSC format of adj matrix
-    col_ptr, row_ind, val_idx = A.csc()
+    col_ptr, row_ind, val_idx = A_csr.csc()
     col_ptr = col_ptr.int()
     row_ind = row_ind.int()
-    val_idx = A.val[val_idx]
     return A, rows, row_ptr, col_ind, val, col_ptr, row_ind, val_idx, smem_consume
 
 

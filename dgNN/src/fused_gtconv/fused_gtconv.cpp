@@ -98,53 +98,55 @@ gt_backward_cuda(torch::Tensor row_ptr, torch::Tensor col_ind,
                  torch::Tensor rows, torch::Tensor val, torch::Tensor col_ptr,
                  torch::Tensor row_ind, torch::Tensor val_idx, int smem_consume,
                  torch::Tensor Q, torch::Tensor K, torch::Tensor V,
-                 torch::Tensor edge_max, torch::Tensor edge_sum,
-                 torch::Tensor grad);
+                 torch::Tensor attn_edge, torch::Tensor grad);
 
 std::vector<torch::Tensor>
 gt_backward(torch::Tensor row_ptr, torch::Tensor col_ind, torch::Tensor rows,
             torch::Tensor val, torch::Tensor col_ptr, torch::Tensor row_ind,
             torch::Tensor val_idx, int smem_consume, torch::Tensor Q,
-            torch::Tensor K, torch::Tensor V, torch::Tensor edge_max,
-            torch::Tensor edge_sum, torch::Tensor grad) {
-  assert(row_ptr.device().type() == torch::kCUDA);
-  assert(col_ind.device().type() == torch::kCUDA);
-  assert(col_ptr.device().type() == torch::kCUDA);
-  assert(row_ind.device().type() == torch::kCUDA);
-  assert(edge_max.device().type() == torch::kCUDA);
-  assert(edge_sum.device().type() == torch::kCUDA);
-  assert(edge_mask.device().type() == torch::kCUDA);
-  assert(in_feat.device().type() == torch::kCUDA);
-  assert(attn_row.device().type() == torch::kCUDA);
-  assert(attn_col.device().type() == torch::kCUDA);
-  assert(grad.device().type() == torch::kCUDA);
+            torch::Tensor K, torch::Tensor V, torch::Tensor attn_edge,
+            torch::Tensor grad) {
 
-  assert(row_ptr.is_contiguous());
-  assert(col_ind.is_contiguous());
-  assert(col_ptr.is_contiguous());
-  assert(row_ind.is_contiguous());
-  assert(edge_max.is_contiguous());
-  assert(edge_sum.is_contiguous());
-  assert(Q.is_contiguous());
-  assert(K.is_contiguous());
-  assert(V.is_contiguous());
-  assert(grad.is_contiguous());
+  CHECK_DEVICE(row_ptr);
+  CHECK_DEVICE(col_ind);
+  CHECK_DEVICE(rows);
+  CHECK_DEVICE(val);
+  CHECK_DEVICE(col_ptr);
+  CHECK_DEVICE(row_ind);
+  CHECK_DEVICE(val_idx);
+  CHECK_DEVICE(Q);
+  CHECK_DEVICE(K);
+  CHECK_DEVICE(V);
+  CHECK_DEVICE(attn_edge);
+  CHECK_DEVICE(grad);
+
+  // contiguous check
+  CHECK_CONTIGUOUS(row_ptr);
+  CHECK_CONTIGUOUS(col_ind);
+  CHECK_CONTIGUOUS(rows);
+  CHECK_CONTIGUOUS(val);
+  CHECK_CONTIGUOUS(col_ptr);
+  CHECK_CONTIGUOUS(row_ind);
+  CHECK_CONTIGUOUS(val_idx);
+  CHECK_CONTIGUOUS(Q);
+  CHECK_CONTIGUOUS(K);
+  CHECK_CONTIGUOUS(V);
+  CHECK_CONTIGUOUS(attn_edge);
+  CHECK_CONTIGUOUS(grad);
 
   assert(row_ptr.dtype() == torch::kInt32);
   assert(col_ind.dtype() == torch::kInt32);
+  assert(rows.dtype() == torch::kInt32);
   assert(col_ptr.dtype() == torch::kInt32);
   assert(row_ind.dtype() == torch::kInt32);
-
-  assert(edge_max.dtype() == torch::kFloat32);
-  assert(edge_sum.dtype() == torch::kFloat32);
   assert(Q.dtype() == torch::kFloat32);
   assert(K.dtype() == torch::kFloat32);
   assert(V.dtype() == torch::kFloat32);
+  assert(attn_edge.dtype() == torch::kFloat32);
   assert(grad.dtype() == torch::kFloat32);
 
   return gt_backward_cuda(row_ptr, col_ind, rows, val, col_ptr, row_ind,
-                          val_idx, smem_consume, Q, K, V, edge_max, edge_sum,
-                          grad);
+                          val_idx, smem_consume, Q, K, V, attn_edge, grad);
 }
 
 std::vector<torch::Tensor> gt_csr_inference(torch::Tensor indptr,

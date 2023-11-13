@@ -69,7 +69,7 @@ class FusedGTFunction_hyper(torch.autograd.Function):
         K,
         V,
     ):
-        out_feat, edge_max, edge_sum = fused_gt.gt_hyper_forward(
+        out_feat, attn_edge = fused_gt.gt_hyper_forward(
             row_ptr,
             col_ind,
             rows,
@@ -84,18 +84,7 @@ class FusedGTFunction_hyper(torch.autograd.Function):
         )
         ctx.in1 = smem_consume
         ctx.save_for_backward(
-            row_ptr,
-            col_ind,
-            rows,
-            val,
-            col_ptr,
-            row_ind,
-            val_idx,
-            Q,
-            K,
-            V,
-            edge_max,
-            edge_sum,
+            row_ptr, col_ind, rows, val, col_ptr, row_ind, val_idx, Q, K, V, attn_edge
         )
         return out_feat
 
@@ -112,8 +101,7 @@ class FusedGTFunction_hyper(torch.autograd.Function):
             Q,
             K,
             V,
-            edge_max,
-            edge_sum,
+            attn_edge,
         ) = ctx.saved_tensors
         grad_out = grad_out.contiguous()
         print("start backward")
@@ -132,8 +120,7 @@ class FusedGTFunction_hyper(torch.autograd.Function):
             Q,
             K,
             V,
-            edge_max,
-            edge_sum,
+            attn_edge,
             grad_out,
         )
         # print('end backward')

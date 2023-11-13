@@ -8,11 +8,11 @@
 using namespace std;
 
 template <typename DType>
-__global__ void
-fused_gt_hyper(const int m, const int h, const int f, const int *row,
-               const int *indptr, const int *indices, const DType *val,
-               const DType *Q, const DType *K, const DType *V, DType *edge_max,
-               DType *edge_sum, DType *out_feat) {
+__global__ void fused_gt_hyper(const int m, const int nnz, const int h,
+                               const int f, const int *row, const int *indptr,
+                               const int *indices, const DType *val,
+                               const DType *Q, const DType *K, const DType *V,
+                               DType *attn_edge, DType *out_feat) {
   // launch dim (32, 8) * (num_nodes/8, 1)
 
   const int bidx = blockIdx.x;
@@ -107,9 +107,9 @@ fused_gt_hyper(const int m, const int h, const int f, const int *row,
       weightMax = MAX(weight, weightMax);
     }
 
-    if (tidx == 0) {
-      edge_max[curr_node * h + hid] = weightMax;
-    }
+    // if (tidx == 0) {
+    //   edge_max[curr_node * h + hid] = weightMax;
+    // }
 
     // compute the sum of exp
     DType expAll = 0;
@@ -130,9 +130,9 @@ fused_gt_hyper(const int m, const int h, const int f, const int *row,
       expAll += exptmp;
     }
 
-    if (tidx == 0) {
-      edge_sum[curr_node * h + hid] = expAll;
-    }
+    // if (tidx == 0) {
+    //   edge_sum[curr_node * h + hid] = expAll;
+    // }
 
     // compute the output
     int loop_f = (f + WARP_SIZE - 1) / WARP_SIZE;
@@ -142,6 +142,9 @@ fused_gt_hyper(const int m, const int h, const int f, const int *row,
       for (int j = 0; j < num_edge; j++) {
         int cid = indices[edge_lb + j];
         DType attn_val = neigh_nodes_weight_off[j];
+        if (i == 0 && tidx == 0) {
+          attn_edge[hid * nnz + edge_lb + j] = attn_val / expAll;
+        }
         if (pid < f)
           acc += attn_val * V[cid * hf + hid * f + pid];
       }
@@ -461,67 +464,20 @@ __global__ void fused_inference_kernel_hyper_row_switch(
 template <typename DType>
 __global__ void
 spmm_backward_kernel(int h, int f, const int *col_ptr, const int *row_ind,
-                     const DType *val, const DType *Q, const DType *K,
-                     const DType *edge_max, const DType *edge_sum,
-                     const DType *grad, DType *grad_V) {
+                     const int *val_idx, const DType *Q, const DType *K,
+                     const DType *attn_edge, const DType *grad, DType *grad_V) {
   const int cid = blockIdx.x;                     // loop over row of adj matrix
   const int hid = blockIdx.y;                     // loop over heads
-  const int fid = threadIdx.y * 32 + threadIdx.x; // loop over feature dim
-
+  const int fid = threadIdx.y * 32 + threadIdx.x; // loop over feature di
   const int lb = col_ptr[cid];
   const int hb = col_ptr[cid + 1];
-
-  const int laneId = fid % WARP_SIZE;
-  const int warpId = fid / WARP_SIZE;
-
-  const int f_mul_32 = roundup(f, 32);
   const int num_neighbor = hb - lb;
-
-  // Allocate smem
-  static __shared__ DType warpLevelSums[WARP_SIZE];
-  extern __shared__ DType smem[];
-  DType *neigh_nodes_weight = smem;
-  DType weightMax = -1e38;
-  const DType *valoff = val + lb;
-  // init the shared memory
-  DType K_i = 0;
-  if (fid < f) {
-    K_i = K[cid * h * f + hid * f + fid];
-  }
-
-  // compute the attention weight
-  for (int j = 0; j < num_neighbor; j++) {
-    DType weight = 0;
-    DType weight_partial = 0;
-    int rid = row_ind[lb + j];
-    if (fid < f) {
-      weight_partial = K_i * Q[rid * h * f + hid * f + fid];
-    }
-    __syncwarp();
-
-    weight_partial = warpReduceSum(weight_partial, f_mul_32);
-    if (laneId == 0)
-      warpLevelSums[warpId] = weight_partial;
-    __syncthreads();
-
-    weight_partial = (fid < f_mul_32 / WARP_SIZE) ? warpLevelSums[laneId] : 0;
-    if (warpId == 0)
-      weight_partial = warpReduceSum(weight_partial, f_mul_32 / WARP_SIZE);
-    if (fid == 0) {
-      float expAll = edge_sum[rid * h + hid];
-      float weightMax = edge_max[rid * h + hid];
-      weight = weight_partial * valoff[j];
-      neigh_nodes_weight[j] =
-          (expAll != 0) ? exp(weight - weightMax) / expAll : 0;
-    }
-    __syncthreads();
-  }
 
   // compute the output
   DType acc = 0;
   for (int j = 0; j < num_neighbor; j++) {
     int rid = row_ind[lb + j];
-    DType weight = neigh_nodes_weight[j];
+    DType weight = attn_edge[val_idx[lb + j]];
     if (fid < f) {
       acc += weight * grad[rid * h * f + hid * f + fid];
     }
@@ -533,8 +489,7 @@ spmm_backward_kernel(int h, int f, const int *col_ptr, const int *row_ind,
 
 void gt_backward(int m, int n, int nnz, int h, int f, int *row, int *row_ptr,
                  int *col_ind, float *val, int *col_ptr, int *row_ind,
-                 float *val_idx, float *Q, float *K, float *V, float *edge_max,
-                 float *edge_sum,
+                 int *val_idx, float *Q, float *K, float *V, float *attn_edge,
                  float *grad,   // input grad
                  float *grad_Q, // output grad
                  float *grad_K, // output grad
@@ -548,8 +503,7 @@ void gt_backward(int m, int n, int nnz, int h, int f, int *row, int *row_ptr,
   const dim3 nblks(nbx, nby);
   const dim3 nthrs(ntx, nty);
   CUDA_KERNEL_CALL((spmm_backward_kernel), nblks, nthrs, 512 * sizeof(float), h,
-                   f, col_ptr, row_ind, val_idx, Q, K, edge_max, edge_sum, grad,
-                   grad_V);
+                   f, col_ptr, row_ind, val_idx, Q, K, attn_edge, grad, grad_V);
   // else
   // {
   //   mhspmm_backward_kernel_small_f<<<dim3(m, 1, 1), dim3(32, h, 1), 32 * h *
@@ -618,8 +572,7 @@ gt_hyper_forward_cuda(torch::Tensor row_ptr, torch::Tensor col_ind,
   auto options =
       torch::TensorOptions().dtype(torch::kFloat32).device(torch::kCUDA, devid);
   auto out_feat = torch::zeros({m, h, f}, options);
-  auto edge_max = torch::empty({m, h}, options);
-  auto edge_sum = torch::empty({m, h}, options);
+  auto attn_edge = torch::empty({h, nnz}, options);
 
   const int ntx = 32;
   const int nty = 8;
@@ -630,14 +583,14 @@ gt_hyper_forward_cuda(torch::Tensor row_ptr, torch::Tensor col_ind,
   const dim3 nthrs(ntx, nty);
   const int smem_size = smem_consume * sizeof(float);
 
-  CUDA_KERNEL_CALL((fused_gt_hyper<float>), nblks, nthrs, smem_size, m, h, f,
-                   rows.data_ptr<int>(), row_ptr.data_ptr<int>(),
+  CUDA_KERNEL_CALL((fused_gt_hyper<float>), nblks, nthrs, smem_size, m, nnz, h,
+                   f, rows.data_ptr<int>(), row_ptr.data_ptr<int>(),
                    col_ind.data_ptr<int>(), val.data_ptr<float>(),
                    Q.data_ptr<float>(), K.data_ptr<float>(),
-                   V.data_ptr<float>(), edge_max.data_ptr<float>(),
-                   edge_sum.data_ptr<float>(), out_feat.data_ptr<float>());
+                   V.data_ptr<float>(), attn_edge.data_ptr<float>(),
+                   out_feat.data_ptr<float>());
 
-  return {out_feat, edge_max, edge_sum};
+  return {out_feat, attn_edge};
 }
 
 std::vector<torch::Tensor>
@@ -645,8 +598,7 @@ gt_backward_cuda(torch::Tensor row_ptr, torch::Tensor col_ind,
                  torch::Tensor rows, torch::Tensor val, torch::Tensor col_ptr,
                  torch::Tensor row_ind, torch::Tensor val_idx, int smem_consume,
                  torch::Tensor Q, torch::Tensor K, torch::Tensor V,
-                 torch::Tensor edge_max, torch::Tensor edge_sum,
-                 torch::Tensor grad) {
+                 torch::Tensor attn_edge, torch::Tensor grad) {
 
   const auto m = row_ptr.size(0) - 1;
   const auto n = col_ptr.size(0) - 1;
@@ -666,9 +618,8 @@ gt_backward_cuda(torch::Tensor row_ptr, torch::Tensor col_ind,
   gt_backward(m, n, nnz, h, f, rows.data_ptr<int>(), row_ptr.data_ptr<int>(),
               col_ind.data_ptr<int>(), val.data_ptr<float>(),
               col_ptr.data_ptr<int>(), row_ind.data_ptr<int>(),
-              val_idx.data_ptr<float>(), Q.data_ptr<float>(),
-              K.data_ptr<float>(), V.data_ptr<float>(),
-              edge_max.data_ptr<float>(), edge_sum.data_ptr<float>(),
+              val_idx.data_ptr<int>(), Q.data_ptr<float>(), K.data_ptr<float>(),
+              V.data_ptr<float>(), attn_edge.data_ptr<float>(),
               grad.data_ptr<float>(), grad_Q.data_ptr<float>(),
               grad_K.data_ptr<float>(), grad_V.data_ptr<float>());
 
