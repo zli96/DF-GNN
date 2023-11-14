@@ -487,23 +487,142 @@ spmm_backward_kernel(int h, int f, const int *col_ptr, const int *row_ind,
     grad_V[cid * h * f + hid * f + fid] = acc;
 }
 
-void gt_backward(int m, int n, int nnz, int h, int f, int *row, int *row_ptr,
-                 int *col_ind, float *val, int *col_ptr, int *row_ind,
-                 int *val_idx, float *Q, float *K, float *V, float *attn_edge,
+// SPMM backward A @ B = C -> dA = (dC @ B^T) * A
+template <typename DType>
+__global__ void fused_backward_kernel(int m, int h, int f, const int *row,
+                                      const int *row_ptr, const int *col_ind,
+                                      const DType *K, const DType *V,
+                                      const DType *attn_edge, const DType *grad,
+                                      DType *grad_Q) {
+  const int bidx = blockIdx.x;
+  const int hid = blockIdx.y;
+  const int tidx = threadIdx.x;
+  const int tidy = threadIdx.y;
+
+  // the node bound of this block
+  const int blockSize = blockDim.y;
+  const int blk_node_lb = blockSize * bidx;
+  const int blk_node_hb = MIN(blk_node_lb + blockSize, m);
+
+  // the edge bound of this block
+  const int blk_edge_lb = row_ptr[blk_node_lb];
+  const int blk_edge_hb = row_ptr[blk_node_hb];
+
+  // the num of edges in this block
+  const int blk_num_edge = blk_edge_hb - blk_edge_lb;
+
+  // init smem
+  extern __shared__ DType smem[];
+  DType *neigh_nodes_weight = smem; // [8, f]
+
+  int nnz_per_warp = (blk_num_edge + blockSize - 1) / blockSize;
+
+  const DType *lhs = grad;
+  const DType *rhs = V;
+
+  const int *rowoff = row + blk_edge_lb;
+  const int *indicesoff = col_ind + blk_edge_lb;
+
+  int src;
+  int dst;
+  // SDDMM, edge parallel
+  for (int i = 0; i < nnz_per_warp; i++) {
+    int curr_edge = tidy * nnz_per_warp + i;
+    // edge bound for curr block
+    if (curr_edge < blk_num_edge) {
+      src = __ldg(rowoff + curr_edge);
+      dst = __ldg(indicesoff + curr_edge);
+
+      const DType *lhsoff = lhs + src * f * h + hid * f;
+      const DType *rhsoff = rhs + dst * f * h + hid * f;
+
+      DType att_val = 0;
+      for (int j = tidx; j < f; j += 64) {
+        att_val += lhsoff[j] * rhsoff[j];
+        if (j + 32 < f)
+          att_val += lhsoff[j + 32] * rhsoff[j + 32];
+      }
+#pragma unroll
+      for (int offset = 16; offset > 0; offset /= 2)
+        att_val += __shfl_down_sync(full_mask, att_val, offset);
+      if (tidx == 0) {
+        neigh_nodes_weight[curr_edge] = att_val;
+      }
+    }
+  }
+  __syncthreads();
+
+  int curr_node = blk_node_lb + tidy;
+  if (curr_node < blk_node_hb) {
+    const int edge_lb = row_ptr[curr_node];
+    const int edge_hb = row_ptr[curr_node + 1];
+    const int num_edge = edge_hb - edge_lb;
+
+    const int hf = h * f;
+
+    DType *neigh_nodes_weight_off =
+        neigh_nodes_weight + (edge_lb - blk_edge_lb);
+
+    int loop = (num_edge + WARP_SIZE - 1) / WARP_SIZE;
+    // compute the output
+    int loop_f = (f + WARP_SIZE - 1) / WARP_SIZE;
+
+    DType prodsum = 0;
+    for (int j = 0; j < loop; j++) {
+      int pid = tidx + (j << 5); // node need to process in loop j
+      DType prod = 0;
+      if (pid < num_edge) {
+        DType grad_i = neigh_nodes_weight_off[pid];
+        DType out = attn_edge[edge_lb + pid];
+        prod = grad_i * out;
+        neigh_nodes_weight_off[pid] = prod;
+      }
+      __syncwarp();
+#pragma unroll
+      for (int stride = 16; stride > 0; stride >>= 1) {
+        prod += __shfl_xor_sync(0xffffffff, prod, stride, 32);
+      }
+      __syncwarp();
+      prodsum += prod;
+    }
+
+    for (int i = 0; i < loop_f; i += 1) {
+      DType acc = 0;
+      int pid = tidx + (i << 5);
+      for (int j = 0; j < num_edge; j++) {
+        int cid = col_ind[edge_lb + j];
+        DType attn_score = attn_edge[edge_lb + j];
+        DType attn_val = neigh_nodes_weight_off[j] - prodsum * attn_score;
+        if (pid < f)
+          acc += attn_val * K[cid * hf + hid * f + pid];
+      }
+      if (pid < f)
+        grad_Q[curr_node * hf + hid * f + pid] = acc;
+    }
+  }
+}
+
+void gt_backward(int m, int n, int nnz, int h, int f, int smem_consume,
+                 int *row, int *row_ptr, int *col_ind, float *val, int *col_ptr,
+                 int *row_ind, int *val_idx, float *Q, float *K, float *V,
+                 float *attn_edge,
                  float *grad,   // input grad
                  float *grad_Q, // output grad
                  float *grad_K, // output grad
                  float *grad_V) // output grad
 {
+  const dim3 nblks(n, h, 1);
+  const dim3 nthrs(32, (f + 31) / 32, 1);
+  CUDA_KERNEL_CALL((spmm_backward_kernel<float>), nblks, nthrs,
+                   512 * sizeof(float), h, f, col_ptr, row_ind, val_idx, Q, K,
+                   attn_edge, grad, grad_V);
 
-  const int ntx = 32;            // on feature dimension
-  const int nty = (f + 31) / 32; // on out dimension
-  const int nbx = n;
-  const int nby = h;
-  const dim3 nblks(nbx, nby);
-  const dim3 nthrs(ntx, nty);
-  CUDA_KERNEL_CALL((spmm_backward_kernel), nblks, nthrs, 512 * sizeof(float), h,
-                   f, col_ptr, row_ind, val_idx, Q, K, attn_edge, grad, grad_V);
+  const dim3 nblks2((m + 7) / 8, h, 1);
+  const dim3 nthrs2(32, 8, 1);
+  const int smem_size = smem_consume * sizeof(float);
+  CUDA_KERNEL_CALL((fused_backward_kernel<float>), nblks2, nthrs2, smem_size, m,
+                   h, f, row, row_ptr, col_ind, K, V, attn_edge, grad, grad_Q);
+
   // else
   // {
   //   mhspmm_backward_kernel_small_f<<<dim3(m, 1, 1), dim3(32, h, 1), 32 * h *
@@ -615,13 +734,14 @@ gt_backward_cuda(torch::Tensor row_ptr, torch::Tensor col_ind,
   auto grad_K = torch::empty({n, h, f}, options);
   auto grad_V = torch::empty({n, h, f}, options);
 
-  gt_backward(m, n, nnz, h, f, rows.data_ptr<int>(), row_ptr.data_ptr<int>(),
-              col_ind.data_ptr<int>(), val.data_ptr<float>(),
-              col_ptr.data_ptr<int>(), row_ind.data_ptr<int>(),
-              val_idx.data_ptr<int>(), Q.data_ptr<float>(), K.data_ptr<float>(),
-              V.data_ptr<float>(), attn_edge.data_ptr<float>(),
-              grad.data_ptr<float>(), grad_Q.data_ptr<float>(),
-              grad_K.data_ptr<float>(), grad_V.data_ptr<float>());
+  gt_backward(m, n, nnz, h, f, smem_consume, rows.data_ptr<int>(),
+              row_ptr.data_ptr<int>(), col_ind.data_ptr<int>(),
+              val.data_ptr<float>(), col_ptr.data_ptr<int>(),
+              row_ind.data_ptr<int>(), val_idx.data_ptr<int>(),
+              Q.data_ptr<float>(), K.data_ptr<float>(), V.data_ptr<float>(),
+              attn_edge.data_ptr<float>(), grad.data_ptr<float>(),
+              grad_Q.data_ptr<float>(), grad_K.data_ptr<float>(),
+              grad_V.data_ptr<float>());
 
   return {grad_Q, grad_K, grad_V};
 }

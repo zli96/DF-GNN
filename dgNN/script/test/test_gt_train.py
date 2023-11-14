@@ -60,6 +60,8 @@ def train(process_func, model, train_dataloader, dev, fuse_flag):
         print(model.MHA.v_proj.weight.grad.shape)
         model.MHA.q_proj.weight.grad
         v_grad = model.MHA.v_proj.weight.grad
+        q_grad = model.MHA.q_proj.weight.grad
+
         model.zero_grad()
         # print(model.MHA.q_proj.weight.grad)
         # print(model.MHA.k_proj.weight.grad)
@@ -71,11 +73,15 @@ def train(process_func, model, train_dataloader, dev, fuse_flag):
         check_correct(logits, logits_fused, params)
         loss.backward()
         ## Backward check
-        print("check forward correct")
+        print("check backward correct")
         # print(model.MHA.q_proj.weight.grad)
         # print(v_grad[0])
         # print(model.MHA.v_proj.weight.grad[0])
+        print("V grad")
         check_correct(v_grad, model.MHA.v_proj.weight.grad, params)
+        print("Q grad")
+        check_correct(q_grad, model.MHA.q_proj.weight.grad, params)
+
         break
 
 
