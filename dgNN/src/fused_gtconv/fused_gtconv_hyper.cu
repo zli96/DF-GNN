@@ -462,10 +462,11 @@ __global__ void fused_inference_kernel_hyper_row_switch(
 
 // SPMM backward A @ B = C -> dB = (A^T) @ dC
 template <typename DType>
-__global__ void
-spmm_backward_kernel(int h, int f, const int *col_ptr, const int *row_ind,
-                     const int *val_idx, const DType *Q, const DType *K,
-                     const DType *attn_edge, const DType *grad, DType *grad_V) {
+__global__ void spmm_backward_kernel(int h, int f, const int *col_ptr,
+                                     const int *row_ind, const int *val_idx,
+                                     const DType *Q, const DType *attn_edge,
+                                     const DType *grad_edge, const DType *grad,
+                                     DType *grad_V, DType *grad_K) {
   const int cid = blockIdx.x;                     // loop over row of adj matrix
   const int hid = blockIdx.y;                     // loop over heads
   const int fid = threadIdx.y * 32 + threadIdx.x; // loop over feature di
@@ -475,16 +476,21 @@ spmm_backward_kernel(int h, int f, const int *col_ptr, const int *row_ind,
 
   // compute the output
   DType acc = 0;
+  DType acc2 = 0;
+
   for (int j = 0; j < num_neighbor; j++) {
     int rid = row_ind[lb + j];
     DType weight = attn_edge[val_idx[lb + j]];
+    DType weight2 = grad_edge[val_idx[lb + j]];
     if (fid < f) {
       acc += weight * grad[rid * h * f + hid * f + fid];
+      acc2 += weight2 * Q[rid * h * f + hid * f + fid];
     }
   }
-  if (fid < f)
-    // handle the node with no neighbor
+  if (fid < f) {
     grad_V[cid * h * f + hid * f + fid] = acc;
+    grad_K[cid * h * f + hid * f + fid] = acc2;
+  }
 }
 
 // SPMM backward A @ B = C -> dA = (dC @ B^T) * A
@@ -493,7 +499,7 @@ __global__ void fused_backward_kernel(int m, int h, int f, const int *row,
                                       const int *row_ptr, const int *col_ind,
                                       const DType *K, const DType *V,
                                       const DType *attn_edge, const DType *grad,
-                                      DType *grad_Q) {
+                                      DType *grad_edge, DType *grad_Q) {
   const int bidx = blockIdx.x;
   const int hid = blockIdx.y;
   const int tidx = threadIdx.x;
@@ -593,6 +599,9 @@ __global__ void fused_backward_kernel(int m, int h, int f, const int *row,
         int cid = col_ind[edge_lb + j];
         DType attn_score = attn_edge[edge_lb + j];
         DType attn_val = neigh_nodes_weight_off[j] - prodsum * attn_score;
+        if (i == 0) {
+          grad_edge[edge_lb + j] = attn_val;
+        }
         if (pid < f)
           acc += attn_val * K[cid * hf + hid * f + pid];
       }
@@ -605,23 +614,25 @@ __global__ void fused_backward_kernel(int m, int h, int f, const int *row,
 void gt_backward(int m, int n, int nnz, int h, int f, int smem_consume,
                  int *row, int *row_ptr, int *col_ind, float *val, int *col_ptr,
                  int *row_ind, int *val_idx, float *Q, float *K, float *V,
-                 float *attn_edge,
+                 float *attn_edge, float *grad_edge,
                  float *grad,   // input grad
                  float *grad_Q, // output grad
                  float *grad_K, // output grad
                  float *grad_V) // output grad
 {
-  const dim3 nblks(n, h, 1);
-  const dim3 nthrs(32, (f + 31) / 32, 1);
-  CUDA_KERNEL_CALL((spmm_backward_kernel<float>), nblks, nthrs,
-                   512 * sizeof(float), h, f, col_ptr, row_ind, val_idx, Q, K,
-                   attn_edge, grad, grad_V);
 
   const dim3 nblks2((m + 7) / 8, h, 1);
   const dim3 nthrs2(32, 8, 1);
   const int smem_size = smem_consume * sizeof(float);
   CUDA_KERNEL_CALL((fused_backward_kernel<float>), nblks2, nthrs2, smem_size, m,
-                   h, f, row, row_ptr, col_ind, K, V, attn_edge, grad, grad_Q);
+                   h, f, row, row_ptr, col_ind, K, V, attn_edge, grad,
+                   grad_edge, grad_Q);
+
+  const dim3 nblks(n, h, 1);
+  const dim3 nthrs(32, (f + 31) / 32, 1);
+  CUDA_KERNEL_CALL((spmm_backward_kernel<float>), nblks, nthrs,
+                   512 * sizeof(float), h, f, col_ptr, row_ind, val_idx, Q,
+                   attn_edge, grad_edge, grad, grad_V, grad_K);
 
   // else
   // {
@@ -729,7 +740,7 @@ gt_backward_cuda(torch::Tensor row_ptr, torch::Tensor col_ind,
   auto options =
       torch::TensorOptions().dtype(torch::kFloat32).device(torch::kCUDA, devid);
 
-  // auto grad_edge_csr = torch::empty({nnz, h}, options);
+  auto grad_edge = torch::empty({h, nnz}, options);
   auto grad_Q = torch::empty({m, h, f}, options);
   auto grad_K = torch::empty({n, h, f}, options);
   auto grad_V = torch::empty({n, h, f}, options);
@@ -739,9 +750,9 @@ gt_backward_cuda(torch::Tensor row_ptr, torch::Tensor col_ind,
               val.data_ptr<float>(), col_ptr.data_ptr<int>(),
               row_ind.data_ptr<int>(), val_idx.data_ptr<int>(),
               Q.data_ptr<float>(), K.data_ptr<float>(), V.data_ptr<float>(),
-              attn_edge.data_ptr<float>(), grad.data_ptr<float>(),
-              grad_Q.data_ptr<float>(), grad_K.data_ptr<float>(),
-              grad_V.data_ptr<float>());
+              attn_edge.data_ptr<float>(), grad_edge.data_ptr<float>(),
+              grad.data_ptr<float>(), grad_Q.data_ptr<float>(),
+              grad_K.data_ptr<float>(), grad_V.data_ptr<float>());
 
   return {grad_Q, grad_K, grad_V};
 }

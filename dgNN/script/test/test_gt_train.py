@@ -61,6 +61,7 @@ def train(process_func, model, train_dataloader, dev, fuse_flag):
         model.MHA.q_proj.weight.grad
         v_grad = model.MHA.v_proj.weight.grad
         q_grad = model.MHA.q_proj.weight.grad
+        k_grad = model.MHA.k_proj.weight.grad
 
         model.zero_grad()
         # print(model.MHA.q_proj.weight.grad)
@@ -81,6 +82,8 @@ def train(process_func, model, train_dataloader, dev, fuse_flag):
         check_correct(v_grad, model.MHA.v_proj.weight.grad, params)
         print("Q grad")
         check_correct(q_grad, model.MHA.q_proj.weight.grad, params)
+        print("K grad")
+        check_correct(k_grad, model.MHA.k_proj.weight.grad, params)
 
         break
 

@@ -9,7 +9,7 @@ fi
 
 datasets=(PATTERN)
 formats=(hyper)
-batch_sizes=(16)
+batch_sizes=(4096)
 dims=(64)
 echo test mode !!!!!!!!!!!!
 
