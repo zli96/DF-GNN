@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 from dgl.dataloading import GraphDataLoader
 
-from dgNN.layers import load_prepfunc, preprocess_Hyper_fw_bw, SparseMHA_hyper
+from dgNN.layers import preprocess_Hyper_fw_bw, SparseMHA_fused
 
 from dgNN.utils import check_correct, load_dataset_fn, parser_argument
 
@@ -96,7 +96,7 @@ def main(args):
 
     # init model
     dataset, train_fn, collate_fn = load_dataset_fn(args.dataset, args.data_dir)
-    layer = SparseMHA_hyper(args.dim, args.heads)
+    layer = SparseMHA_fused(args.dim, args.heads)
 
     preprocess_func = preprocess_Hyper_fw_bw
     model = GTModel(layer, hidden_size=args.dim, outsize=1)

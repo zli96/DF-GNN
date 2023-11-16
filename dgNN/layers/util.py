@@ -13,7 +13,7 @@ from .GAT_DOT.dotgatconv_layer_hyper import DOTGATConv_hyper
 from .GAT_DOT.dotgatconv_layer_tile import DOTGATConv_tile
 
 from .GT.gtconv_layer_CSR import SparseMHA_CSR
-from .GT.gtconv_layer_hyper import SparseMHA_hyper_inference_timing
+from .GT.gtconv_layer_hyper import SparseMHA_hyper
 from .GT.gtconv_layer_softmax import SparseMHA_softmax
 from .GT.gtconv_layer_subgraph import (
     SparseMHA_indegree,
@@ -87,12 +87,13 @@ def preprocess_Hyper(g, **args):
 
 
 def preprocess_Hyper_fw_bw(g, **args):
+    # print("start preprocess")
     A = g_to_SPmatrix(g)
 
     # using max_degree to cal max smem consume
-    max_degree = int(max(max(A.sum(1)).item(), max(A.sum(0)).item()))
+    max_degree = int(max(A.sum(1)).item())
     smem_consume = (max_degree * 8 + WARP_SIZE - 1) // WARP_SIZE * WARP_SIZE
-    print("preprocess smem consume", smem_consume)
+    # print("preprocess smem consume", smem_consume)
     # A.row: the src node of each edge
     rows = A.row.int()
     rows = torch.sort(rows).values
@@ -341,7 +342,7 @@ def load_layer_GT(args):
     if args.format == "csr":
         layer = SparseMHA_CSR(args.dim, args.heads)
     elif args.format == "hyper":
-        layer = SparseMHA_hyper_inference_timing(args.dim, args.heads)
+        layer = SparseMHA_hyper(args.dim, args.heads)
     elif args.format == "softmax":
         layer = SparseMHA_softmax(args.dim, args.heads)
     elif args.format == "indegree":

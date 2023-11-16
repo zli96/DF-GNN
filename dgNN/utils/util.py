@@ -3,7 +3,7 @@ import os
 from timeit import default_timer
 
 import matplotlib.pyplot as plt
-import ScheduleProfiler
+
 import torch
 
 import yaml
@@ -16,14 +16,10 @@ from dgl.data import (
     PubmedGraphDataset,
 )
 
-from dgl.dataloading import GraphDataLoader
-from ogb.graphproppred import collate_dgl, DglGraphPropPredDataset
+from ogb.graphproppred import DglGraphPropPredDataset
 from ogb.lsc import DglPCQM4Mv2Dataset
 from ogb.nodeproppred import DglNodePropPredDataset
 
-from torch.utils.data import DataLoader
-
-profiler = ScheduleProfiler.ScheduleProfiler()
 
 datasets_NC = ["PascalVOC-SP", "COCO-SP", "PATTERN", "CLUSTER"]
 
@@ -255,6 +251,9 @@ def inference_Node_level(process_func, model, train_dataloader, dev, **kwargs):
 def train_profile(
     process_func, model, train_dataloader, dev, dataset_name, fuse_flag, **arg
 ):
+    import ScheduleProfiler
+
+    profiler = ScheduleProfiler.ScheduleProfiler()
     print("----------------------Forward------------------------")
     if dataset_name in datasets_NC:
         for i, (batched_g) in enumerate(train_dataloader):

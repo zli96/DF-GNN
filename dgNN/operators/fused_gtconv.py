@@ -104,8 +104,8 @@ class FusedGTFunction_hyper(torch.autograd.Function):
             attn_edge,
         ) = ctx.saved_tensors
         grad_out = grad_out.contiguous()
-        print("start backward")
-        print(grad_out.shape)
+        # print("start backward")
+        # print(grad_out.shape)
         smem_consume = ctx.in1
 
         grad_Q, grad_K, grad_V = fused_gt.gt_backward(

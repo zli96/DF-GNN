@@ -611,14 +611,14 @@ __global__ void fused_backward_kernel(int m, int h, int f, const int *row,
   }
 }
 
-void gt_backward(int m, int n, int nnz, int h, int f, int smem_consume,
-                 int *row, int *row_ptr, int *col_ind, float *val, int *col_ptr,
-                 int *row_ind, int *val_idx, float *Q, float *K, float *V,
-                 float *attn_edge, float *grad_edge,
-                 float *grad,   // input grad
-                 float *grad_Q, // output grad
-                 float *grad_K, // output grad
-                 float *grad_V) // output grad
+void gt_backward_launch(int m, int n, int nnz, int h, int f, int smem_consume,
+                        int *row, int *row_ptr, int *col_ind, float *val,
+                        int *col_ptr, int *row_ind, int *val_idx, float *Q,
+                        float *K, float *V, float *attn_edge, float *grad_edge,
+                        float *grad,   // input grad
+                        float *grad_Q, // output grad
+                        float *grad_K, // output grad
+                        float *grad_V) // output grad
 {
 
   const dim3 nblks2((m + 7) / 8, h, 1);
@@ -732,7 +732,9 @@ gt_backward_cuda(torch::Tensor row_ptr, torch::Tensor col_ind,
 
   const auto m = row_ptr.size(0) - 1;
   const auto n = col_ptr.size(0) - 1;
-  printf("m %d n %d \n", m, n);
+  // if (m != n) {
+  //   printf("m %d n %d\n", m, n);
+  // }
   const auto nnz = col_ind.size(0);
   const auto h = Q.size(1);
   const auto f = Q.size(2);
@@ -742,17 +744,17 @@ gt_backward_cuda(torch::Tensor row_ptr, torch::Tensor col_ind,
 
   auto grad_edge = torch::empty({h, nnz}, options);
   auto grad_Q = torch::empty({m, h, f}, options);
-  auto grad_K = torch::empty({n, h, f}, options);
-  auto grad_V = torch::empty({n, h, f}, options);
+  auto grad_K = torch::zeros({m, h, f}, options);
+  auto grad_V = torch::zeros({m, h, f}, options);
 
-  gt_backward(m, n, nnz, h, f, smem_consume, rows.data_ptr<int>(),
-              row_ptr.data_ptr<int>(), col_ind.data_ptr<int>(),
-              val.data_ptr<float>(), col_ptr.data_ptr<int>(),
-              row_ind.data_ptr<int>(), val_idx.data_ptr<int>(),
-              Q.data_ptr<float>(), K.data_ptr<float>(), V.data_ptr<float>(),
-              attn_edge.data_ptr<float>(), grad_edge.data_ptr<float>(),
-              grad.data_ptr<float>(), grad_Q.data_ptr<float>(),
-              grad_K.data_ptr<float>(), grad_V.data_ptr<float>());
+  gt_backward_launch(
+      m, n, nnz, h, f, smem_consume, rows.data_ptr<int>(),
+      row_ptr.data_ptr<int>(), col_ind.data_ptr<int>(), val.data_ptr<float>(),
+      col_ptr.data_ptr<int>(), row_ind.data_ptr<int>(), val_idx.data_ptr<int>(),
+      Q.data_ptr<float>(), K.data_ptr<float>(), V.data_ptr<float>(),
+      attn_edge.data_ptr<float>(), grad_edge.data_ptr<float>(),
+      grad.data_ptr<float>(), grad_Q.data_ptr<float>(),
+      grad_K.data_ptr<float>(), grad_V.data_ptr<float>());
 
   return {grad_Q, grad_K, grad_V};
 }

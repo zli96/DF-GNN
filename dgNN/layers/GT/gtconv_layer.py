@@ -1,8 +1,6 @@
 import dgl.sparse as dglsp
 import torch.nn as nn
 
-from dgNN.utils import Timer
-
 
 class SparseMHA(nn.Module):
     """Sparse Multi-head Attention Module"""
