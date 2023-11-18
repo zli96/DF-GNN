@@ -52,15 +52,12 @@ class GTModel(nn.Module):
                 for _ in range(num_layers)
             ]
         )
-        self.pooler = dglnn.SumPooling()
-        print(hidden_size, out_size)
         self.predictor = nn.Linear(hidden_size, out_size)
 
-    def forward(self, g, X, params, fuse=False):
+    def forward(self, X, params, fuse=False):
         h = self.in_proj(X)
         for layer in self.layers:
             h = layer(params, h, fuse)
-        h = self.pooler(g, h)
 
         return self.predictor(h)
 
@@ -71,16 +68,16 @@ def evaluate(model, dataloader, device, fuse_flag):
     y_true = []
     y_pred = []
     start = time.time()
-    for batched_g, labels in dataloader:
-        batched_g, labels = batched_g.to(device), labels.to(device)
+    for batched_g in dataloader:
+        batched_g = batched_g.to(device)
         params = preprocess_Hyper_fw_bw(batched_g)
         ## fuse
         y_hat = model(
-            batched_g,
             batched_g.ndata["feat"],
             params,
             fuse=fuse_flag,
         )
+        labels = batched_g.ndata["label"]
         y_true.append(labels.view(y_hat.shape).detach().cpu())
         y_pred.append(y_hat.detach().cpu())
     eval_time = time.time() - start
@@ -98,16 +95,17 @@ def check_grad(model, dataset, device, args):
         shuffle=True,
         collate_fn=collate_dgl,
     )
-    loss_fcn = nn.BCEWithLogitsLoss()
+    loss_fcn = nn.CrossEntropyLoss()
 
     model.train()
     total_loss = 0.0
-    for iter, (batched_g, labels) in enumerate(train_dataloader):
-        batched_g, labels = batched_g.to(device), labels.to(device)
+    for iter, batched_g in enumerate(train_dataloader):
+        batched_g = batched_g.to(device)
         params = preprocess_Hyper_fw_bw(batched_g)
         ## nofuse
-        logits = model(batched_g, batched_g.ndata["feat"], params)
-        loss = loss_fcn(logits, labels.float())
+        logits = model(batched_g.ndata["feat"], params)
+        labels = batched_g.ndata["label"]
+        loss = loss_fcn(logits.flatten(), labels.float())
         model.zero_grad()
         loss.backward()
 
@@ -116,8 +114,8 @@ def check_grad(model, dataset, device, args):
         v_grad = model.layers[0].v_proj.weight.grad
 
         ## fuse
-        logits = model(batched_g, batched_g.ndata["feat"], params, fuse=True)
-        loss = loss_fcn(logits, labels.float())
+        logits = model(batched_g.ndata["feat"], params, fuse=True)
+        loss = loss_fcn(logits.flatten(), labels.float())
         total_loss += loss.item()
         model.zero_grad()
         loss.backward()
@@ -136,29 +134,28 @@ def train(model, dataset, device, args, fuse_flag):
         dataset,
         batch_size=args.batch_size,
         shuffle=True,
-        collate_fn=collate_dgl,
     )
     optimizer = optim.Adam(model.parameters(), lr=0.001)
     num_epochs = 20
     scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=num_epochs, gamma=0.5)
-    loss_fcn = nn.BCEWithLogitsLoss()
+    loss_fcn = nn.CrossEntropyLoss()
     epoch_times = []
     for epoch in range(num_epochs):
         torch.cuda.synchronize()
         start = time.time()
         model.train()
         total_loss = 0.0
-        for iter, (batched_g, labels) in enumerate(train_dataloader):
-            batched_g, labels = batched_g.to(device), labels.to(device)
+        for iter, batched_g in enumerate(train_dataloader):
+            batched_g = batched_g.to(device)
+            # pdb.set_trace()
             params = preprocess_Hyper_fw_bw(batched_g)
             ## fuse
             logits = model(
-                batched_g,
                 batched_g.ndata["feat"],
                 params,
                 fuse=fuse_flag,
             )
-            loss = loss_fcn(logits, labels.float())
+            loss = loss_fcn(logits.flatten(), batched_g.ndata["label"].float())
             total_loss += loss.item()
             optimizer.zero_grad()
             loss.backward()

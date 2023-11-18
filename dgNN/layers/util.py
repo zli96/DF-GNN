@@ -27,9 +27,10 @@ WARP_SIZE = 32
 
 def g_to_SPmatrix(g):
     indices = torch.stack(g.edges())
+    # max_neigh = max(torch.bincount(indices[0]))
     N = g.num_nodes()
     A = dglsp.spmatrix(indices, shape=(N, N))
-    return A
+    return A, 128
 
 
 def preprocess_CSR(g, **args):
@@ -86,11 +87,12 @@ def preprocess_Hyper(g, **args):
 
 def preprocess_Hyper_fw_bw(g, **args):
     # print("start preprocess")
-    A = g_to_SPmatrix(g)
+    A, max_neigh = g_to_SPmatrix(g)
 
     # using max_degree to cal max smem consume
     # max_degree = int(max(A.sum(1)).item())
-    smem_consume = (50 * 8 + WARP_SIZE - 1) // WARP_SIZE * WARP_SIZE
+    # print(max_neigh)
+    smem_consume = (max_neigh * 8 + WARP_SIZE - 1) // WARP_SIZE * WARP_SIZE
     # print("preprocess smem consume", smem_consume)
     # A.row: the src node of each edge
     rows = A.row.int()

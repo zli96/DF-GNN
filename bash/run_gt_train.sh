@@ -7,7 +7,7 @@ if [ -z "${data_dir}" ]; then
 	data_dir="/workspace2/dataset"
 fi
 
-datasets=(ogbg-molhiv)
+datasets=(PATTERN)
 formats=(hyper)
 batch_sizes=(256)
 dims=(64)
