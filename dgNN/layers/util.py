@@ -28,9 +28,7 @@ WARP_SIZE = 32
 def g_to_SPmatrix(g):
     indices = torch.stack(g.edges())
     N = g.num_nodes()
-    M = g.num_edges()
-    val = torch.ones(M)
-    A = dglsp.spmatrix(indices, val=val, shape=(N, N))
+    A = dglsp.spmatrix(indices, shape=(N, N))
     return A
 
 
@@ -91,8 +89,8 @@ def preprocess_Hyper_fw_bw(g, **args):
     A = g_to_SPmatrix(g)
 
     # using max_degree to cal max smem consume
-    max_degree = int(max(A.sum(1)).item())
-    smem_consume = (max_degree * 8 + WARP_SIZE - 1) // WARP_SIZE * WARP_SIZE
+    # max_degree = int(max(A.sum(1)).item())
+    smem_consume = (50 * 8 + WARP_SIZE - 1) // WARP_SIZE * WARP_SIZE
     # print("preprocess smem consume", smem_consume)
     # A.row: the src node of each edge
     rows = A.row.int()
@@ -340,17 +338,17 @@ def subgraph_filter(dataset, dataset_name, dim, heads):
 
 def load_layer_GT(args):
     if args.format == "csr":
-        layer = SparseMHA_CSR(args.dim, args.heads)
+        layer = SparseMHA_CSR(args.dim, args.dim, args.heads)
     elif args.format == "hyper":
-        layer = SparseMHA_hyper(args.dim, args.heads)
+        layer = SparseMHA_hyper(args.dim, args.dim, args.heads)
     elif args.format == "softmax":
-        layer = SparseMHA_softmax(args.dim, args.heads)
+        layer = SparseMHA_softmax(args.dim, args.dim, args.heads)
     elif args.format == "indegree":
-        layer = SparseMHA_indegree(args.dim, args.heads)
+        layer = SparseMHA_indegree(args.dim, args.dim, args.heads)
     elif args.format == "indegree_hyper":
-        layer = SparseMHA_indegree_hyper(args.dim, args.heads)
+        layer = SparseMHA_indegree_hyper(args.dim, args.dim, args.heads)
     elif args.format == "subgraph":
-        layer = SparseMHA_subgraph(args.dim, args.heads)
+        layer = SparseMHA_subgraph(args.dim, args.dim, args.heads)
     else:
         raise ValueError(f"Unsupported format {args.format} in GTconv")
     return layer

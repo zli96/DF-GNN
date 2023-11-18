@@ -11,7 +11,7 @@ from .GT.gtconv_layer_forward import SparseMHA_fused
 from .GT.gtconv_layer_hyper import SparseMHA_hyper
 from .GT.gtconv_layer_softmax import SparseMHA_softmax
 from .GT.gtconv_layer_subgraph import SparseMHA_indegree, SparseMHA_subgraph
-from .model import choose_Model, Model
+from .model import choose_Inproj, Model
 from .util import (
     load_layer_DOTGAT,
     load_layer_GAT,

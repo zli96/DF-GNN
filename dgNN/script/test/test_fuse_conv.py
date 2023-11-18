@@ -7,11 +7,11 @@ import torch
 from dgl.dataloading import GraphDataLoader
 
 from dgNN.layers import (
-    choose_Model,
     load_layer_DOTGAT,
     load_layer_GAT,
     load_layer_GT,
     load_prepfunc,
+    Model,
 )
 from dgNN.utils import load_dataset_fn, mkdir, parser_argument, train_profile
 
@@ -34,9 +34,7 @@ def main(args):
         raise ValueError(f"unknown graph conv {args.conv}")
 
     preprocess_func = load_prepfunc(args)
-    model = choose_Model(
-        args.dataset, MHAlayer=layer, hidden_size=args.dim, num_heads=args.heads
-    )
+    model = Model(args.dataset, MHAlayer=layer, hidden_size=args.dim)
     model = model.to(dev)
     print("model", model)
 

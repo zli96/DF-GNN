@@ -9,6 +9,7 @@ import torch
 import yaml
 from data import LoadData
 from dgl.data import (
+    AsGraphPredDataset,
     CiteseerGraphDataset,
     CLUSTERDataset,
     CoraGraphDataset,
@@ -36,10 +37,12 @@ def load_dataset_fn(dataset_name, data_dir):
         if dataset_name == "PCQM4Mv2-full":
             dataset = DglPCQM4Mv2Dataset(root=data_dir)
         else:
-            dataset = DglGraphPropPredDataset(dataset_name, data_dir)
-        split_idx = dataset.get_idx_split()
-        train_idx = split_idx["train"]
-        dataset = dataset[train_idx]
+            dataset = AsGraphPredDataset(
+                DglGraphPropPredDataset(dataset_name, data_dir)
+            )
+        # split_idx = dataset.get_idx_split()
+        # train_idx = split_idx["train"]
+        # dataset = dataset[train_idx]
     elif dataset_name in ["MNIST", "CIFAR10"]:
         dataset_all = LoadData(dataset_name, data_dir)
         dataset = dataset_all.train
@@ -379,7 +382,7 @@ def parser_argument(parser):
     parser.add_argument("--heads", type=int, default=1)
     parser.add_argument("--batch-size", type=int)
     parser.add_argument("--data-dir", type=str, default="./data/OGB")
-    parser.add_argument("--dataset", type=str)
+    parser.add_argument("--dataset", type=str, default="ogbg-molhiv")
     parser.add_argument("--store-result", action="store_true")
     parser.add_argument("--subgraph-filter", action="store_true")
     parser.add_argument("--profile", action="store_true")

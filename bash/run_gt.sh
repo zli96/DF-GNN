@@ -10,7 +10,7 @@ if [ -z "${data_dir}" ]; then
 fi
 
 if [ -n "${test_flag}" ]; then
-	datasets=(PATTERN)
+	datasets=(PATTERN ogbg-molhiv)
 	formats=(csr hyper softmax indegree)
 	batch_sizes=(16)
 	dims=(64)
