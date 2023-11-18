@@ -123,11 +123,10 @@ __global__ void fused_inference_kernel_subgraph_mul32(
 }
 
 template <typename DType, int BLOCK_SIZE, int LOG_BLOCK_SIZE>
-__global__ void
-fused_inference_kernel_subgraph(const int h, const int f, const int *node_num_ptr,
-                              const int *indptr, const int *indices,
-                              const DType *val, const DType *Q, const DType *K,
-                              const DType *V, DType *out_feat) {
+__global__ void fused_inference_kernel_subgraph(
+    const int h, const int f, const int *node_num_ptr, const int *indptr,
+    const int *indices, const DType *val, const DType *Q, const DType *K,
+    const DType *V, DType *out_feat) {
   // grid: 4096*h  block: 32 * 8 each tb processes one graph
   // BLOCK_SIZE = blockDim.y
   const int gid = blockIdx.x;  // index of subgraph
@@ -248,9 +247,9 @@ fused_inference_kernel_subgraph(const int h, const int f, const int *node_num_pt
 }
 
 void gt_inference_subgraph(int num_subgraph, int h, int f,
-                         const int *nodes_subgraph, const int *indptr,
-                         const int *indices, const float *val, const float *Q,
-                         const float *K, const float *V, float *out_feat) {
+                           const int *nodes_subgraph, const int *indptr,
+                           const int *indices, const float *val, const float *Q,
+                           const float *K, const float *V, float *out_feat) {
   const int ntx = roundup(f, WARP_SIZE);
   const int nty = 1024 / ntx;
 
@@ -265,9 +264,9 @@ void gt_inference_subgraph(int num_subgraph, int h, int f,
     cudaFuncSetAttribute(fused_inference_kernel_subgraph<float, 8, 3>,
                          cudaFuncAttributeMaxDynamicSharedMemorySize,
                          smem_size);
-    CUDA_KERNEL_CALL((fused_inference_kernel_subgraph<float, 8, 3>), nblks, nthrs,
-                     smem_size, h, f, nodes_subgraph, indptr, indices, val, Q,
-                     K, V, out_feat);
+    CUDA_KERNEL_CALL((fused_inference_kernel_subgraph<float, 8, 3>), nblks,
+                     nthrs, smem_size, h, f, nodes_subgraph, indptr, indices,
+                     val, Q, K, V, out_feat);
     break;
   case 16:
     cudaFuncSetAttribute(fused_inference_kernel_subgraph<float, 16, 4>,
@@ -291,11 +290,11 @@ void gt_inference_subgraph(int num_subgraph, int h, int f,
 }
 
 void gt_inference_subgraph_multiple32(int num_subgraph, int h, int f,
-                                    const int *nodes_subgraph,
-                                    const int *indptr, const int *indices,
-                                    const float *val, const float *Q,
-                                    const float *K, const float *V,
-                                    float *out_feat) {
+                                      const int *nodes_subgraph,
+                                      const int *indptr, const int *indices,
+                                      const float *val, const float *Q,
+                                      const float *K, const float *V,
+                                      float *out_feat) {
   const int ntx = f;        // on feature dimension
   const int nty = 1024 / f; // on out dimension
   const int nbx = num_subgraph;
@@ -309,25 +308,25 @@ void gt_inference_subgraph_multiple32(int num_subgraph, int h, int f,
     cudaFuncSetAttribute(fused_inference_kernel_subgraph_mul32<float, 8, 3>,
                          cudaFuncAttributeMaxDynamicSharedMemorySize,
                          smem_size);
-    CUDA_KERNEL_CALL((fused_inference_kernel_subgraph_mul32<float, 8, 3>), nblks,
-                     nthrs, smem_size, h, f, nodes_subgraph, indptr, indices,
-                     val, Q, K, V, out_feat);
+    CUDA_KERNEL_CALL((fused_inference_kernel_subgraph_mul32<float, 8, 3>),
+                     nblks, nthrs, smem_size, h, f, nodes_subgraph, indptr,
+                     indices, val, Q, K, V, out_feat);
     break;
   case 16:
     cudaFuncSetAttribute(fused_inference_kernel_subgraph_mul32<float, 16, 4>,
                          cudaFuncAttributeMaxDynamicSharedMemorySize,
                          smem_size);
-    CUDA_KERNEL_CALL((fused_inference_kernel_subgraph_mul32<float, 16, 4>), nblks,
-                     nthrs, smem_size, h, f, nodes_subgraph, indptr, indices,
-                     val, Q, K, V, out_feat);
+    CUDA_KERNEL_CALL((fused_inference_kernel_subgraph_mul32<float, 16, 4>),
+                     nblks, nthrs, smem_size, h, f, nodes_subgraph, indptr,
+                     indices, val, Q, K, V, out_feat);
     break;
   case 32:
     cudaFuncSetAttribute(fused_inference_kernel_subgraph_mul32<float, 32, 5>,
                          cudaFuncAttributeMaxDynamicSharedMemorySize,
                          smem_size);
-    CUDA_KERNEL_CALL((fused_inference_kernel_subgraph_mul32<float, 32, 5>), nblks,
-                     nthrs, smem_size, h, f, nodes_subgraph, indptr, indices,
-                     val, Q, K, V, out_feat);
+    CUDA_KERNEL_CALL((fused_inference_kernel_subgraph_mul32<float, 32, 5>),
+                     nblks, nthrs, smem_size, h, f, nodes_subgraph, indptr,
+                     indices, val, Q, K, V, out_feat);
     break;
   default:
     throw "not supported BLOCKSIZE!";
@@ -336,8 +335,8 @@ void gt_inference_subgraph_multiple32(int num_subgraph, int h, int f,
 
 std::vector<torch::Tensor>
 gt_subgraph_inference_cuda(torch::Tensor nodes_subgraph, torch::Tensor indptr,
-                         torch::Tensor indices, torch::Tensor val,
-                         torch::Tensor Q, torch::Tensor K, torch::Tensor V) {
+                           torch::Tensor indices, torch::Tensor val,
+                           torch::Tensor Q, torch::Tensor K, torch::Tensor V) {
   // Q: torch.Size([6248, 10, 8])
   const auto num_subgraph = nodes_subgraph.size(0) - 1;
   const auto m = indptr.size(0) - 1; // num of nodes
@@ -357,10 +356,10 @@ gt_subgraph_inference_cuda(torch::Tensor nodes_subgraph, torch::Tensor indptr,
         out_feat.data_ptr<float>());
   } else {
     gt_inference_subgraph(num_subgraph, h, f, nodes_subgraph.data_ptr<int>(),
-                        indptr.data_ptr<int>(), indices.data_ptr<int>(),
-                        val.data_ptr<float>(), Q.data_ptr<float>(),
-                        K.data_ptr<float>(), V.data_ptr<float>(),
-                        out_feat.data_ptr<float>());
+                          indptr.data_ptr<int>(), indices.data_ptr<int>(),
+                          val.data_ptr<float>(), Q.data_ptr<float>(),
+                          K.data_ptr<float>(), V.data_ptr<float>(),
+                          out_feat.data_ptr<float>());
   }
 
   return {out_feat};

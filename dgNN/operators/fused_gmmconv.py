@@ -1,5 +1,3 @@
-import os
-
 import fused_gmmconv as gmm
 import mhsddmm
 import mhtranspose

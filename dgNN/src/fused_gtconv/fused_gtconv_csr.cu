@@ -157,9 +157,9 @@ __global__ void fused_gt_csr(const int h, const int f, const int *indptr,
 }
 
 void gt_csr_inference_launch(int m, int nnz, int h, int f, int smem_consume,
-                           const int *indptr, const int *indices,
-                           const float *val, const float *Q, const float *K,
-                           const float *V, float *out_feat) {
+                             const int *indptr, const int *indices,
+                             const float *val, const float *Q, const float *K,
+                             const float *V, float *out_feat) {
   // cudaEvent_t start, stop;
   // cudaEventCreate(&start);
   // cudaEventCreate(&stop);
@@ -182,8 +182,8 @@ void gt_csr_inference_launch(int m, int nnz, int h, int f, int smem_consume,
 
 std::vector<torch::Tensor>
 gt_csr_inference_cuda(torch::Tensor indptr, torch::Tensor indices,
-                    torch::Tensor val, int smem_consume, torch::Tensor Q,
-                    torch::Tensor K, torch::Tensor V) {
+                      torch::Tensor val, int smem_consume, torch::Tensor Q,
+                      torch::Tensor K, torch::Tensor V) {
   // Q: torch.Size([6248, 10, 8])
   const auto m = indptr.size(0) - 1; // num of nodes
   const auto nnz = indices.size(0);  // num of edges
@@ -195,9 +195,9 @@ gt_csr_inference_cuda(torch::Tensor indptr, torch::Tensor indices,
   auto out_feat = torch::zeros({m, h, f}, options);
 
   gt_csr_inference_launch(m, nnz, h, f, smem_consume, indptr.data_ptr<int>(),
-                        indices.data_ptr<int>(), val.data_ptr<float>(),
-                        Q.data_ptr<float>(), K.data_ptr<float>(),
-                        V.data_ptr<float>(), out_feat.data_ptr<float>());
+                          indices.data_ptr<int>(), val.data_ptr<float>(),
+                          Q.data_ptr<float>(), K.data_ptr<float>(),
+                          V.data_ptr<float>(), out_feat.data_ptr<float>());
 
   return {out_feat};
 }

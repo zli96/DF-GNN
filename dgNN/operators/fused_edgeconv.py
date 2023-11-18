@@ -1,5 +1,3 @@
-import os
-
 import fused_edgeconv
 import torch
 from torch.utils.cpp_extension import load

@@ -325,13 +325,13 @@ fused_gt_indegree(const int h, const int f, const int *node_num_ptr,
 }
 
 void gt_indegree_inference_launch(int num_subgraph, int h, int f,
-                                const int *nodes_subgraph,
-                                const int *smem_nodes_subgraph,
-                                const int *store_node, const int *store_flag,
-                                const int *indptr, const int *indices,
-                                const float *val, const float *Q,
-                                const float *K, const float *V,
-                                float *out_feat) {
+                                  const int *nodes_subgraph,
+                                  const int *smem_nodes_subgraph,
+                                  const int *store_node, const int *store_flag,
+                                  const int *indptr, const int *indices,
+                                  const float *val, const float *Q,
+                                  const float *K, const float *V,
+                                  float *out_feat) {
   const int ntx = roundup(f, WARP_SIZE);
   const int nty = 1024 / ntx;
   const int nbx = num_subgraph;
@@ -349,13 +349,13 @@ void gt_indegree_inference_launch(int num_subgraph, int h, int f,
 }
 
 void gt_inference_indegree_hyper(int num_subgraph, int h, int f,
-                               const int *nodes_subgraph,
-                               const int *smem_nodes_subgraph,
-                               const int *store_node, const int *store_flag,
-                               const int *row, const int *indptr,
-                               const int *indices, const float *val,
-                               const float *Q, const float *K, const float *V,
-                               float *out_feat) {
+                                 const int *nodes_subgraph,
+                                 const int *smem_nodes_subgraph,
+                                 const int *store_node, const int *store_flag,
+                                 const int *row, const int *indptr,
+                                 const int *indices, const float *val,
+                                 const float *Q, const float *K, const float *V,
+                                 float *out_feat) {
   const int ntx = 32;
   const int nty = 32;
   const int nbx = num_subgraph;

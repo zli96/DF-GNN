@@ -148,7 +148,6 @@ class ModelNetDataset(Dataset):
 
 import argparse
 import os
-import urllib
 
 from functools import partial
 

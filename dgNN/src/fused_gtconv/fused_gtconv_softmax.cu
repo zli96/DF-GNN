@@ -208,10 +208,10 @@ __global__ void softMax_SPMM_tiling(const int m, const int nnz, const int h,
 }
 
 void gt_softmax_inference_launch(int m, int nnz, int h, int f, int smem_consume,
-                               const int *indptr, const int *indices,
-                               const int *rows, const float *val,
-                               const float *Q, const float *K, const float *V,
-                               float *attn_edge, float *out_feat) {
+                                 const int *indptr, const int *indices,
+                                 const int *rows, const float *val,
+                                 const float *Q, const float *K, const float *V,
+                                 float *attn_edge, float *out_feat) {
   const int ntx = 32; // on feature dimension
   const int nty = 8;  // on out dimension
   const int nbx = (nnz + nty - 1) / nty;
@@ -231,8 +231,9 @@ void gt_softmax_inference_launch(int m, int nnz, int h, int f, int smem_consume,
 
 std::vector<torch::Tensor>
 gt_softmax_inference_cuda(torch::Tensor indptr, torch::Tensor indices,
-                        torch::Tensor rows, torch::Tensor val, int smem_consume,
-                        torch::Tensor Q, torch::Tensor K, torch::Tensor V) {
+                          torch::Tensor rows, torch::Tensor val,
+                          int smem_consume, torch::Tensor Q, torch::Tensor K,
+                          torch::Tensor V) {
   const auto m = indptr.size(0) - 1; // num of nodes
   const auto nnz = indices.size(0);  // num of edges
   const auto h = Q.size(1);          // num of heads

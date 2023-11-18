@@ -116,7 +116,7 @@ def main(args):
         n_classes,
         num_feats,
     ) = load_dataset(args)
-    n_edges = row_ind.shape[0]
+    row_ind.shape[0]
 
     tile_scheduler = TileBalanceScheduler(row_ptr)
     # row_ind=row_ind.to(args.gpu).int()
