@@ -58,8 +58,8 @@ class GTModel(nn.Module):
 
     def forward(self, g, X, params, fuse=False):
         h = self.in_proj(X)
-        # for layer in self.layers:
-        #     h = layer(params, h, fuse)
+        for layer in self.layers:
+            h = layer(params, h, fuse)
         h = self.pooler(g, h)
 
         return self.predictor(h)

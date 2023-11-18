@@ -10,8 +10,8 @@ if [ -z "${data_dir}" ]; then
 fi
 
 if [ -n "${test_flag}" ]; then
-	datasets=(PATTERN ogbg-molhiv)
-	formats=(csr hyper softmax indegree)
+	datasets=(MNIST CIFAR10 Peptides-func Peptides-struct)
+	formats=(csr hyper)
 	batch_sizes=(16)
 	dims=(64)
 	echo test mode !!!!!!!!!!!!
