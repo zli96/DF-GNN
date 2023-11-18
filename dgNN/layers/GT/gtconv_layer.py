@@ -5,17 +5,17 @@ import torch.nn as nn
 class SparseMHA(nn.Module):
     """Sparse Multi-head Attention Module"""
 
-    def __init__(self, hidden_size, num_heads):
+    def __init__(self, in_size, out_size, num_heads):
         super().__init__()
-        self.hidden_size = hidden_size
+        self.in_size = in_size
         self.num_heads = num_heads
-        self.head_dim = hidden_size // num_heads
+        self.head_dim = out_size // num_heads
         self.scaling = self.head_dim**-0.5
 
-        self.q_proj = nn.Linear(hidden_size, hidden_size)
-        self.k_proj = nn.Linear(hidden_size, hidden_size)
-        self.v_proj = nn.Linear(hidden_size, hidden_size)
-        self.out_proj = nn.Linear(hidden_size, hidden_size)
+        self.in_proj = nn.Linear(in_size, out_size)
+        self.q_proj = nn.Linear(out_size, out_size)
+        self.k_proj = nn.Linear(out_size, out_size)
+        self.v_proj = nn.Linear(out_size, out_size)
 
     def forward_nofuse(self, A, q, k, v):
         # TODO: spmm 要不要用csr格式（但好像更慢）

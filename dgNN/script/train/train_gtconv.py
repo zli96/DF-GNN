@@ -5,6 +5,7 @@
 
 import argparse
 import pdb
+import time
 
 import dgl.nn as dglnn
 import torch
@@ -21,6 +22,10 @@ from ogb.graphproppred.mol_encoder import AtomEncoder
 from tqdm import tqdm
 
 
+def average(list: list) -> float:
+    return sum(list) / len(list)
+
+
 def check_correct(logits, logits_fuse):
     check_same = torch.tensor(
         [all(i) for i in torch.isclose(logits, logits_fuse, atol=0.01)]
@@ -33,44 +38,6 @@ def check_correct(logits, logits_fuse):
         exit()
 
 
-def Move2Device(data_list, dev):
-    ### move data in list to dev
-    data_dev = []
-    for data in data_list:
-        if isinstance(data, tuple):
-            data_dev.append(
-                [param.to(dev) if hasattr(param, "to") else param for param in data]
-            )
-        elif hasattr(data, "to"):
-            data_dev.append(data.to(dev))
-        else:
-            data_dev.append(data)
-    return data_dev
-
-
-class GTLayer(nn.Module):
-    """Graph Transformer Layer"""
-
-    def __init__(self, hidden_size, num_heads):
-        super().__init__()
-        self.MHA = SparseMHA_fused(hidden_size=hidden_size, num_heads=num_heads)
-        self.batchnorm1 = nn.BatchNorm1d(hidden_size)
-        self.batchnorm2 = nn.BatchNorm1d(hidden_size)
-        self.FFN1 = nn.Linear(hidden_size, hidden_size * 2)
-        self.FFN2 = nn.Linear(hidden_size * 2, hidden_size)
-
-    def forward(self, params, h, fuse):
-        h1 = h
-        h = self.MHA(params, h, fuse=fuse)
-        h = self.batchnorm1(h + h1)
-
-        h2 = h
-        h = self.FFN2(F.relu(self.FFN1(h)))
-        h = h2 + h
-
-        return self.batchnorm2(h)
-
-
 class GTModel(nn.Module):
     def __init__(
         self,
@@ -81,22 +48,18 @@ class GTModel(nn.Module):
         num_heads=1,
     ):
         super().__init__()
-        self.atom_encoder = AtomEncoder(hidden_size)
         self.pos_linear = nn.Linear(pos_enc_size, hidden_size)
         self.layers = nn.ModuleList(
-            [GTLayer(hidden_size, num_heads) for _ in range(num_layers)]
+            [
+                SparseMHA_fused(hidden_size, hidden_size, num_heads)
+                for _ in range(num_layers)
+            ]
         )
         self.pooler = dglnn.SumPooling()
-        self.predictor = nn.Sequential(
-            nn.Linear(hidden_size, hidden_size // 2),
-            nn.ReLU(),
-            nn.Linear(hidden_size // 2, hidden_size // 4),
-            nn.ReLU(),
-            nn.Linear(hidden_size // 4, out_size),
-        )
+        self.predictor = nn.Linear(hidden_size, out_size)
 
     def forward(self, g, X, pos_enc, params, fuse=False):
-        h = self.atom_encoder(X) + self.pos_linear(pos_enc)
+        h = self.pos_linear(pos_enc)
         for layer in self.layers:
             h = layer(params, h, fuse)
         h = self.pooler(g, h)
@@ -105,23 +68,26 @@ class GTModel(nn.Module):
 
 
 @torch.no_grad()
-def evaluate(model, dataloader, evaluator, device):
+def evaluate(model, dataloader, evaluator, device, fuse_flag):
     model.eval()
     y_true = []
     y_pred = []
+    start = time.time()
     for batched_g, labels in dataloader:
+        batched_g, labels = batched_g.to(device), labels.to(device)
         params = preprocess_Hyper_fw_bw(batched_g)
         ## fuse
-        batched_g, labels, params = Move2Device([batched_g, labels, params], device)
         y_hat = model(
             batched_g,
             batched_g.ndata["feat"],
             batched_g.ndata["PE"],
             params,
-            fuse=True,
+            fuse=fuse_flag,
         )
         y_true.append(labels.view(y_hat.shape).detach().cpu())
         y_pred.append(y_hat.detach().cpu())
+    eval_time = time.time() - start
+    print(f"evaluate time {eval_time:.2f}")
     y_true = torch.cat(y_true, dim=0).numpy()
     y_pred = torch.cat(y_pred, dim=0).numpy()
     input_dict = {"y_true": y_true, "y_pred": y_pred}
@@ -140,9 +106,9 @@ def check_grad(model, dataset, device):
     model.train()
     total_loss = 0.0
     for iter, (batched_g, labels) in enumerate(train_dataloader):
+        batched_g, labels = batched_g.to(device), labels.to(device)
         params = preprocess_Hyper_fw_bw(batched_g)
         ## nofuse
-        batched_g, labels, params = Move2Device([batched_g, labels, params], device)
         logits = model(
             batched_g, batched_g.ndata["feat"], batched_g.ndata["PE"], params
         )
@@ -150,12 +116,11 @@ def check_grad(model, dataset, device):
         model.zero_grad()
         loss.backward()
 
-        q_grad = model.layers[0].MHA.q_proj.weight.grad
-        k_grad = model.layers[0].MHA.k_proj.weight.grad
-        v_grad = model.layers[0].MHA.v_proj.weight.grad
+        q_grad = model.layers[0].q_proj.weight.grad
+        k_grad = model.layers[0].k_proj.weight.grad
+        v_grad = model.layers[0].v_proj.weight.grad
 
         ## fuse
-        batched_g, labels, params = Move2Device([batched_g, labels, params], dev)
         logits = model(
             batched_g, batched_g.ndata["feat"], batched_g.ndata["PE"], params, fuse=True
         )
@@ -166,14 +131,14 @@ def check_grad(model, dataset, device):
 
         print(f"iter {iter} check backward correct")
         print("V grad")
-        check_correct(v_grad, model.layers[0].MHA.v_proj.weight.grad)
+        check_correct(v_grad, model.layers[0].v_proj.weight.grad)
         print("Q grad")
-        check_correct(q_grad, model.layers[0].MHA.q_proj.weight.grad)
+        check_correct(q_grad, model.layers[0].q_proj.weight.grad)
         print("K grad")
-        check_correct(k_grad, model.layers[0].MHA.k_proj.weight.grad)
+        check_correct(k_grad, model.layers[0].k_proj.weight.grad)
 
 
-def train(model, dataset, evaluator, device):
+def train(model, dataset, evaluator, device, fuse_flag):
     train_dataloader = GraphDataLoader(
         dataset[dataset.train_idx],
         batch_size=256,
@@ -187,33 +152,54 @@ def train(model, dataset, evaluator, device):
         dataset[dataset.test_idx], batch_size=256, collate_fn=collate_dgl
     )
     optimizer = optim.Adam(model.parameters(), lr=0.001)
-    num_epochs = 50
+    num_epochs = 20
     scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=num_epochs, gamma=0.5)
     loss_fcn = nn.BCEWithLogitsLoss()
-
+    epoch_times = []
     for epoch in range(num_epochs):
+        torch.cuda.synchronize()
+        start = time.time()
         model.train()
         total_loss = 0.0
         for iter, (batched_g, labels) in enumerate(train_dataloader):
+            batched_g, labels = batched_g.to(device), labels.to(device)
             params = preprocess_Hyper_fw_bw(batched_g)
             ## fuse
-            batched_g, labels, params = Move2Device([batched_g, labels, params], device)
             logits = model(
                 batched_g,
                 batched_g.ndata["feat"],
                 batched_g.ndata["PE"],
                 params,
-                fuse=True,
+                fuse=fuse_flag,
             )
             loss = loss_fcn(logits, labels.float())
             total_loss += loss.item()
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
+        torch.cuda.synchronize()
+        epoch_time = time.time() - start
+        if epoch > 0:
+            epoch_times.append(epoch_time)
+            print(
+                f"epoch {epoch:03d} time {epoch_time:.2f} avg epoch time {average(epoch_times):.2f}"
+            )
         scheduler.step()
         avg_loss = total_loss / len(train_dataloader)
-        val_metric = evaluate(model, valid_dataloader, evaluator, device)
-        test_metric = evaluate(model, test_dataloader, evaluator, device)
+        val_metric = evaluate(
+            model,
+            valid_dataloader,
+            evaluator,
+            device,
+            fuse_flag,
+        )
+        test_metric = evaluate(
+            model,
+            test_dataloader,
+            evaluator,
+            device,
+            fuse_flag,
+        )
         print(
             f"Epoch: {epoch:03d}, Loss: {avg_loss:.4f}, "
             f"Val: {val_metric:.4f}, Test: {test_metric:.4f}"
@@ -224,6 +210,7 @@ if __name__ == "__main__":
     # parse argument
     parser = argparse.ArgumentParser(description="DOTGAT")
     parser.add_argument("--checkgrad", action="store_true")
+    parser.add_argument("--fused", action="store_true")
     args = parser.parse_args()
 
     # If CUDA is available, use GPU to accelerate the training, use CPU
@@ -253,4 +240,4 @@ if __name__ == "__main__":
     if args.checkgrad:
         check_grad(model, dataset, dev)
     else:
-        train(model, dataset, evaluator, dev)
+        train(model, dataset, evaluator, dev, args.fused)
