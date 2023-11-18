@@ -24,11 +24,9 @@ for dim in ${dims[@]}; do
 	for dataset in ${datasets[@]}; do
 		for format in ${formats[@]}; do
 			for bs in ${batch_sizes[@]}; do
-				# python -u dgNN/script/train/train_gtconv.py --dim $dim --batch-size $bs --data-dir ${data_dir} --dataset ${dataset}
+				python -u dgNN/script/train/train_gtconv.py --dim $dim --batch-size $bs --data-dir ${data_dir} --dataset ${dataset}
 
-				# python -u dgNN/script/train/train_gtconv.py --dim $dim --batch-size $bs --data-dir ${data_dir} --dataset ${dataset} --fused
-
-				python -u dgNN/script/train/train_gtconv.py --dim $dim --batch-size $bs --data-dir ${data_dir} --dataset ${dataset} --checkgrad
+				# python -u dgNN/script/train/train_gtconv.py --dim $dim --batch-size $bs --data-dir ${data_dir} --dataset ${dataset} --checkgrad
 
 			done
 		done

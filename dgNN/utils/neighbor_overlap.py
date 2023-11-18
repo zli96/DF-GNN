@@ -1,6 +1,5 @@
 import argparse
 import os
-import pdb
 import sys
 from collections import Counter
 
@@ -85,14 +84,11 @@ def cal_overlap_adj_nodes(A, num_nodes, blocksize, f):
 
 def neigh_overlap_adj_nodes(args):
     blocksize = args.blocksize
-    dataset, train_fn, collate_fn = load_dataset_fn(
-        args.dataset, args.bs, "/workspace2/dataset"
-    )
+    dataset, train_fn = load_dataset_fn(args.dataset, args.bs, "/workspace2/dataset")
     train_dataloader = GraphDataLoader(
         dataset,
         batch_size=args.batch_size,
         shuffle=False,
-        collate_fn=collate_fn,
     )
     overlap_coe = []
     if args.dataset == "PATTERN" or args.dataset == "CLUSTER":

@@ -23,7 +23,7 @@ def main(args):
     dev = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     # init model
-    dataset, train_fn, collate_fn = load_dataset_fn(args.dataset, args.data_dir)
+    dataset, train_fn = load_dataset_fn(args.dataset, args.data_dir)
     if args.conv == "dotgat":
         layer = load_layer_DOTGAT(args)
     elif args.conv == "gat":
@@ -42,7 +42,6 @@ def main(args):
         dataset,
         batch_size=args.batch_size,
         shuffle=False,
-        collate_fn=collate_fn,
     )
 
     # profile mode

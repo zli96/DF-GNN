@@ -10,16 +10,13 @@ import time
 import dgl.nn as dglnn
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 import torch.optim as optim
 
 from dgl.dataloading import GraphDataLoader
 
 from dgNN.layers import choose_Inproj, preprocess_Hyper_fw_bw, SparseMHA_fused
 from dgNN.utils import load_dataset_fn, parser_argument
-from ogb.graphproppred import collate_dgl, DglGraphPropPredDataset, Evaluator
-from ogb.graphproppred.mol_encoder import AtomEncoder
-from tqdm import tqdm
+from ogb.graphproppred import collate_dgl, Evaluator
 
 
 def average(list: list) -> float:
@@ -61,8 +58,8 @@ class GTModel(nn.Module):
 
     def forward(self, g, X, params, fuse=False):
         h = self.in_proj(X)
-        for layer in self.layers:
-            h = layer(params, h, fuse)
+        # for layer in self.layers:
+        #     h = layer(params, h, fuse)
         h = self.pooler(g, h)
 
         return self.predictor(h)
@@ -134,8 +131,7 @@ def check_grad(model, dataset, device, args):
         check_correct(k_grad, model.layers[0].k_proj.weight.grad)
 
 
-def train(model, dataset, device, args):
-    fuse_flag = args.fused
+def train(model, dataset, device, args, fuse_flag):
     train_dataloader = GraphDataLoader(
         dataset,
         batch_size=args.batch_size,
@@ -189,7 +185,6 @@ if __name__ == "__main__":
     # parse argument
     parser = argparse.ArgumentParser(description="DOTGAT")
     parser.add_argument("--checkgrad", action="store_true")
-    parser.add_argument("--fused", action="store_true")
     parser.add_argument("--num-layers", type=int, default=8)
     args = parser_argument(parser)
 
@@ -198,7 +193,7 @@ if __name__ == "__main__":
     dev = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     # load dataset
-    dataset, train_fn, collate_fn = load_dataset_fn(args.dataset, args.data_dir)
+    dataset, train_fn = load_dataset_fn(args.dataset, args.data_dir)
 
     # Create model.
     model = GTModel(
@@ -214,4 +209,6 @@ if __name__ == "__main__":
     if args.checkgrad:
         check_grad(model, dataset, dev, args)
     else:
-        train(model, dataset, dev, args)
+        train(model, dataset, dev, args, True)
+        print("---------------non-fused--------------")
+        train(model, dataset, dev, args, False)

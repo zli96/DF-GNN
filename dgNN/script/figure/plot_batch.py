@@ -15,12 +15,11 @@ if __name__ == "__main__":
     parser.add_argument("--bs", type=int, default=1)
     parser.add_argument("--dataset", type=str, default="ogbg-molhiv")
     args = parser.parse_args()
-    dataset, train_fn, collate_fn = load_dataset_fn(args.dataset, args.bs)
+    dataset, train_fn = load_dataset_fn(args.dataset, args.bs)
     train_dataloader = GraphDataLoader(
         dataset,
         batch_size=args.batch_size,
         shuffle=False,
-        collate_fn=collate_fn,
     )
     num_nodes_batch = []
     num_edges_batch = []
