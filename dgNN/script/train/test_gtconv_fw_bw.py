@@ -11,15 +11,14 @@ import dgl.nn as dglnn
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
 import torch.optim as optim
 
 from dgl.dataloading import GraphDataLoader
 
 from dgNN.layers import choose_Inproj, preprocess_Hyper_fw_bw, SparseMHA_fused
 from dgNN.utils import load_dataset_fn, parser_argument
-from ogb.graphproppred import collate_dgl, DglGraphPropPredDataset, Evaluator
-from ogb.graphproppred.mol_encoder import AtomEncoder
-from tqdm import tqdm
+from ogb.graphproppred import collate_dgl, Evaluator
 
 
 def average(list: list) -> float:
@@ -55,14 +54,12 @@ class GTModel(nn.Module):
                 for _ in range(num_layers)
             ]
         )
-        self.pooler = dglnn.SumPooling()
         self.predictor = nn.Linear(hidden_size, out_size)
 
-    def forward(self, g, X, params, fuse=False):
+    def forward(self, X, params, fuse=False):
         h = self.in_proj(X)
         for layer in self.layers:
             h = layer(params, h, fuse)
-        h = self.pooler(g, h)
 
         return self.predictor(h)
 
@@ -73,24 +70,20 @@ def evaluate(model, dataloader, device, fuse_flag):
     y_true = []
     y_pred = []
     start = time.time()
-    for batched_g, labels in dataloader:
-        batched_g, labels = batched_g.to(device), labels.to(device)
+    for batched_g in dataloader:
+        batched_g = batched_g.to(device)
         params = preprocess_Hyper_fw_bw(batched_g)
         ## fuse
         y_hat = model(
-            batched_g,
             batched_g.ndata["feat"],
             params,
             fuse=fuse_flag,
         )
+        labels = batched_g.ndata["label"]
         y_true.append(labels.view(y_hat.shape).detach().cpu())
         y_pred.append(y_hat.detach().cpu())
     eval_time = time.time() - start
     print(f"evaluate time {eval_time:.2f}")
-    y_true = torch.cat(y_true, dim=0).numpy()
-    y_pred = torch.cat(y_pred, dim=0).numpy()
-    input_dict = {"y_true": y_true, "y_pred": y_pred}
-    return Evaluator("ogbg-molhiv").eval(input_dict)["rocauc"]
 
 
 def check_grad(model, dataset, device, args):
@@ -100,16 +93,17 @@ def check_grad(model, dataset, device, args):
         shuffle=True,
         collate_fn=collate_dgl,
     )
-    loss_fcn = nn.BCEWithLogitsLoss()
+    loss_fcn = nn.CrossEntropyLoss()
 
     model.train()
     total_loss = 0.0
-    for iter, (batched_g, labels) in enumerate(train_dataloader):
-        batched_g, labels = batched_g.to(device), labels.to(device)
+    for iter, batched_g in enumerate(train_dataloader):
+        batched_g = batched_g.to(device)
         params = preprocess_Hyper_fw_bw(batched_g)
         ## nofuse
-        logits = model(batched_g, batched_g.ndata["feat"], params)
-        loss = loss_fcn(logits, labels.float())
+        logits = model(batched_g.ndata["feat"], params)
+        labels = batched_g.ndata["label"]
+        loss = loss_fcn(logits.flatten(), labels.float())
         model.zero_grad()
         loss.backward()
 
@@ -118,8 +112,8 @@ def check_grad(model, dataset, device, args):
         v_grad = model.layers[0].v_proj.weight.grad
 
         ## fuse
-        logits = model(batched_g, batched_g.ndata["feat"], params, fuse=True)
-        loss = loss_fcn(logits, labels.float())
+        logits = model(batched_g.ndata["feat"], params, fuse=True)
+        loss = loss_fcn(logits.flatten(), labels.float())
         total_loss += loss.item()
         model.zero_grad()
         loss.backward()
@@ -138,29 +132,27 @@ def train(model, dataset, device, args, fuse_flag):
         dataset,
         batch_size=args.batch_size,
         shuffle=True,
-        collate_fn=collate_dgl,
     )
     optimizer = optim.Adam(model.parameters(), lr=0.001)
     num_epochs = 20
     scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=num_epochs, gamma=0.5)
-    loss_fcn = nn.BCEWithLogitsLoss()
+    loss_fcn = nn.CrossEntropyLoss
     epoch_times = []
     for epoch in range(num_epochs):
         torch.cuda.synchronize()
         start = time.time()
         model.train()
         total_loss = 0.0
-        for iter, (batched_g, labels) in enumerate(train_dataloader):
-            batched_g, labels = batched_g.to(device), labels.to(device)
+        for iter, batched_g in enumerate(train_dataloader):
+            batched_g = batched_g.to(device)
             params = preprocess_Hyper_fw_bw(batched_g)
             ## fuse
             logits = model(
-                batched_g,
                 batched_g.ndata["feat"],
                 params,
                 fuse=fuse_flag,
             )
-            loss = loss_fcn(logits, labels.float())
+            loss = loss_fcn(logits.flatten(), batched_g.ndata["label"].int())
             total_loss += loss.item()
             optimizer.zero_grad()
             loss.backward()
@@ -173,14 +165,12 @@ def train(model, dataset, device, args, fuse_flag):
                 f"epoch {epoch:03d} time {epoch_time:.2f} avg epoch time {average(epoch_times):.2f}"
             )
         scheduler.step()
-        avg_loss = total_loss / len(train_dataloader)
-        train_metric = evaluate(
+        evaluate(
             model,
             train_dataloader,
             device,
             fuse_flag,
         )
-        print(f"Epoch: {epoch:03d}, Loss: {avg_loss:.4f}, " f"Val: {train_metric:.4f}")
 
 
 if __name__ == "__main__":
@@ -194,13 +184,12 @@ if __name__ == "__main__":
     # otherwise.
     dev = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-    dataset_name = "ogbg-molhiv"
     # load dataset
-    dataset, train_fn = load_dataset_fn(dataset_name, args.data_dir)
+    dataset, train_fn = load_dataset_fn(args.dataset, args.data_dir)
 
     # Create model.
     model = GTModel(
-        dataset_name=dataset_name,
+        dataset_name=args.dataset,
         out_size=1,
         hidden_size=args.dim,
         num_heads=args.heads,
