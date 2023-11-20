@@ -85,13 +85,15 @@ def preprocess_Hyper(g, **args):
     return A, row_ptr, col_ind, rows, val, smem_consume
 
 
-def preprocess_Hyper_fw_bw(g, **args):
+def preprocess_Hyper_fw_bw(g, fused):
     # print("start preprocess")
     A, max_neigh = g_to_SPmatrix(g)
+    if not fused:
+        return A, None, None, None, None, None, None, None, None
 
     # using max_degree to cal max smem consume
     # max_degree = int(max(A.sum(1)).item())
-    # print(max_neigh)
+    # print(max_degree)
     smem_consume = (max_neigh * 8 + WARP_SIZE - 1) // WARP_SIZE * WARP_SIZE
     # print("preprocess smem consume", smem_consume)
     # A.row: the src node of each edge

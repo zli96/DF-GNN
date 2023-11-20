@@ -14,12 +14,14 @@ from dgl.data import (
     CiteseerGraphDataset,
     CLUSTERDataset,
     COCOSuperpixelsDataset,
+    CoraFullDataset,
     CoraGraphDataset,
     MNISTSuperPixelDataset,
     PATTERNDataset,
     PeptidesFunctionalDataset,
     PeptidesStructuralDataset,
     PubmedGraphDataset,
+    RedditDataset,
     VOCSuperpixelsDataset,
 )
 
@@ -89,13 +91,17 @@ def load_dataset_fn(dataset_name, data_dir):
 
 def load_data_full_graph(dataset_name, dataset_dir):
     if dataset_name == "cora":
-        dataset = CoraGraphDataset(dataset_dir)
+        dataset = CoraGraphDataset(raw_dir=dataset_dir)
+    elif dataset_name == "cora-full":
+        dataset = CoraFullDataset(raw_dir=dataset_dir)
     elif dataset_name == "arxiv":
-        dataset = DglNodePropPredDataset("ogbn-arxiv")[0]
+        dataset = DglNodePropPredDataset("ogbn-arxiv")
     elif dataset_name == "cite":
-        dataset = CiteseerGraphDataset(dataset_dir)
+        dataset = CiteseerGraphDataset(raw_dir=dataset_dir)
     elif dataset_name == "pubmed":
-        dataset = PubmedGraphDataset(dataset_dir)
+        dataset = PubmedGraphDataset(raw_dir=dataset_dir)
+    elif dataset_name == "reddit":
+        dataset = RedditDataset(raw_dir=dataset_dir)
     else:
         raise ValueError(f"Unsupport dataset {dataset_name}")
     return dataset

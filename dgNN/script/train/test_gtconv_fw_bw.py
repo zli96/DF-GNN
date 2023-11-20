@@ -72,7 +72,7 @@ def evaluate(model, dataloader, device, fuse_flag):
     start = time.time()
     for batched_g in dataloader:
         batched_g = batched_g.to(device)
-        params = preprocess_Hyper_fw_bw(batched_g)
+        params = preprocess_Hyper_fw_bw(batched_g, fuse_flag)
         ## fuse
         y_hat = model(
             batched_g.ndata["feat"],
@@ -99,7 +99,7 @@ def check_grad(model, dataset, device, args):
     total_loss = 0.0
     for iter, batched_g in enumerate(train_dataloader):
         batched_g = batched_g.to(device)
-        params = preprocess_Hyper_fw_bw(batched_g)
+        params = preprocess_Hyper_fw_bw(batched_g, True)
         ## nofuse
         logits = model(batched_g.ndata["feat"], params)
         labels = batched_g.ndata["label"]
@@ -127,6 +127,33 @@ def check_grad(model, dataset, device, args):
         check_correct(k_grad, model.layers[0].k_proj.weight.grad)
 
 
+def only_preprocess(model, dataset, device, args, fuse_flag):
+    train_dataloader = GraphDataLoader(
+        dataset,
+        batch_size=args.batch_size,
+        shuffle=True,
+    )
+    optimizer = optim.Adam(model.parameters(), lr=0.001)
+    num_epochs = 20
+    epoch_times = []
+    for epoch in range(num_epochs):
+        torch.cuda.synchronize()
+        start = time.time()
+        model.train()
+        for iter, batched_g in enumerate(train_dataloader):
+            batched_g = batched_g.to(device)
+            preprocess_Hyper_fw_bw(batched_g, fuse_flag)
+            ## fuse
+
+        torch.cuda.synchronize()
+        epoch_time = time.time() - start
+        if epoch > 0:
+            epoch_times.append(epoch_time)
+            print(
+                f"epoch {epoch:03d} time {epoch_time:.2f} avg epoch time {average(epoch_times):.2f}"
+            )
+
+
 def train(model, dataset, device, args, fuse_flag):
     train_dataloader = GraphDataLoader(
         dataset,
@@ -136,7 +163,7 @@ def train(model, dataset, device, args, fuse_flag):
     optimizer = optim.Adam(model.parameters(), lr=0.001)
     num_epochs = 20
     scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=num_epochs, gamma=0.5)
-    loss_fcn = nn.CrossEntropyLoss
+    loss_fcn = nn.CrossEntropyLoss()
     epoch_times = []
     for epoch in range(num_epochs):
         torch.cuda.synchronize()
@@ -145,14 +172,14 @@ def train(model, dataset, device, args, fuse_flag):
         total_loss = 0.0
         for iter, batched_g in enumerate(train_dataloader):
             batched_g = batched_g.to(device)
-            params = preprocess_Hyper_fw_bw(batched_g)
+            params = preprocess_Hyper_fw_bw(batched_g, fuse_flag)
             ## fuse
             logits = model(
                 batched_g.ndata["feat"],
                 params,
                 fuse=fuse_flag,
             )
-            loss = loss_fcn(logits.flatten(), batched_g.ndata["label"].int())
+            loss = loss_fcn(logits.flatten(), batched_g.ndata["label"].float())
             total_loss += loss.item()
             optimizer.zero_grad()
             loss.backward()
@@ -202,5 +229,10 @@ if __name__ == "__main__":
         check_grad(model, dataset, dev, args)
     else:
         train(model, dataset, dev, args, True)
+        print("---------------fused preprocess--------------")
+        only_preprocess(model, dataset, dev, args, True)
+
         print("---------------non-fused--------------")
         train(model, dataset, dev, args, False)
+        print("---------------non-fused preprocess--------------")
+        only_preprocess(model, dataset, dev, args, False)
