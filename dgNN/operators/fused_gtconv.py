@@ -82,7 +82,7 @@ class FusedGTFunction_hyper(torch.autograd.Function):
             K,
             V,
         )
-        ctx.in1 = smem_consume
+        ctx.smem = smem_consume
         ctx.save_for_backward(
             row_ptr, col_ind, rows, val, col_ptr, row_ind, val_idx, Q, K, V, attn_edge
         )
@@ -104,10 +104,8 @@ class FusedGTFunction_hyper(torch.autograd.Function):
             attn_edge,
         ) = ctx.saved_tensors
         grad_out = grad_out.contiguous()
-        # print("start backward")
+        # print("start fused backward")
         # print(grad_out.shape)
-        smem_consume = ctx.in1
-
         grad_Q, grad_K, grad_V = fused_gt.gt_backward(
             row_ptr,
             col_ind,
@@ -116,13 +114,14 @@ class FusedGTFunction_hyper(torch.autograd.Function):
             col_ptr,
             row_ind,
             val_idx,
-            smem_consume,
+            ctx.smem,
             Q,
             K,
             V,
             attn_edge,
             grad_out,
         )
+
         # print('end backward')
         # # print(torch.isnan(grad_feat).sum())
         # # print(torch.isnan(grad_attn_row).sum())

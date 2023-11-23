@@ -44,49 +44,6 @@ __global__ void sddmmCooKernel(const int lhs_len, const int rhs_len,
   }
 }
 
-__global__ void sddmmCsrKernel(const int m, const int nnz, const int h,
-                               const int f, const int *indptr,
-                               const int *indices, const float *val,
-                               const float *Q, const float *K,
-                               float *attn_edge) {
-  const int rid = blockIdx.x;                     // loop over row of adj matrix
-  const int hid = blockIdx.y;                     // loop over heads
-  const int fid = threadIdx.y * 32 + threadIdx.x; // loop over feature dim
-
-  const int lb = indptr[rid]; // row rid elements
-  const int hb = indptr[rid + 1];
-
-  const int num_neighbor = hb - lb;
-  static __shared__ float warpLevelSums[WARP_SIZE];
-  const int hf = h * f;
-  const int hfid = hid * f + fid;
-  const int laneId = fid % WARP_SIZE;
-  const int warpId = fid / WARP_SIZE;
-  const int blockSize = blockDim.x * blockDim.y;
-
-  float Q_i = Q[rid * hf + hfid];
-
-  for (int j = 0; j < num_neighbor; j++) {
-    float weight_partial = 0;
-
-    int cid = indices[lb + j];
-    weight_partial = Q_i * K[cid * hf + hfid];
-
-    __syncthreads();
-    weight_partial = warpReduceSum(weight_partial, blockSize);
-    if (laneId == 0)
-      warpLevelSums[warpId] = weight_partial;
-    __syncthreads();
-    weight_partial = (fid < blockSize / WARP_SIZE) ? warpLevelSums[laneId] : 0;
-    if (warpId == 0)
-      weight_partial = warpReduceSum(weight_partial, blockSize / WARP_SIZE);
-    if (fid == 0) {
-      attn_edge[lb + j] = weight_partial * val[lb + j];
-    }
-  }
-  __syncthreads();
-}
-
 __global__ void softMax_SPMM(const int h, const int f, const int *indptr,
                              const int *indices, const float *val,
                              const float *V, const float *attn_edge,

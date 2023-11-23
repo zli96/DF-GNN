@@ -6,7 +6,7 @@ from .GAT_DOT.dotgatconv_layer_hyper import DOTGATConv_hyper
 from .gatconv_layer_temp import GATConv
 
 from .gmmconv_layer import GMMConv
-from .GT.gtconv_layer_CSR import SparseMHA
+from .GT.gtconv_layer_csr import SparseMHA
 from .GT.gtconv_layer_forward import SparseMHA_fused
 from .GT.gtconv_layer_hyper import SparseMHA_hyper
 from .GT.gtconv_layer_softmax import SparseMHA_softmax

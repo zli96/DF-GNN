@@ -239,7 +239,7 @@ def inference_Graph_level(process_func, model, train_dataloader, dev, **kwargs):
             )
             time_fuse.append(elapsed_time)
             print(f"epoch {i} fused time %.4f" % elapsed_time)
-            if i < 2:
+            if i < 3:
                 check_correct(logits[:1000], logits_fuse[:1000], params)
             if i == 20:
                 break
@@ -276,7 +276,7 @@ def inference_Node_level(process_func, model, train_dataloader, dev, **kwargs):
             )
             time_fuse.append(elapsed_time)
             print(f"epoch {i} fused time %.4f" % elapsed_time)
-            if i < 2:
+            if i < 3:
                 check_correct(logits[:1000], logits_fuse[:1000], params)
             if i == 20:
                 break
@@ -332,6 +332,9 @@ def train_profile(
 
 
 def train_profile_SBM(process_func, model, train_dataloader, dev, **arg):
+    import ScheduleProfiler
+
+    profiler = ScheduleProfiler.ScheduleProfiler()
     print("----------------------Forward------------------------")
     for i, (batched_g) in enumerate(train_dataloader):
         # print("----------------------without fuse--------------------------")

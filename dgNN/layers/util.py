@@ -6,15 +6,12 @@ import torch
 
 from dgl.data import Subset
 
-from .GAT.gatconv_layer_dgNN import GATConv_dgNN
-from .GAT.gatconv_layer_hyper import GATConv_hyper
+from .GAT import GATConv_dgNN, GATConv_hyper
 
-from .GAT_DOT.dotgatconv_layer_hyper import DOTGATConv_hyper
-from .GAT_DOT.dotgatconv_layer_tile import DOTGATConv_tile
+from .GAT_DOT import DOTGATConv_csr, DOTGATConv_hyper, DOTGATConv_softmax
 
-from .GT.gtconv_layer_CSR import SparseMHA_CSR
-from .GT.gtconv_layer_hyper import SparseMHA_hyper
-from .GT.gtconv_layer_softmax import SparseMHA_softmax
+from .GT import SparseMHA_CSR, SparseMHA_hyper, SparseMHA_softmax
+
 from .GT.gtconv_layer_subgraph import (
     SparseMHA_indegree,
     SparseMHA_indegree_hyper,
@@ -34,11 +31,11 @@ def g_to_SPmatrix(g):
 
 
 def preprocess_CSR(g, **args):
-    A = g_to_SPmatrix(g)
+    A, max_neigh = g_to_SPmatrix(g)
 
     # using max_degree to cal max smem consume
-    max_degree = int(max(A.sum(1)).item())
-    smem_consume = (max_degree + WARP_SIZE - 1) // WARP_SIZE * WARP_SIZE
+    # max_degree = int(max(A.sum(1)).item())
+    smem_consume = (max_neigh + WARP_SIZE - 1) // WARP_SIZE * WARP_SIZE
     print("preprocess smem consume", smem_consume)
 
     # the CSR format of adj matrix
@@ -51,10 +48,10 @@ def preprocess_CSR(g, **args):
 
 def preprocess_CSR_g(g, dim):
     g = dgl.add_self_loop(g)
-    A = g_to_SPmatrix(g)
+    A, max_neigh = g_to_SPmatrix(g)
     # using max_degree to cal max smem consume
-    max_degree = int(max(A.sum(1)).item())
-    smem_consume = (max_degree + WARP_SIZE - 1) // WARP_SIZE * WARP_SIZE
+    # max_degree = int(max(A.sum(1)).item())
+    smem_consume = (max_neigh + WARP_SIZE - 1) // WARP_SIZE * WARP_SIZE
     print("preprocess smem consume", smem_consume)
 
     # the CSR format of adj matrix
@@ -66,11 +63,11 @@ def preprocess_CSR_g(g, dim):
 
 
 def preprocess_Hyper(g, **args):
-    A = g_to_SPmatrix(g)
+    A, max_neigh = g_to_SPmatrix(g)
 
     # using max_degree to cal max smem consume
-    max_degree = int(max(A.sum(1)).item())
-    smem_consume = (max_degree * 8 + WARP_SIZE - 1) // WARP_SIZE * WARP_SIZE
+    # max_degree = int(max(A.sum(1)).item())
+    smem_consume = (max_neigh * 8 + WARP_SIZE - 1) // WARP_SIZE * WARP_SIZE
     print("preprocess smem consume", smem_consume)
 
     # A.row: the src node of each edge
@@ -116,11 +113,11 @@ def preprocess_Hyper_fw_bw(g, fused):
 
 def preprocess_Hyper_g(g, dim):
     g = dgl.add_self_loop(g)
-    A = g_to_SPmatrix(g)
+    A, max_neigh = g_to_SPmatrix(g)
 
     # using max_degree to cal max smem consume
-    max_degree = int(max(A.sum(1)).item())
-    smem_consume = (max_degree * 8 + WARP_SIZE - 1) // WARP_SIZE * WARP_SIZE
+    # max_degree = int(max(A.sum(1)).item())
+    smem_consume = (max_neigh * 8 + WARP_SIZE - 1) // WARP_SIZE * WARP_SIZE
     print("preprocess smem consume", smem_consume)
 
     # A.row: the src node of each edge
@@ -136,11 +133,11 @@ def preprocess_Hyper_g(g, dim):
 
 
 def preprocess_softmax(g, **args):
-    A = g_to_SPmatrix(g)
+    A, max_neigh = g_to_SPmatrix(g)
 
     # using max_degree to cal max smem consume
-    max_degree = int(max(A.sum(1)).item())
-    smem_consume = (max_degree + WARP_SIZE - 1) // WARP_SIZE * WARP_SIZE
+    # max_degree = int(max(A.sum(1)).item())
+    smem_consume = (max_neigh + WARP_SIZE - 1) // WARP_SIZE * WARP_SIZE
     print("preprocess smem consume", smem_consume)
 
     # A.row: the src node of each edge
@@ -155,6 +152,26 @@ def preprocess_softmax(g, **args):
     return A, row_ptr, col_ind, rows, val, smem_consume
 
 
+def preprocess_softmax_g(g, dim):
+    A, max_neigh = g_to_SPmatrix(g)
+
+    # using max_degree to cal max smem consume
+    # max_degree = int(max(A.sum(1)).item())
+    smem_consume = (max_neigh + WARP_SIZE - 1) // WARP_SIZE * WARP_SIZE
+    print("preprocess smem consume", smem_consume)
+
+    # A.row: the src node of each edge
+    rows = A.row.int()
+    rows = torch.sort(rows).values
+
+    # the CSR format of adj matrix
+    row_ptr, col_ind, val_idx = A.csr()
+    row_ptr = row_ptr.int()
+    col_ind = col_ind.int()
+    val = A.val[val_idx] / (dim**0.5)
+    return g, row_ptr, col_ind, rows, val, smem_consume
+
+
 def preprocess_SubGraph(g, **args):
     nodes = g.batch_num_nodes()
 
@@ -162,7 +179,7 @@ def preprocess_SubGraph(g, **args):
     nodes_subgraph = torch.cat(
         (torch.tensor([0]), torch.cumsum(nodes.clone(), 0))
     ).int()
-    A = g_to_SPmatrix(g)
+    A, max_neigh = g_to_SPmatrix(g)
 
     # the CSR format of adj matrix
     row_ptr, col_ind, val_idx = A.csr()
@@ -194,7 +211,7 @@ def preprocess_indegree_hyper(g, dim):
     nodes_subgraph = torch.cat(
         (torch.tensor([0]), torch.cumsum(nodes.clone(), 0))
     ).int()
-    A = g_to_SPmatrix(g)
+    A, max_neigh = g_to_SPmatrix(g)
 
     # A.row: the src node of each edge
     rows = A.row.int()
@@ -266,7 +283,7 @@ def preprocess_indegree(g, dim):
     nodes_subgraph = torch.cat(
         (torch.tensor([0]), torch.cumsum(nodes.clone(), 0))
     ).int()
-    A = g_to_SPmatrix(g)
+    A, max_neigh = g_to_SPmatrix(g)
     N = A.shape[0]
     in_degree = A.sum(0).int()
     num_neighbor = A.sum(1).int()
@@ -371,10 +388,10 @@ def load_layer_GAT(args):
 def load_layer_DOTGAT(args):
     if args.format == "hyper":
         layer = DOTGATConv_hyper(args.dim, args.dim, args.heads)
-    elif args.format == "tile":
-        layer = DOTGATConv_tile(args.dim, args.dim, args.heads)
-    elif args.profile and args.format == "nofuse":
-        layer = DOTGATConv_hyper(args.dim, args.dim, args.heads)
+    elif args.format == "csr":
+        layer = DOTGATConv_csr(args.dim, args.dim, args.heads)
+    elif args.format == "softmax":
+        layer = DOTGATConv_softmax(args.dim, args.dim, args.heads)
     else:
         raise ValueError(f"Unsupported format {args.format} in GATconv")
     return layer
@@ -384,10 +401,10 @@ def load_prepfunc(args):
     if args.conv == "dotgat":
         if args.format == "hyper":
             preprocess_func = preprocess_Hyper_g
-        elif args.format == "tile":
+        elif args.format == "csr":
             preprocess_func = preprocess_CSR_g
-        elif args.profile and args.format == "nofuse":
-            preprocess_func = preprocess_Hyper_g
+        elif args.format == "softmax":
+            preprocess_func = preprocess_softmax_g
         else:
             raise ValueError(f"Unsupported format {args.format}")
 

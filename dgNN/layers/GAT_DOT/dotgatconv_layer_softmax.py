@@ -1,10 +1,11 @@
-from dgNN.operators.fused_gtconv import GTConvFuse_inference_hyper
+from dgNN.operators.fused_gtconv import GTConvFuse_inference_softmax
+
 from dgNN.utils import benchmark
 
 from .dotgatconv_layer import DOTGATConvDGL
 
 
-class DOTGATConv_hyper(DOTGATConvDGL):
+class DOTGATConv_softmax(DOTGATConvDGL):
     def forward(self, params, feat, fuse=False):
         N = len(feat)
         g, indptr, indices, rows, val, smem_consume = params
@@ -13,7 +14,7 @@ class DOTGATConv_hyper(DOTGATConvDGL):
         if fuse:
             feat = feat.contiguous()
             out, elapsed_time = benchmark(
-                GTConvFuse_inference_hyper,
+                GTConvFuse_inference_softmax,
                 indptr,
                 indices,
                 rows,

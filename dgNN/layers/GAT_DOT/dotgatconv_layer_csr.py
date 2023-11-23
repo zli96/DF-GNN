@@ -1,10 +1,10 @@
-from dgNN.operators.fused_dotgatconv import DOTGATConvFuse_tile
+from dgNN.operators.fused_gtconv import GTConvFuse_inference_csr
 from dgNN.utils import benchmark
 
 from .dotgatconv_layer import DOTGATConvDGL
 
 
-class DOTGATConv_tile(DOTGATConvDGL):
+class DOTGATConv_csr(DOTGATConvDGL):
     def forward(self, params, feat, fuse=False):
         N = len(feat)
         g, indptr, indices, val, smem_consume = params
@@ -13,8 +13,8 @@ class DOTGATConv_tile(DOTGATConvDGL):
         if fuse:
             feat = feat.contiguous()
             out, elapsed_time = benchmark(
-                DOTGATConvFuse_tile, indptr, indices, val, smem_consume, H
+                GTConvFuse_inference_csr, indptr, indices, val, smem_consume, H, H, H
             )
         else:
-            out, elapsed_time = self.forward_nofuse(N, g, feat)
+            out, elapsed_time = benchmark(self.forward_nofuse, g, feat)
         return out.reshape(N, -1), elapsed_time * 1000
