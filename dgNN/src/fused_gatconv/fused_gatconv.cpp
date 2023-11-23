@@ -31,7 +31,7 @@ gat_forward(torch::Tensor attn_row, torch::Tensor attn_col,
                           in_feat, attn_drop);
 }
 
-torch::Tensor gat_inference_hyper_cuda(int smem_consume, torch::Tensor attn_row,
+torch::Tensor gat_hyper_inference_cuda(int smem_consume, torch::Tensor attn_row,
                                        torch::Tensor attn_col,
                                        torch::Tensor indptr,
                                        torch::Tensor indices,
@@ -59,7 +59,7 @@ torch::Tensor gat_inference_hyper(int smem_consume, torch::Tensor attn_row,
   assert(row_ptr.dtype() == torch::kInt32);
   assert(col_ind.dtype() == torch::kInt32);
   assert(in_feat.dtype() == torch::kFloat32);
-  return gat_inference_hyper_cuda(smem_consume, attn_row, attn_col, indptr,
+  return gat_hyper_inference_cuda(smem_consume, attn_row, attn_col, indptr,
                                   indices, rows, negative_slope, in_feat);
 }
 
