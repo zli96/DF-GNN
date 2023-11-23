@@ -66,7 +66,7 @@ class GTModel(nn.Module):
 
 @torch.no_grad()
 def evaluate(model, dataloader, device, fuse_flag):
-    model.eval()
+    model.train()
     y_true = []
     y_pred = []
     start = time.time()
@@ -91,7 +91,6 @@ def check_grad(model, dataset, device, args):
         dataset,
         batch_size=args.batch_size,
         shuffle=True,
-        collate_fn=collate_dgl,
     )
     loss_fcn = nn.CrossEntropyLoss()
 
@@ -228,6 +227,7 @@ if __name__ == "__main__":
     if args.checkgrad:
         check_grad(model, dataset, dev, args)
     else:
+        print("---------------fused--------------")
         train(model, dataset, dev, args, True)
         print("---------------fused preprocess--------------")
         only_preprocess(model, dataset, dev, args, True)

@@ -1,6 +1,5 @@
 import argparse
 
-import math
 import time
 
 import dgl
@@ -12,14 +11,6 @@ import torch.nn.functional as F
 
 from dgNN.layers import preprocess_Hyper_fw_bw, SparseMHA_fused
 from dgNN.utils import load_data_full_graph
-
-epsilon = 1 - math.log(2)
-
-
-def custom_loss_function(x, labels):
-    y = F.cross_entropy(x, labels[:, 0], reduction="none")
-    # y = torch.log(epsilon + y) - math.log(epsilon)
-    return torch.mean(y)
 
 
 class Net(nn.Module):
@@ -42,10 +33,10 @@ class Net(nn.Module):
             self.layers.append(SparseMHA_fused(num_hidden, num_hidden, 1))
 
     def forward(self, params, h, fuse=False):
-        h = self.input_proj(h)
+        # h = self.input_proj(h)
         for l in range(self.num_layers):
             h = self.layers[l](params, h, fuse)
-        return self.output_proj(h)
+        return F.log_softmax(self.output_proj(h), dim=-1)
 
 
 def accuracy(logits, labels):
@@ -62,15 +53,20 @@ def main(args):
     # load dataset
     dataset = load_data_full_graph(args.dataset, args.data_dir)
     if args.dataset == "arxiv":
-        g = dataset[0][0].to(dev)
-        labels = dataset[0][1].to(dev)
+        g = dataset[0][0]
+        g.ndata["feat"] = g.ndata["feat"][:, : args.dim]
+        g = g.to(dev)
+        labels = dataset[0][1].squeeze(1).to(dev)
     else:
-        g = dataset[0].to(dev)
+        g = dataset[0]
+        g.ndata["feat"] = g.ndata["feat"][:, : args.dim]
+        g = g.to(dev)
         labels = g.ndata["label"]
 
     # Create the sparse adjacency matrix A.
     params = preprocess_Hyper_fw_bw(g, True)
     features = g.ndata["feat"]
+    print(features.shape)
 
     n_feats = features.shape[1]
     n_classes = dataset.num_classes
@@ -82,7 +78,7 @@ def main(args):
         n_classes,
     ).to(dev)
     if args.dataset == "arxiv":
-        loss_fcn = custom_loss_function
+        loss_fcn = F.nll_loss
     else:
         loss_fcn = torch.nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
@@ -92,6 +88,9 @@ def main(args):
     for epoch in range(3):
         logits = model(params, features)
         loss = loss_fcn(logits, labels)
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
 
     model.train()
     torch.cuda.synchronize()
@@ -113,6 +112,9 @@ def main(args):
     for epoch in range(3):
         logits = model(params, features, fuse=True)
         loss = loss_fcn(logits, labels)
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
 
     model.train()
     torch.cuda.synchronize()
@@ -132,11 +134,10 @@ def main(args):
 
     print("----infer------")
     print("----nofused------")
-    model.eval()
     torch.cuda.synchronize()
     start = time.time()
     for epoch in range(args.n_epochs):
-        model.eval()
+        model.train()
         logits = model(params, features)
     torch.cuda.synchronize()
     end = time.time()
@@ -144,11 +145,10 @@ def main(args):
     print(f"no-fused avg infer time {inference_time*1000:.4f}")
 
     print("----fused------")
-    model.eval()
     torch.cuda.synchronize()
     start = time.time()
     for epoch in range(args.n_epochs):
-        model.eval()
+        model.train()
         logits = model(params, features, fuse=True)
     torch.cuda.synchronize()
     end = time.time()

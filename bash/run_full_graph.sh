@@ -4,7 +4,7 @@ read -p "Enter heads(default=1): " heads
 read -p "Enter data dir(default=/workspace2/dataset): " data_dir
 
 if [ -z "${dim}" ]; then
-	dim=64
+	dim=128
 fi
 if [ -z "${heads}" ]; then
 	heads=1
@@ -17,7 +17,7 @@ fi
 # fi
 
 datasets=(arxiv cora cite pubmed)
-datasets=(arxiv)
+# datasets=(cora cite pubmed)
 
 formats=(csr hyper)
 day=$(date +%m_%d)
@@ -30,7 +30,7 @@ python setup.py develop
 ## train
 for dataset in ${datasets[@]}; do
 	# python -u dgNN/script/train/train_gtconv_full_graph.py --dim $dim  --dataset ${dataset} --data-dir ${data_dir} --n-epochs 100 | tee log/day_${day}/gt_train_full_graph_${dataset}_dim${dim}.log
-	python -u dgNN/script/train/train_gtconv_full_graph.py --dim $dim --dataset ${dataset} --data-dir ${data_dir} --n-epochs 100
+	python -u dgNN/script/train/train_gtconv_full_graph.py --dim $dim --dataset ${dataset} --data-dir ${data_dir} --n-epochs 100 | tee log/day_${day}/gt_train_full_graph_${dataset}_dim${dim}.log
 
 done
 

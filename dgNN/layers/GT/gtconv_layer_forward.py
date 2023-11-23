@@ -9,10 +9,16 @@ class SparseMHA_fused(SparseMHA):
         h = self.in_proj(h)
 
         ## get Q, K, V features
-        q = self.q_proj(h).reshape(N, self.head_dim, self.num_heads)
+        q = self.q_proj(h).view(N, self.head_dim, self.num_heads)
         q *= self.scaling
-        k = self.k_proj(h).reshape(N, self.head_dim, self.num_heads)
-        v = self.v_proj(h).reshape(N, self.head_dim, self.num_heads)
+        k = self.k_proj(h).view(N, self.head_dim, self.num_heads)
+        v = self.v_proj(h).view(N, self.head_dim, self.num_heads)
+
+        # q = self.q_proj(h).reshape(N, self.num_heads, self.head_dim)
+        # q *= self.scaling
+        # k = self.k_proj(h).reshape(N, self.num_heads, self.head_dim)
+        # v = self.v_proj(h).reshape(N, self.num_heads, self.head_dim)
+
         (
             A,
             rows,
