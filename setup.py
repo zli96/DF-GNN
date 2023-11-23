@@ -58,24 +58,6 @@ setuptools.setup(
             extra_link_args=["-lcurand", "-lcusparse"],
         ),
         CUDAExtension(
-            "package.fused_edgeconv",
-            [
-                "dgNN/src/fused_edgeconv/fused_edgeconv.cpp",
-                "dgNN/src/fused_edgeconv/fused_edgeconv_kernel.cu",
-            ],
-            extra_compile_args={"cxx": [], "nvcc": ["-arch=sm_75"]},
-            extra_link_args=["-lcurand"],
-        ),
-        CUDAExtension(
-            "package.fused_gmmconv",
-            [
-                "dgNN/src/fused_gmmconv/fused_gmmconv.cpp",
-                "dgNN/src/fused_gmmconv/fused_gmmconv_kernel.cu",
-            ],
-            extra_compile_args={"cxx": [], "nvcc": ["-arch=sm_75"]},
-            extra_link_args=["-lcurand"],
-        ),
-        CUDAExtension(
             "package.mhsddmm",
             ["dgNN/src/sddmm/mhsddmm.cc", "dgNN/src/sddmm/mhsddmm_kernel.cu"],
             extra_compile_args={"cxx": [], "nvcc": ["-arch=sm_75"]},
