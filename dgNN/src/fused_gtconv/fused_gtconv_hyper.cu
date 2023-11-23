@@ -460,6 +460,35 @@ __global__ void fused_inference_kernel_hyper_row_switch(
   }
 }
 
+// csc format spmm kernel
+// efeat (nnz, h, efeat_len), ufeat (n, h, ufeat_len), in csr format
+template <typename DType>
+__global__ void
+spmm_csc_kernel(int n, int ufeat_len, int efeat_len, int out_len,
+                const int *indptr, const int *indices, const int *val_idx,
+                const DType *ufeat, const DType *efeat, DType *out) {
+  int hid = blockIdx.y;
+  int ty = blockIdx.x * blockDim.y + threadIdx.y; // 0-n
+  const int stride_x = blockDim.x * gridDim.y;    // f*h
+
+  if (ty < n) {
+    int tx = blockIdx.y * blockDim.x + threadIdx.x; // 0-f
+    while (tx < out_len) {
+      DType acc = 0;
+      for (int i = indptr[ty]; i < indptr[ty + 1]; ++i) {
+        const int eid = val_idx[i];
+        const int cid = __ldg(indices + i);
+        const DType *uoff = ufeat + cid * ufeat_len;
+        const DType *eoff = efeat + hid * efeat_len;
+        DType tmp_out = uoff[tx] * eoff[eid];
+        acc += tmp_out;
+      }
+      out[ty * out_len + tx] = acc;
+      tx += stride_x;
+    }
+  }
+}
+
 // SPMM backward A @ B = C -> dB = (A^T) @ dC
 template <typename DType>
 __global__ void spmm_backward_kernel(int h, int f, const int *col_ptr,
@@ -628,31 +657,25 @@ void gt_backward_launch(int m, int n, int nnz, int h, int f, int smem_consume,
                    h, f, row, row_ptr, col_ind, K, V, attn_edge, grad,
                    grad_edge, grad_Q);
 
+  // const int ntx = FindNumThreads(f);
+  // const int nty = CUDA_MAX_NUM_THREADS / ntx;
+  // const int nby = h;
+  // const int nbx = (n + nty - 1) / nty;
+  // // printf("launch dim %d %d %d %d \n", ntx, nty, nbx, nby);
+  // const dim3 nblks(nbx, nby, 1);
+  // const dim3 nthrs(ntx, nty, 1);
+
+  // CUDA_KERNEL_CALL((spmm_csc_kernel<float>), nblks, nthrs, 0, n, f * h, h,
+  //                  f * h, col_ptr, row_ind, val_idx, Q, grad_edge, grad_K);
+  // CUDA_KERNEL_CALL((spmm_csc_kernel<float>), nblks, nthrs, 0, n, f * h, nnz,
+  //                  f * h, col_ptr, row_ind, val_idx, grad, attn_edge,
+  //                  grad_V);
+
   const dim3 nblks(n, h, 1);
   const dim3 nthrs(32, (f + 31) / 32, 1);
   CUDA_KERNEL_CALL((spmm_backward_kernel<float>), nblks, nthrs,
                    512 * sizeof(float), h, f, col_ptr, row_ind, val_idx, Q,
                    attn_edge, grad_edge, grad, grad_V, grad_K);
-
-  // else
-  // {
-  //   mhspmm_backward_kernel_small_f<<<dim3(m, 1, 1), dim3(32, h, 1), 32 * h *
-  //   sizeof(float)>>>(
-  //       m, nnz, h, f, negative_slope, attn_drop, row_ptr, col_ind, col_ptr,
-  //       row_ind,permute, edge_max, edge_sum, edge_mask, attn_row, attn_col,
-  //       grad, grad_feat);
-  // }
-
-  // mhsddmm<<<dim3(nnz / 16 + (nnz & 15), h, 1), dim3(32, 4, 1)>>>(
-  //     m, f, h, nnz, row_ptr, col_ind, grad, in_feat, grad_edge_csr);
-
-  // fused_backward_kernel<<<dim3(m, 1, 1), dim3(32, h, 1)>>>(
-  //     m, nnz, h, f, attn_drop, row_ptr, col_ind, negative_slope, edge_max,
-  //     edge_sum, edge_mask, attn_row, attn_col, grad_edge_csr, grad_attn_row,
-  //     grad_attn_col);
-
-  // gather_col<<<dim3(m, 1, 1), dim3(32, h, 1)>>>(m, nnz, h, f, col_ptr,
-  // permute, grad_edge_for_gather_csr, grad_attn_col);
 }
 
 std::vector<torch::Tensor>

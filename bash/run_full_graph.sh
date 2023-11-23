@@ -4,7 +4,7 @@ read -p "Enter heads(default=1): " heads
 read -p "Enter data dir(default=/workspace2/dataset): " data_dir
 
 if [ -z "${dim}" ]; then
-	dim=128
+	dim=64
 fi
 if [ -z "${heads}" ]; then
 	heads=1
@@ -19,7 +19,7 @@ fi
 datasets=(arxiv cora cite pubmed)
 # datasets=(cora cite pubmed)
 
-formats=(csr hyper)
+# formats=(csr hyper)
 day=$(date +%m_%d)
 Time=$(date +%H_%M_%S)
 mkdir log/day_${day}
