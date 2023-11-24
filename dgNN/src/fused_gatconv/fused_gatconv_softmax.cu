@@ -1,3 +1,4 @@
+#include "../spmm/spmm.cuh"
 #include "../util/computeUtil.h"
 #include <cuda.h>
 #include <torch/types.h>
@@ -29,82 +30,6 @@ __global__ void gat_sddmmCooKernel(const int lhs_len, const int rhs_len,
   }
 }
 
-__global__ void softMax_SPMM(const int h, const int f, const int *indptr,
-                             const int *indices, const float *in_feat,
-                             const float *attn_edge, float *out_feat) {
-  const int rid = blockIdx.x;                     // loop over row of adj matrix
-  const int hid = blockIdx.y;                     // loop over heads
-  const int fid = threadIdx.y * 32 + threadIdx.x; // loop over feature dim
-
-  const int lb = indptr[rid]; // row rid elements
-  const int hb = indptr[rid + 1];
-
-  const int num_neighbor = hb - lb;
-  extern __shared__ float smem[];
-  float *neigh_nodes_weight = smem;
-  float weightMax = -1e38;
-  const int hf = h * f;
-  const int hfid = hid * f + fid;
-
-  // init smem
-  int loop = (num_neighbor + f - 1) / f;
-  for (int j = 0; j < loop; j++) {
-    int pid = fid + j * f;
-    if (pid < num_neighbor) {
-      // TODO add nnz
-      neigh_nodes_weight[pid] = attn_edge[lb + pid];
-    }
-  }
-  __syncthreads();
-
-  loop = (num_neighbor + WARP_SIZE - 1) / WARP_SIZE;
-  for (int j = 0; j < loop; j++) {
-    float weight = -1e38;
-    int pid = threadIdx.x + (j << 5);
-    if (pid < num_neighbor) {
-      weight = neigh_nodes_weight[pid];
-    }
-    __syncwarp();
-    for (int stride = 16; stride > 0; stride >>= 1) {
-      weight = max(__shfl_xor_sync(0xffffffff, weight, stride, 32), weight);
-    }
-    // warpMax = warpReduceMax(weight);
-    __syncwarp();
-    weightMax = MAX(weight, weightMax);
-  }
-  // compute the sum of exp
-  float expAll = 0;
-  for (int j = 0; j < loop; j++) {
-    int pid = threadIdx.x + (j << 5); // node need to process in loop j
-    float exptmp = 0;
-    if (pid < num_neighbor) {
-      float weight = neigh_nodes_weight[pid];
-      exptmp = exp(weight - weightMax);
-    }
-    __syncwarp();
-    for (int stride = 16; stride > 0; stride >>= 1) {
-      exptmp += __shfl_xor_sync(0xffffffff, exptmp, stride, 32);
-    }
-    __syncwarp();
-    expAll += exptmp;
-  }
-
-  // compute the output
-  float acc = 0;
-  float attn_val;
-  for (int j = 0; j < num_neighbor; j++) {
-    int cid = indices[lb + j];
-    float weight = neigh_nodes_weight[j];
-    attn_val = exp(weight - weightMax);
-    if (fid < f) {
-      acc += attn_val * in_feat[cid * hf + hfid];
-    }
-  }
-  if (fid < f)
-    // handle the node with no neighbor
-    out_feat[rid * hf + hfid] = (expAll != 0) ? acc / expAll : 0;
-}
-
 void gat_softmax_inference_launch(int m, int nnz, int h, int f,
                                   int smem_consume, const float *attn_row,
                                   const float *attn_col, const int *indptr,
@@ -126,7 +51,7 @@ void gat_softmax_inference_launch(int m, int nnz, int h, int f,
 
   const dim3 nblks2(m, h, 1);
   const dim3 nthrs2(32, (f + 31) / 32, 1);
-  CUDA_KERNEL_CALL((softMax_SPMM), nblks2, nthrs2,
+  CUDA_KERNEL_CALL((softMax_SPMM<float>), nblks2, nthrs2,
                    (smem_consume) * sizeof(float), h, f, indptr, indices,
                    in_feat, attn_edge, out_feat);
 }

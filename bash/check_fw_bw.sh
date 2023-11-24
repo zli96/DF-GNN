@@ -1,3 +1,5 @@
+read -p "Whether to log(default=False): " log_flag
+
 if [ -z "${heads}" ]; then
 	heads=1
 fi
@@ -11,11 +13,14 @@ mkdir log/day_${day}
 
 set -e
 python setup.py develop
-
-log=log/check_fw_bw.log
+if [ -n "${test_flag}" ]; then
+	log=log/check_fw_bw.log
+else
+	log=/tmp/null
+fi
 ## forward check
 
-# ## GT
+## GT
 python -u dgNN/script/test/test_fuse_conv.py --dim 64 --batch-size 64 --data-dir ${data_dir} --dataset PATTERN --format hyper --conv gt | tee $log
 
 python -u dgNN/script/test/test_fuse_conv.py --dim 64 --batch-size 64 --data-dir ${data_dir} --dataset PATTERN --format csr --conv gt | tee -a $log
@@ -33,6 +38,8 @@ python -u dgNN/script/test/test_fuse_conv.py --dim 64 --batch-size 64 --data-dir
 python -u dgNN/script/test/test_fuse_conv.py --dim 64 --batch-size 64 --data-dir ${data_dir} --dataset PATTERN --format hyper --conv gat | tee -a $log
 
 python -u dgNN/script/test/test_fuse_conv.py --dim 64 --batch-size 64 --data-dir ${data_dir} --dataset PATTERN --format csr --conv gat | tee -a $log
+
+python -u dgNN/script/test/test_fuse_conv.py --dim 64 --batch-size 64 --data-dir ${data_dir} --dataset PATTERN --format softmax --conv gat | tee -a $log
 
 ## backward check
 python -u dgNN/script/train/test_gtconv_fw_bw.py --dim 64 --batch-size 64 --data-dir ${data_dir} --dataset PATTERN --checkgrad | tee -a $log
