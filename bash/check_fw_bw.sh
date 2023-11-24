@@ -14,9 +14,9 @@ mkdir log/day_${day}
 set -e
 python setup.py develop
 if [ -n "${test_flag}" ]; then
-	log=log/check_fw_bw.log
-else
 	log=/tmp/null
+else
+	log=log/check_fw_bw.log
 fi
 ## forward check
 
