@@ -20,9 +20,9 @@
 constexpr unsigned int full_mask = 0xffffffff;
 
 #define CEIL(x, y) (((x) + (y)-1) / (y))
-
 #define MIN(a, b) ((a < b) ? a : b)
 #define MAX(a, b) ((a < b) ? b : a)
+#define LeakyRelu(x, negative_slope) ((x > 0) ? (x) : ((x)*negative_slope))
 
 #define checkCudaError(a)                                                      \
   do {                                                                         \

@@ -37,6 +37,14 @@ def GATConvFuse_inference_hyper(
     )
 
 
+def GATConvFuse_inference_softmax(
+    smem_consume, attn_row, attn_col, indptr, indices, rows, negative_slope, in_feat
+):
+    return fused_gat.gat_inference_softmax(
+        smem_consume, attn_row, attn_col, indptr, indices, rows, negative_slope, in_feat
+    )
+
+
 def GATConvFuse_inference(
     attn_row, attn_col, row_ptr, col_ind, negative_slope, in_feat
 ):

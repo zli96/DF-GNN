@@ -2,17 +2,6 @@
 #include <cuda.h>
 #include <torch/types.h>
 
-#include <stdio.h>
-#include <unistd.h>
-
-/* we need these includes for CUDA's random number stuff */
-#include <curand.h>
-#include <curand_kernel.h>
-
-// #define MAX(a, b) ((a < b) ? (b) : (a))
-#define LeakyRelu(x, negative_slope) ((x > 0) ? (x) : ((x)*negative_slope))
-using namespace std;
-
 template <typename DType>
 __global__ void fused_gat_hyper_inference(
     int m, int h, int f, const DType *attn_row, const DType *attn_col,

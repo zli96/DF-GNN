@@ -45,9 +45,8 @@ __global__ void sddmmCooKernel(const int lhs_len, const int rhs_len,
 }
 
 __global__ void softMax_SPMM(const int h, const int f, const int *indptr,
-                             const int *indices, const float *val,
-                             const float *V, const float *attn_edge,
-                             float *out_feat) {
+                             const int *indices, const float *in_feat,
+                             const float *attn_edge, float *out_feat) {
   const int rid = blockIdx.x;                     // loop over row of adj matrix
   const int hid = blockIdx.y;                     // loop over heads
   const int fid = threadIdx.y * 32 + threadIdx.x; // loop over feature dim
@@ -112,7 +111,7 @@ __global__ void softMax_SPMM(const int h, const int f, const int *indptr,
     float weight = neigh_nodes_weight[j];
     attn_val = exp(weight - weightMax);
     if (fid < f) {
-      acc += attn_val * V[cid * hf + hfid];
+      acc += attn_val * in_feat[cid * hf + hfid];
     }
   }
   if (fid < f)
@@ -123,8 +122,8 @@ __global__ void softMax_SPMM(const int h, const int f, const int *indptr,
 __global__ void softMax_SPMM_tiling(const int m, const int nnz, const int h,
                                     const int f, const int *indptr,
                                     const int *indices, const float *val,
-                                    const float *V, const float *attn_edge,
-                                    float *out_feat) {
+                                    const float *in_feat,
+                                    const float *attn_edge, float *out_feat) {
   const int rid = blockIdx.x;                     // loop over row of adj matrix
   const int hid = blockIdx.y;                     // loop over heads
   const int fid = threadIdx.y * 32 + threadIdx.x; // loop over feature dim
@@ -156,7 +155,7 @@ __global__ void softMax_SPMM_tiling(const int m, const int nnz, const int h,
     expweightMax =
         (weightMax_old == weightMax) ? 1 : exp(weightMax_old - weightMax);
     if (fid < f)
-      acc = acc * expweightMax + expweight * V[cid * hf + hfid];
+      acc = acc * expweightMax + expweight * in_feat[cid * hf + hfid];
     partial_sum = partial_sum * expweightMax + expweight;
     weightMax_old = weightMax;
   }
@@ -182,8 +181,8 @@ void gt_softmax_inference_launch(int m, int nnz, int h, int f, int smem_consume,
   const dim3 nblks2(m, h, 1);
   const dim3 nthrs2(32, (f + 31) / 32, 1);
   CUDA_KERNEL_CALL((softMax_SPMM), nblks2, nthrs2,
-                   (smem_consume) * sizeof(float), h, f, indptr, indices, val,
-                   V, attn_edge, out_feat);
+                   (smem_consume) * sizeof(float), h, f, indptr, indices, V,
+                   attn_edge, out_feat);
 }
 
 std::vector<torch::Tensor>

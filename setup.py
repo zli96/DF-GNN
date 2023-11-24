@@ -32,6 +32,7 @@ setuptools.setup(
                 "dgNN/src/fused_gatconv/fused_gatconv.cpp",
                 "dgNN/src/fused_gatconv/fused_gatconv_kernel.cu",
                 "dgNN/src/fused_gatconv/fused_gatconv_hyper.cu",
+                "dgNN/src/fused_gatconv/fused_gatconv_softmax.cu",
             ],
             extra_compile_args={"cxx": [], "nvcc": ["-arch=sm_75", "-lineinfo"]},
             extra_link_args=["-lcurand"],
