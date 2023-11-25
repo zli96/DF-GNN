@@ -189,7 +189,7 @@ def check_correct(logits, logits_fuse, params):
                     print("fuse result", logits_fuse[i])
                     print(chech_same_ele)
                     acc = acc + 1
-                if acc > 5:
+                if acc > 3:
                     break
         if acc == 0:
             print("the results are the same, success!!!!!!!!!!")

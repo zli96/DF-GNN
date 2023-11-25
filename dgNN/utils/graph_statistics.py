@@ -9,7 +9,6 @@ import torch
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(current_dir, "../.."))
-print(os.path.join(current_dir, ".."))
 
 
 import argparse
@@ -17,7 +16,7 @@ import argparse
 from dgl.dataloading import GraphDataLoader
 
 from tqdm import tqdm
-from util import load_data_full_graph, load_dataset_fn, parser_argument
+from util import load_data_full_graph, load_dataset_fn, mkdir, parser_argument
 
 
 def mean(arr):
@@ -130,16 +129,22 @@ def full_graph_statistics(args):
 
 
 def plot_dataset_perf(args):
-    formats = ["hyper", "indegree", "csr", "softmax"]
+    # formats = ["hyper", "indegree", "csr", "softmax"]
+    # formats_label = [
+    #     "All fuse(hyper)",
+    #     "All fuse(indegree)",
+    #     "All fuse(csr)",
+    #     "Fuse softmax&SPMM",
+    # ]
+    # if args.conv == "dotgat":
+    #     formats = ["hyper", "tile"]
+    #     formats_label = ["All fuse(hyper)", "All fuse(tile`)"]
+    formats = ["hyper", "csr", "softmax"]
     formats_label = [
         "All fuse(hyper)",
-        "All fuse(indegree)",
         "All fuse(csr)",
         "Fuse softmax&SPMM",
     ]
-    if args.conv == "dotgat":
-        formats = ["hyper", "tile"]
-        formats_label = ["All fuse(hyper)", "All fuse(tile`)"]
     batch_sizes = [str(2**i) for i in range(4, 13)]
 
     time_no_fuse_all = []
@@ -163,7 +168,9 @@ def plot_dataset_perf(args):
         time_no_fuse_all.append(a2)
         time_fuse_all.append(a3)
 
-    save_dir = f"""/workspace2/fuse_attention/figure/dataset/{args.conv}/dim{args.dim}_{args.dataset}"""
+    save_folder = f"/workspace2/fuse_attention/figure/dataset/{args.conv}"
+    mkdir(save_folder)
+    save_dir = os.path.join(save_folder, f"dim{args.dim}_{args.dataset}")
     title = f"""{args.dataset} dataset, dim={args.dim}"""
 
     # plot elapsed time of diff methods (log coordinate)

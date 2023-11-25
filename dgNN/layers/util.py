@@ -153,6 +153,7 @@ def preprocess_softmax(g, **args):
 
 
 def preprocess_softmax_g(g, dim):
+    g = dgl.add_self_loop(g)
     A, max_neigh = g_to_SPmatrix(g)
 
     # using max_degree to cal max smem consume
