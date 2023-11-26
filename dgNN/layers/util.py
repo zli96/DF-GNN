@@ -10,7 +10,7 @@ from .GAT import GATConv_dgNN, GATConv_hyper, GATConv_softmax
 
 from .GAT_DOT import DOTGATConv_csr, DOTGATConv_hyper, DOTGATConv_softmax
 
-from .GT import SparseMHA_CSR, SparseMHA_hyper, SparseMHA_mpnn, SparseMHA_softmax
+from .GT import SparseMHA_CSR, SparseMHA_hybrid, SparseMHA_hyper, SparseMHA_softmax
 
 from .GT.gtconv_layer_subgraph import (
     SparseMHA_indegree,
@@ -27,12 +27,11 @@ def g_to_SPmatrix(g):
     # max_neigh = max(torch.bincount(indices[0]))
     N = g.num_nodes()
     A = dglsp.spmatrix(indices, shape=(N, N))
-    A2 = dglsp.spmatrix(indices, shape=(N, N))
-    return A, A2, 128
+    return A, 128
 
 
 def preprocess_CSR(g, **args):
-    A, A2, max_neigh = g_to_SPmatrix(g)
+    A, max_neigh = g_to_SPmatrix(g)
 
     # using max_degree to cal max smem consume
     # max_degree = int(max(A.sum(1)).item())
@@ -40,7 +39,7 @@ def preprocess_CSR(g, **args):
     print("preprocess smem consume", smem_consume)
 
     # the CSR format of adj matrix
-    row_ptr, col_ind, val_idx = A2.csr()
+    row_ptr, col_ind, val_idx = A.csr()
     row_ptr = row_ptr.int()
     col_ind = col_ind.int()
     val = A.val[val_idx]
@@ -64,7 +63,7 @@ def preprocess_CSR_g(g, dim):
 
 
 def preprocess_Hyper(g, **args):
-    A, A2, max_neigh = g_to_SPmatrix(g)
+    A, max_neigh = g_to_SPmatrix(g)
 
     # using max_degree to cal max smem consume
     # max_degree = int(max(A.sum(1)).item())
@@ -76,16 +75,16 @@ def preprocess_Hyper(g, **args):
     rows = torch.sort(rows).values
 
     # the CSR format of adj matrix
-    row_ptr, col_ind, val_idx = A2.csr()
+    row_ptr, col_ind, val_idx = A.csr()
     row_ptr = row_ptr.int()
     col_ind = col_ind.int()
-    val = A2.val[val_idx]
+    val = A.val[val_idx]
     return A, row_ptr, col_ind, rows, val, smem_consume
 
 
 def preprocess_Hyper_fw_bw(g, fused):
     # print("start preprocess")
-    A, A2, max_neigh = g_to_SPmatrix(g)
+    A, max_neigh = g_to_SPmatrix(g)
     if not fused:
         return A, None, None, None, None, None, None, None, None
 
@@ -99,7 +98,7 @@ def preprocess_Hyper_fw_bw(g, fused):
     rows = torch.sort(rows).values
 
     # the CSR format of adj matrix
-    row_ptr, col_ind, val_idx = A2.csr()
+    row_ptr, col_ind, val_idx = A.csr()
     row_ptr = row_ptr.int()
     col_ind = col_ind.int()
     val = A.val[val_idx]
@@ -134,7 +133,7 @@ def preprocess_Hyper_g(g, dim):
 
 
 def preprocess_softmax(g, **args):
-    A, A2, max_neigh = g_to_SPmatrix(g)
+    A, max_neigh = g_to_SPmatrix(g)
 
     # using max_degree to cal max smem consume
     # max_degree = int(max(A.sum(1)).item())
@@ -146,7 +145,7 @@ def preprocess_softmax(g, **args):
     rows = torch.sort(rows).values
 
     # the CSR format of adj matrix
-    row_ptr, col_ind, val_idx = A2.csr()
+    row_ptr, col_ind, val_idx = A.csr()
     row_ptr = row_ptr.int()
     col_ind = col_ind.int()
     val = A.val[val_idx]
@@ -174,11 +173,17 @@ def preprocess_softmax_g(g, dim):
     return g, row_ptr, col_ind, rows, val, smem_consume
 
 
-def preprocess_mpnn(g, **args):
-    print("preprocess mpnn")
+def preprocess_hybrid(g, **args):
+    print("preprocess hybrid")
     g = dgl.add_self_loop(g)
-    A, _, _ = g_to_SPmatrix(g)
-    return A, g
+    indices = torch.stack(g.edges())
+    # max_neigh = max(torch.bincount(indices[0]))
+    N = g.num_nodes()
+    A = dglsp.spmatrix(indices, shape=(N, N))
+    val = torch.ones([g.num_edges(), 1], device=g.device)
+    A2 = dglsp.val_like(A, val=val)
+
+    return A, A2
 
 
 def preprocess_SubGraph(g, **args):
@@ -188,10 +193,10 @@ def preprocess_SubGraph(g, **args):
     nodes_subgraph = torch.cat(
         (torch.tensor([0]), torch.cumsum(nodes.clone(), 0))
     ).int()
-    A, A2, max_neigh = g_to_SPmatrix(g)
+    A, max_neigh = g_to_SPmatrix(g)
 
     # the CSR format of adj matrix
-    row_ptr, col_ind, val_idx = A2.csr()
+    row_ptr, col_ind, val_idx = A.csr()
     row_ptr = row_ptr.int()
     col_ind = col_ind.int()
     val = A.val[val_idx]
@@ -379,8 +384,8 @@ def load_layer_GT(args):
         layer = SparseMHA_indegree_hyper(args.dim, args.dim, args.heads)
     elif args.format == "subgraph":
         layer = SparseMHA_subgraph(args.dim, args.dim, args.heads)
-    elif args.format == "mpnn":
-        layer = SparseMHA_mpnn(args.dim, args.dim, args.heads)
+    elif args.format == "hybrid":
+        layer = SparseMHA_hybrid(args.dim, args.dim, args.heads)
     else:
         raise ValueError(f"Unsupported format {args.format} in GTconv")
     return layer
@@ -434,8 +439,8 @@ def load_prepfunc(args):
             preprocess_func = preprocess_indegree_hyper
         elif args.format == "subgraph":
             preprocess_func = preprocess_SubGraph
-        elif args.format == "mpnn":
-            preprocess_func = preprocess_mpnn
+        elif args.format == "hybrid":
+            preprocess_func = preprocess_hybrid
         else:
             raise ValueError(f"Unsupported format {args.format}")
     return preprocess_func

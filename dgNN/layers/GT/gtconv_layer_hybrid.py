@@ -1,11 +1,18 @@
 import dgl.function as fn
+import dgl.sparse as dglsp
 from dgl.nn.functional import edge_softmax
 
 from dgNN.utils import benchmark
 from .gtconv_layer import SparseMHA
 
 
-class SparseMHA_mpnn(SparseMHA):
+class SparseMHA_hybrid(SparseMHA):
+    def forward_hybrid(self, A, A_csr, q, k, v):
+        attn = dglsp.bsddmm(A, q, k.transpose(1, 0))
+        attn = attn.softmax()
+        out = dglsp.bspmm(A_csr, v)
+        return out
+
     def forward_mpnn(self, graph, q, k, v):
         graph.dstdata.update({"q": q})
         graph.srcdata.update({"k": k})
@@ -34,20 +41,28 @@ class SparseMHA_mpnn(SparseMHA):
         q *= self.scaling
         k = self.k_proj(h).reshape(N, self.head_dim, self.num_heads)
         v = self.v_proj(h).reshape(N, self.head_dim, self.num_heads)
-        A, g = params
-
+        A, A2 = params
+        A2.csr()
         if fuse:
-            q = q.transpose(1, 2).contiguous()
-            k = k.transpose(1, 2).contiguous()
-            v = v.transpose(1, 2).contiguous()
             out, elapsed_time = benchmark(
-                self.forward_mpnn,
-                g,
+                self.forward_hybrid,
+                A,
+                A2,
                 q,
                 k,
                 v,
             )
-            out = out.transpose(1, 2)
+            # q = q.transpose(1, 2).contiguous()
+            # k = k.transpose(1, 2).contiguous()
+            # v = v.transpose(1, 2).contiguous()
+            # out, elapsed_time = benchmark(
+            #     self.forward_mpnn,
+            #     g,
+            #     q,
+            #     k,
+            #     v,
+            # )
+            # out = out.transpose(1, 2)
         else:
             out, elapsed_time = benchmark(self.forward_nofuse, A, q, k, v)
 
