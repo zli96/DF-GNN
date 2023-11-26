@@ -27,11 +27,12 @@ def g_to_SPmatrix(g):
     # max_neigh = max(torch.bincount(indices[0]))
     N = g.num_nodes()
     A = dglsp.spmatrix(indices, shape=(N, N))
-    return A, 128
+    A2 = dglsp.spmatrix(indices, shape=(N, N))
+    return A, A2, 128
 
 
 def preprocess_CSR(g, **args):
-    A, max_neigh = g_to_SPmatrix(g)
+    A, A2, max_neigh = g_to_SPmatrix(g)
 
     # using max_degree to cal max smem consume
     # max_degree = int(max(A.sum(1)).item())
@@ -39,7 +40,7 @@ def preprocess_CSR(g, **args):
     print("preprocess smem consume", smem_consume)
 
     # the CSR format of adj matrix
-    row_ptr, col_ind, val_idx = A.csr()
+    row_ptr, col_ind, val_idx = A2.csr()
     row_ptr = row_ptr.int()
     col_ind = col_ind.int()
     val = A.val[val_idx]
@@ -48,7 +49,7 @@ def preprocess_CSR(g, **args):
 
 def preprocess_CSR_g(g, dim):
     g = dgl.add_self_loop(g)
-    A, max_neigh = g_to_SPmatrix(g)
+    A, _, max_neigh = g_to_SPmatrix(g)
     # using max_degree to cal max smem consume
     # max_degree = int(max(A.sum(1)).item())
     smem_consume = (max_neigh + WARP_SIZE - 1) // WARP_SIZE * WARP_SIZE
@@ -63,7 +64,7 @@ def preprocess_CSR_g(g, dim):
 
 
 def preprocess_Hyper(g, **args):
-    A, max_neigh = g_to_SPmatrix(g)
+    A, A2, max_neigh = g_to_SPmatrix(g)
 
     # using max_degree to cal max smem consume
     # max_degree = int(max(A.sum(1)).item())
@@ -75,16 +76,16 @@ def preprocess_Hyper(g, **args):
     rows = torch.sort(rows).values
 
     # the CSR format of adj matrix
-    row_ptr, col_ind, val_idx = A.csr()
+    row_ptr, col_ind, val_idx = A2.csr()
     row_ptr = row_ptr.int()
     col_ind = col_ind.int()
-    val = A.val[val_idx]
+    val = A2.val[val_idx]
     return A, row_ptr, col_ind, rows, val, smem_consume
 
 
 def preprocess_Hyper_fw_bw(g, fused):
     # print("start preprocess")
-    A, max_neigh = g_to_SPmatrix(g)
+    A, A2, max_neigh = g_to_SPmatrix(g)
     if not fused:
         return A, None, None, None, None, None, None, None, None
 
@@ -98,7 +99,7 @@ def preprocess_Hyper_fw_bw(g, fused):
     rows = torch.sort(rows).values
 
     # the CSR format of adj matrix
-    row_ptr, col_ind, val_idx = A.csr()
+    row_ptr, col_ind, val_idx = A2.csr()
     row_ptr = row_ptr.int()
     col_ind = col_ind.int()
     val = A.val[val_idx]
@@ -113,7 +114,7 @@ def preprocess_Hyper_fw_bw(g, fused):
 
 def preprocess_Hyper_g(g, dim):
     g = dgl.add_self_loop(g)
-    A, max_neigh = g_to_SPmatrix(g)
+    A, _, max_neigh = g_to_SPmatrix(g)
 
     # using max_degree to cal max smem consume
     # max_degree = int(max(A.sum(1)).item())
@@ -133,7 +134,7 @@ def preprocess_Hyper_g(g, dim):
 
 
 def preprocess_softmax(g, **args):
-    A, max_neigh = g_to_SPmatrix(g)
+    A, A2, max_neigh = g_to_SPmatrix(g)
 
     # using max_degree to cal max smem consume
     # max_degree = int(max(A.sum(1)).item())
@@ -145,7 +146,7 @@ def preprocess_softmax(g, **args):
     rows = torch.sort(rows).values
 
     # the CSR format of adj matrix
-    row_ptr, col_ind, val_idx = A.csr()
+    row_ptr, col_ind, val_idx = A2.csr()
     row_ptr = row_ptr.int()
     col_ind = col_ind.int()
     val = A.val[val_idx]
@@ -154,7 +155,7 @@ def preprocess_softmax(g, **args):
 
 def preprocess_softmax_g(g, dim):
     g = dgl.add_self_loop(g)
-    A, max_neigh = g_to_SPmatrix(g)
+    A, _, max_neigh = g_to_SPmatrix(g)
 
     # using max_degree to cal max smem consume
     # max_degree = int(max(A.sum(1)).item())
@@ -174,9 +175,9 @@ def preprocess_softmax_g(g, dim):
 
 
 def preprocess_mpnn(g, **args):
+    print("preprocess mpnn")
     g = dgl.add_self_loop(g)
-    A, _ = g_to_SPmatrix(g)
-
+    A, _, _ = g_to_SPmatrix(g)
     return A, g
 
 
@@ -187,10 +188,10 @@ def preprocess_SubGraph(g, **args):
     nodes_subgraph = torch.cat(
         (torch.tensor([0]), torch.cumsum(nodes.clone(), 0))
     ).int()
-    A, max_neigh = g_to_SPmatrix(g)
+    A, A2, max_neigh = g_to_SPmatrix(g)
 
     # the CSR format of adj matrix
-    row_ptr, col_ind, val_idx = A.csr()
+    row_ptr, col_ind, val_idx = A2.csr()
     row_ptr = row_ptr.int()
     col_ind = col_ind.int()
     val = A.val[val_idx]
