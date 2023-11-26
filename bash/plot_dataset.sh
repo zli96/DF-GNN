@@ -1,4 +1,4 @@
-conv=dotgat
+conv=gat
 echo plot ${conv}
 data_dir="/workspace2/dataset"
 # datasets=(Peptides-func Peptides-struct PascalVOC-SP COCO-SP ogbg-molhiv PATTERN CLUSTER MNIST CIFAR10)
