@@ -10,9 +10,9 @@ if [ -z "${data_dir}" ]; then
 fi
 
 if [ -n "${test_flag}" ]; then
-	datasets=(MNIST CIFAR10 Peptides-func Peptides-struct)
-	formats=(csr hyper)
-	batch_sizes=(16)
+	datasets=(PATTERN)
+	formats=(mpnn)
+	batch_sizes=(2048)
 	dims=(64)
 	echo test mode !!!!!!!!!!!!
 else

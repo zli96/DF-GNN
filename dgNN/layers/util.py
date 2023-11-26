@@ -10,7 +10,7 @@ from .GAT import GATConv_dgNN, GATConv_hyper, GATConv_softmax
 
 from .GAT_DOT import DOTGATConv_csr, DOTGATConv_hyper, DOTGATConv_softmax
 
-from .GT import SparseMHA_CSR, SparseMHA_hyper, SparseMHA_softmax
+from .GT import SparseMHA_CSR, SparseMHA_hyper, SparseMHA_mpnn, SparseMHA_softmax
 
 from .GT.gtconv_layer_subgraph import (
     SparseMHA_indegree,
@@ -171,6 +171,13 @@ def preprocess_softmax_g(g, dim):
     col_ind = col_ind.int()
     val = A.val[val_idx] / (dim**0.5)
     return g, row_ptr, col_ind, rows, val, smem_consume
+
+
+def preprocess_mpnn(g, **args):
+    g = dgl.add_self_loop(g)
+    A, _ = g_to_SPmatrix(g)
+
+    return A, g
 
 
 def preprocess_SubGraph(g, **args):
@@ -361,7 +368,7 @@ def subgraph_filter(dataset, dataset_name, dim, heads):
 def load_layer_GT(args):
     if args.format == "csr":
         layer = SparseMHA_CSR(args.dim, args.dim, args.heads)
-    elif args.format == "hyper":
+    elif args.format == "hyper" or args.format == "nofuse":
         layer = SparseMHA_hyper(args.dim, args.dim, args.heads)
     elif args.format == "softmax":
         layer = SparseMHA_softmax(args.dim, args.dim, args.heads)
@@ -371,6 +378,8 @@ def load_layer_GT(args):
         layer = SparseMHA_indegree_hyper(args.dim, args.dim, args.heads)
     elif args.format == "subgraph":
         layer = SparseMHA_subgraph(args.dim, args.dim, args.heads)
+    elif args.format == "mpnn":
+        layer = SparseMHA_mpnn(args.dim, args.dim, args.heads)
     else:
         raise ValueError(f"Unsupported format {args.format} in GTconv")
     return layer
@@ -379,7 +388,7 @@ def load_layer_GT(args):
 def load_layer_GAT(args):
     if args.format == "csr":
         layer = GATConv_dgNN(args.dim, args.dim, args.heads)
-    elif args.format == "hyper":
+    elif args.format == "hyper" or args.format == "nofuse":
         layer = GATConv_hyper(args.dim, args.dim, args.heads)
     elif args.format == "softmax":
         layer = GATConv_softmax(args.dim, args.dim, args.heads)
@@ -389,7 +398,7 @@ def load_layer_GAT(args):
 
 
 def load_layer_DOTGAT(args):
-    if args.format == "hyper":
+    if args.format == "hyper" or args.format == "nofuse":
         layer = DOTGATConv_hyper(args.dim, args.dim, args.heads)
     elif args.format == "csr":
         layer = DOTGATConv_csr(args.dim, args.dim, args.heads)
@@ -402,7 +411,7 @@ def load_layer_DOTGAT(args):
 
 def load_prepfunc(args):
     if args.conv == "dotgat":
-        if args.format == "hyper":
+        if args.format == "hyper" or args.format == "nofuse":
             preprocess_func = preprocess_Hyper_g
         elif args.format == "csr":
             preprocess_func = preprocess_CSR_g
@@ -414,7 +423,7 @@ def load_prepfunc(args):
     else:
         if args.format == "csr":
             preprocess_func = preprocess_CSR
-        elif args.format == "hyper":
+        elif args.format == "hyper" or args.format == "nofuse":
             preprocess_func = preprocess_Hyper
         elif args.format == "softmax":
             preprocess_func = preprocess_softmax
@@ -424,6 +433,8 @@ def load_prepfunc(args):
             preprocess_func = preprocess_indegree_hyper
         elif args.format == "subgraph":
             preprocess_func = preprocess_SubGraph
+        elif args.format == "mpnn":
+            preprocess_func = preprocess_mpnn
         else:
             raise ValueError(f"Unsupported format {args.format}")
     return preprocess_func
