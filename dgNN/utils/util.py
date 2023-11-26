@@ -175,8 +175,8 @@ def check_correct(logits, logits_fuse, params):
         print("the results are the same, success!!!!!!!!!!")
     else:
         false_flag = torch.argwhere(~check_same)
-        row_ptr = params[1]
-        col_ind = params[2]
+        # row_ptr = params[1]
+        # col_ind = params[2]
         acc = 0
 
         for i in false_flag:
@@ -184,12 +184,12 @@ def check_correct(logits, logits_fuse, params):
                 chech_same_ele = torch.isclose(logits[i], logits_fuse[i], rtol=0.001)[0]
                 if sum(chech_same_ele).item() + 1 != chech_same_ele.numel():
                     print(f"error node {i} mismatch")
-                    print("neighbor nodes", col_ind[row_ptr[i] : row_ptr[i + 1]])
+                    # print("neighbor nodes", col_ind[row_ptr[i] : row_ptr[i + 1]])
                     print("nonfuse result", logits[i])
                     print("fuse result", logits_fuse[i])
                     print(chech_same_ele)
                     acc = acc + 1
-                if acc > 3:
+                if acc > 0:
                     break
         if acc == 0:
             print("the results are the same, success!!!!!!!!!!")
@@ -284,51 +284,48 @@ def inference_Node_level(process_func, model, train_dataloader, dev, **kwargs):
     return time_no_fuse, time_fuse
 
 
-def train_profile(
-    process_func, model, train_dataloader, dev, dataset_name, fuse_flag, **arg
-):
+def train_profile(process_func, model, train_dataloader, dev, args, **arg):
     import ScheduleProfiler
 
-    profiler = ScheduleProfiler.ScheduleProfiler()
+    ScheduleProfiler.ScheduleProfiler()
     print("----------------------Forward------------------------")
-    if dataset_name in datasets_NC:
+    # if dataset_name in datasets_NC:
+    #     for i, (batched_g) in enumerate(train_dataloader):
+    #         # print("----------------------without fuse--------------------------")
+    #         params = process_func(batched_g, **arg)
+    #         batched_g, params = Move2Device([batched_g, params], dev)
+    #         profiler.start()
+    #         logits, elapsed_time = model(
+    #             params, batched_g.ndata["feat"], fuse=fuse_flag
+    #         )
+    #         profiler.stop()
+    # else:
+    #     for i, (batched_g, labels) in enumerate(train_dataloader):
+    #         # print("----------------------without fuse--------------------------")
+    #         params = process_func(batched_g, **arg)
+    #         batched_g, labels, params = Move2Device([batched_g, labels, params], dev)
+    #         profiler.start()
+    #         logits, elapsed_time = model(
+    #             params, batched_g.ndata["feat"], fuse=fuse_flag
+    #         )
+    #         profiler.stop()
+    with torch.profiler.profile(
+        schedule=torch.profiler.schedule(wait=5, warmup=1, active=1, repeat=1),
+        on_trace_ready=torch.profiler.tensorboard_trace_handler(
+            f"./log/tensor_board/{args.dataset}_{args.conv}_{args.format}"
+        ),
+        record_shapes=True,
+        profile_memory=True,
+        with_stack=True,
+    ) as prof:
         for i, (batched_g) in enumerate(train_dataloader):
-            # print("----------------------without fuse--------------------------")
+            batched_g = batched_g.to(dev)
             params = process_func(batched_g, **arg)
-            batched_g, params = Move2Device([batched_g, params], dev)
-            profiler.start()
             logits, elapsed_time = model(
-                params, batched_g.ndata["feat"], fuse=fuse_flag
+                params, batched_g.ndata["feat"], fuse=args.format != "nofuse"
             )
-            profiler.stop()
-    else:
-        for i, (batched_g, labels) in enumerate(train_dataloader):
-            # print("----------------------without fuse--------------------------")
-            params = process_func(batched_g, **arg)
-            batched_g, labels, params = Move2Device([batched_g, labels, params], dev)
-            profiler.start()
-            logits, elapsed_time = model(
-                params, batched_g.ndata["feat"], fuse=fuse_flag
-            )
-            profiler.stop()
-    #     with torch.profiler.profile(
-    #         schedule=torch.profiler.schedule(wait=5, warmup=1, active=1, repeat=1),
-    #         on_trace_ready=torch.profiler.tensorboard_trace_handler(
-    #             f"./log/tensor_board/{dataset_name}"
-    #         ),
-    #         record_shapes=True,
-    #         profile_memory=True,
-    #         with_stack=True,
-    #     ) as prof:
-    #         for i, (batched_g, labels) in enumerate(train_dataloader):
-    #             # print("----------------------without fuse--------------------------")
-    #             params = process_func(batched_g, **arg)
-    #             batched_g, labels, params = Move2Device([batched_g, labels, params], dev)
-    #             profiler.start()
-    #             logits, elapsed_time = model(params, batched_g.ndata["feat"], fuse =fuse_flag)
-    #             profiler.stop()
-    #             prof.step()
-    # return
+            prof.step()
+    return
 
 
 def train_profile_SBM(process_func, model, train_dataloader, dev, **arg):
