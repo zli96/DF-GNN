@@ -139,12 +139,21 @@ def plot_dataset_perf(args):
     # if args.conv == "dotgat":
     #     formats = ["hyper", "tile"]
     #     formats_label = ["All fuse(hyper)", "All fuse(tile`)"]
-    formats = ["hyper", "csr", "softmax"]
-    formats_label = [
-        "All fuse(hyper)",
-        "All fuse(csr)",
-        "Fuse softmax&SPMM",
-    ]
+    if args.conv == "gt":
+        formats = ["hyper", "csr", "softmax", "hybrid"]
+        formats_label = [
+            "All fuse(hyper)",
+            "All fuse(csr)",
+            "Fuse softmax&SPMM",
+            "No fuse(hybrid format)",
+        ]
+    else:
+        formats = ["hyper", "csr", "softmax"]
+        formats_label = [
+            "All fuse(hyper)",
+            "All fuse(csr)",
+            "Fuse softmax&SPMM",
+        ]
     batch_sizes = [str(2**i) for i in range(4, 13)]
 
     time_no_fuse_all = []
@@ -179,7 +188,7 @@ def plot_dataset_perf(args):
     plt.xlabel("Batch Size", fontsize=20)
     for i, label in enumerate(formats_label):
         plt.plot(batch_sizes, time_fuse_all[i], "o-", label=label)
-    plt.plot(batch_sizes, time_no_fuse_all[0], "o-", label="No fuse(DGL)")
+    plt.plot(batch_sizes, time_no_fuse_all[0], "o-", label="No fuse(single format)")
     plt.yscale("log")
     plt.title(title, fontsize=20)
     plt.legend()
@@ -191,7 +200,7 @@ def plot_dataset_perf(args):
     plt.xlabel("Batch Size", fontsize=20)
     for i, label in enumerate(formats_label):
         plt.plot(batch_sizes, time_fuse_all[i], "o-", label=label)
-    plt.plot(batch_sizes, time_no_fuse_all[0], "o-", label="No fuse(DGL)")
+    plt.plot(batch_sizes, time_no_fuse_all[0], "o-", label="No fuse(single format)")
     plt.title(title, fontsize=20)
     plt.legend()
     plt.savefig(save_dir + "_time.png")

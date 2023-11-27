@@ -48,7 +48,7 @@ def preprocess_CSR(g, **args):
 
 def preprocess_CSR_g(g, dim):
     g = dgl.add_self_loop(g)
-    A, _, max_neigh = g_to_SPmatrix(g)
+    A, max_neigh = g_to_SPmatrix(g)
     # using max_degree to cal max smem consume
     # max_degree = int(max(A.sum(1)).item())
     smem_consume = (max_neigh + WARP_SIZE - 1) // WARP_SIZE * WARP_SIZE
@@ -113,7 +113,7 @@ def preprocess_Hyper_fw_bw(g, fused):
 
 def preprocess_Hyper_g(g, dim):
     g = dgl.add_self_loop(g)
-    A, _, max_neigh = g_to_SPmatrix(g)
+    A, max_neigh = g_to_SPmatrix(g)
 
     # using max_degree to cal max smem consume
     # max_degree = int(max(A.sum(1)).item())
@@ -154,7 +154,7 @@ def preprocess_softmax(g, **args):
 
 def preprocess_softmax_g(g, dim):
     g = dgl.add_self_loop(g)
-    A, _, max_neigh = g_to_SPmatrix(g)
+    A, max_neigh = g_to_SPmatrix(g)
 
     # using max_degree to cal max smem consume
     # max_degree = int(max(A.sum(1)).item())
