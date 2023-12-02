@@ -11,7 +11,7 @@ fi
 
 if [ -n "${test_flag}" ]; then
 	datasets=(PATTERN)
-	formats=(hyper csr softmax)
+	formats=(hybrid)
 	batch_sizes=(16)
 	dims=(128)
 	echo test mode !!!!!!!!!!!!

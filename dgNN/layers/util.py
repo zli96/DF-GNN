@@ -6,7 +6,7 @@ import torch
 
 from dgl.data import Subset
 
-from .GAT import GATConv_dgNN, GATConv_hyper, GATConv_softmax
+from .GAT import GATConv_dgNN, GATConv_hybrid, GATConv_hyper, GATConv_softmax
 
 from .GAT_DOT import DOTGATConv_csr, DOTGATConv_hyper, DOTGATConv_softmax
 
@@ -398,6 +398,8 @@ def load_layer_GAT(args):
         layer = GATConv_hyper(args.dim, args.dim, args.heads)
     elif args.format == "softmax":
         layer = GATConv_softmax(args.dim, args.dim, args.heads)
+    elif args.format == "hybrid":
+        layer = GATConv_hybrid(args.dim, args.dim, args.heads)
     else:
         raise ValueError(f"Unsupported format {args.format} in GATconv")
     return layer
