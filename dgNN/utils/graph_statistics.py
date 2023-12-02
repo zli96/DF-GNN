@@ -150,7 +150,7 @@ def plot_dataset_perf(args):
     elif args.conv == "gat":
         formats = ["hyper", "csr", "softmax"]
         formats_label = [
-            "All fuse(hyper)",
+            "All fuse(ours)",
             "All fuse(dgNN)",
             "Fuse softmax&SPMM",
         ]
