@@ -148,11 +148,12 @@ def plot_dataset_perf(args):
             "No fuse(hybrid format)",
         ]
     elif args.conv == "gat":
-        formats = ["hyper", "csr", "softmax"]
+        formats = ["hyper", "csr", "softmax", "hybrid"]
         formats_label = [
             "All fuse(ours)",
             "All fuse(dgNN)",
             "Fuse softmax&SPMM",
+            "No fuse(hybrid format)",
         ]
     else:
         formats = ["hyper", "csr", "softmax"]
