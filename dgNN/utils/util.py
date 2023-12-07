@@ -195,21 +195,6 @@ def check_correct(logits, logits_fuse, params):
             print("the results are the same, success!!!!!!!!!!")
 
 
-def Move2Device(data_list, dev):
-    ### move data in list to dev
-    data_dev = []
-    for data in data_list:
-        if isinstance(data, tuple):
-            data_dev.append(
-                [param.to(dev) if hasattr(param, "to") else param for param in data]
-            )
-        elif hasattr(data, "to"):
-            data_dev.append(data.to(dev))
-        else:
-            data_dev.append(data)
-    return data_dev
-
-
 def inference_Graph_level(process_func, model, train_dataloader, dev, **kwargs):
     r"""training function for the graph-level task"""
     print("----------------------Forward------------------------")
@@ -223,8 +208,9 @@ def inference_Graph_level(process_func, model, train_dataloader, dev, **kwargs):
             f"epoch {i} sample elapsed time {default_timer() - sample_start_time:.2f} s"
         )
         ## preprocess
+        batched_g, labels = batched_g.to(dev), labels.to(dev)
         params = process_func(batched_g, **kwargs)
-        batched_g, labels, params = Move2Device([batched_g, labels, params], dev)
+
         ## run by DGL sparse API
         model.eval()
         logits, elapsed_time = model(params, batched_g.ndata["feat"])
@@ -241,6 +227,7 @@ def inference_Graph_level(process_func, model, train_dataloader, dev, **kwargs):
             print(f"epoch {i} fused time %.4f" % elapsed_time)
             if i < 3:
                 check_correct(logits[:1000], logits_fuse[:1000], params)
+                check_correct(logits[-1000:], logits_fuse[-1000:], params)
             if i == 20:
                 break
         sample_start_time = default_timer()
@@ -260,8 +247,8 @@ def inference_Node_level(process_func, model, train_dataloader, dev, **kwargs):
             f"epoch {i} sample elapsed time {default_timer() - sample_start_time:.2f} s"
         )
         ## preprocess
+        batched_g = batched_g.to(dev)
         params = process_func(batched_g, **kwargs)
-        batched_g, params = Move2Device([batched_g, params], dev)
 
         ## run by DGL sparse API
         model.eval()
@@ -278,6 +265,7 @@ def inference_Node_level(process_func, model, train_dataloader, dev, **kwargs):
             print(f"epoch {i} fused time %.4f" % elapsed_time)
             if i < 3:
                 check_correct(logits[:1000], logits_fuse[:1000], params)
+                check_correct(logits[-1000:], logits_fuse[-1000:], params)
             if i == 20:
                 break
         sample_start_time = default_timer()
