@@ -10,8 +10,8 @@ if [ -z "${data_dir}" ]; then
 fi
 
 if [ -n "${test_flag}" ]; then
-	datasets=(MNIST)
-	formats=(hyper)
+	datasets=(PATTERN)
+	formats=(csr softmax hyper)
 	batch_sizes=(16)
 	dims=(64)
 	echo test mode !!!!!!!!!!!!

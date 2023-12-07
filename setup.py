@@ -46,6 +46,7 @@ setuptools.setup(
                 "dgNN/src/fused_gtconv/fused_gtconv_hyper.cu",
                 "dgNN/src/fused_gtconv/fused_gtconv_softmax.cu",
                 "dgNN/src/fused_gtconv/fused_gtconv_subgraph.cu",
+                "dgNN/src/fused_gtconv/fused_gtconv_backward.cu",
             ],
             extra_compile_args={"cxx": [], "nvcc": ["-arch=sm_75", "-lineinfo"]},
             extra_link_args=["-lcurand", "-lcusparse"],
