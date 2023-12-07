@@ -6,13 +6,7 @@ import dgl.sparse as dglsp
 import torch
 from dgl.dataloading import GraphDataLoader
 
-from dgNN.layers import (
-    load_layer_DOTGAT,
-    load_layer_GAT,
-    load_layer_GT,
-    load_prepfunc,
-    Model,
-)
+from dgNN.layers import load_layer, load_prepfunc, Model
 from dgNN.utils import load_dataset_fn, mkdir, parser_argument, train_profile
 
 
@@ -24,15 +18,7 @@ def main(args):
 
     # init model
     dataset, train_fn = load_dataset_fn(args.dataset, args.data_dir)
-    if args.conv == "dotgat":
-        layer = load_layer_DOTGAT(args)
-    elif args.conv == "gat":
-        layer = load_layer_GAT(args)
-    elif args.conv == "gt":
-        layer = load_layer_GT(args)
-    else:
-        raise ValueError(f"unknown graph conv {args.conv}")
-
+    layer = load_layer(args)
     preprocess_func = load_prepfunc(args)
     model = Model(args.dataset, MHAlayer=layer, hidden_size=args.dim)
     model = model.to(dev)

@@ -6,6 +6,8 @@ import torch
 
 from dgl.data import Subset
 
+from .AGNN import AGNNConv_csr, AGNNConv_hyper, AGNNConv_softmax
+
 from .GAT import GATConv_dgNN, GATConv_hybrid, GATConv_hyper, GATConv_softmax
 
 from .GAT_DOT import DOTGATConv_csr, DOTGATConv_hyper, DOTGATConv_softmax
@@ -413,12 +415,38 @@ def load_layer_DOTGAT(args):
     elif args.format == "softmax":
         layer = DOTGATConv_softmax(args.dim, args.dim, args.heads)
     else:
-        raise ValueError(f"Unsupported format {args.format} in GATconv")
+        raise ValueError(f"Unsupported format {args.format} in DOTGATconv")
+    return layer
+
+
+def load_layer_AGNN(args):
+    if args.format == "hyper" or args.format == "nofuse":
+        layer = AGNNConv_hyper(args.dim, args.dim, args.heads)
+    elif args.format == "csr":
+        layer = AGNNConv_csr(args.dim, args.dim, args.heads)
+    elif args.format == "softmax":
+        layer = AGNNConv_softmax(args.dim, args.dim, args.heads)
+    else:
+        raise ValueError(f"Unsupported format {args.format} in AGNNconv")
+    return layer
+
+
+def load_layer(args):
+    if args.conv == "dotgat":
+        layer = load_layer_DOTGAT(args)
+    elif args.conv == "gat":
+        layer = load_layer_GAT(args)
+    elif args.conv == "gt":
+        layer = load_layer_GT(args)
+    elif args.conv == "agnn":
+        layer = load_layer_AGNN(args)
+    else:
+        raise ValueError(f"unknown graph conv {args.conv}")
     return layer
 
 
 def load_prepfunc(args):
-    if args.conv == "dotgat":
+    if args.conv == "dotgat" or args.conv == "agnn":
         if args.format == "hyper" or args.format == "nofuse":
             preprocess_func = preprocess_Hyper_g
         elif args.format == "csr":

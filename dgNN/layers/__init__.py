@@ -9,6 +9,7 @@ from .GT.gtconv_layer_softmax import SparseMHA_softmax
 from .GT.gtconv_layer_subgraph import SparseMHA_indegree, SparseMHA_subgraph
 from .model import choose_Inproj, Model
 from .util import (
+    load_layer,
     load_layer_DOTGAT,
     load_layer_GAT,
     load_layer_GT,
