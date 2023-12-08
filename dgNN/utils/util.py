@@ -96,6 +96,7 @@ def load_data_full_graph(dataset_name, dataset_dir):
         dataset = CoraFullDataset(raw_dir=dataset_dir)
     elif dataset_name == "arxiv":
         dataset = DglNodePropPredDataset("ogbn-arxiv")
+        dataset = dataset[0]
     elif dataset_name == "cite":
         dataset = CiteseerGraphDataset(raw_dir=dataset_dir)
     elif dataset_name == "pubmed":

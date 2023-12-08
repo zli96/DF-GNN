@@ -1,5 +1,6 @@
-from dgl.nn import AGNNConv
+import dgl.sparse as dglsp
 from torch import nn
+from torch.nn import functional as F
 
 
 class AGNNConvDGL(nn.Module):
@@ -9,9 +10,10 @@ class AGNNConvDGL(nn.Module):
         self.out_size = out_size
         self.num_heads = num_heads
         self.proj = nn.Linear(in_size, out_size)
-        self.conv_nofuse = AGNNConv(learn_beta=False)
 
-    def forward_nofuse(self, g, feat):
-        feat = self.proj(feat)
-        out = self.conv_nofuse(g, feat)
+    def forward_nofuse(self, A, H):
+        H_norm = F.normalize(H, p=2, dim=1)
+        attn = dglsp.bsddmm(A, H_norm, H_norm.transpose(1, 0))  # [N, N, nh]
+        attn = attn.softmax()
+        out = dglsp.bspmm(attn, H)
         return out

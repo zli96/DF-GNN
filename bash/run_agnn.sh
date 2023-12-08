@@ -10,14 +10,14 @@ if [ -z "${data_dir}" ]; then
 fi
 
 if [ -n "${test_flag}" ]; then
-	datasets=(PATTERN)
-	formats=(hyper csr softmax)
+	datasets=(MNIST CIFAR10)
+	formats=(csr hyper softmax)
 	batch_sizes=(1024)
 	dims=(64)
 	echo test mode !!!!!!!!!!!!
 else
-	datasets=(ogbg-molhiv PATTERN CLUSTER MNIST CIFAR10 Peptides-func Peptides-struct PascalVOC-SP)
-	formats=(csr hyper softmax hybrid)
+	datasets=(PATTERN CLUSTER MNIST CIFAR10 Peptides-func Peptides-struct PascalVOC-SP COCO-SP)
+	formats=(csr hyper softmax)
 	batch_sizes=(16 32 64 128 256 512 1024 2048 4096)
 	dims=(32 64 128)
 fi

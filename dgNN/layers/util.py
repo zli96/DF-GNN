@@ -446,7 +446,7 @@ def load_layer(args):
 
 
 def load_prepfunc(args):
-    if args.conv == "dotgat" or args.conv == "agnn":
+    if args.conv == "dotgat":
         if args.format == "hyper" or args.format == "nofuse":
             preprocess_func = preprocess_Hyper_g
         elif args.format == "csr":

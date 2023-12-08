@@ -1,4 +1,3 @@
-import torch
 from torch.nn import functional as F
 
 from dgNN.operators.fused_gtconv import GTConvFuse_inference_hyper
@@ -24,9 +23,8 @@ class AGNNConv_hyper(AGNNConvDGL):
 
     def forward(self, params, feat, fuse=False):
         N = len(feat)
-        g, indptr, indices, rows, val, smem_consume = params
+        A, indptr, indices, rows, val, smem_consume = params
         H = self.proj(feat).view(-1, self.num_heads, self.out_size)
-        val = torch.full_like(val, self.conv_nofuse.beta[0].item())
         if fuse:
             H = H.contiguous()
             out, elapsed_time = benchmark(
@@ -39,5 +37,7 @@ class AGNNConv_hyper(AGNNConvDGL):
                 smem_consume,
             )
         else:
-            out, elapsed_time = benchmark(self.forward_nofuse, g, feat)
+            H = H.reshape(-1, self.out_size, self.num_heads)
+            out, elapsed_time = benchmark(self.forward_nofuse, A, H)
+            out = out.transpose(1, 2)
         return out.reshape(N, -1), elapsed_time * 1000
