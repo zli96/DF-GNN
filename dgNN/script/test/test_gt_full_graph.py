@@ -1,14 +1,29 @@
 import argparse
-import pdb
 
 import torch
+import torch.nn as nn
 
-from dgNN.layers import GTlayer, SparseMHA, SparseMHA_hyper_inference_timing
-from dgNN.utils import load_data_full_graph, preprocess_CSR, preprocess_Hyper
+from dgNN.layers import load_layer, load_prepfunc
+from dgNN.utils import check_correct, load_data_full_graph
+
+
+class Model(nn.Module):
+    """Graph Transformer Layer"""
+
+    def __init__(self, MHAlayer, in_size, hidden_size):
+        super().__init__()
+        self.inproj = nn.Linear(in_size, hidden_size)
+        self.MHA = MHAlayer
+
+    def forward(self, params, X, fuse=False):
+        h = self.inproj(X)
+        h = self.MHA(params, h, fuse)
+        return h
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="GT_full_graph")
+    parser = argparse.ArgumentParser(description="full_graph")
+    parser.add_argument("--conv", type=str, default="gt")
     parser.add_argument("--format", type=str, default="csr")
     parser.add_argument("--dim", type=int, default=64)
     parser.add_argument("--heads", type=int, default=1)
@@ -16,19 +31,14 @@ if __name__ == "__main__":
     parser.add_argument("--data-dir", type=str, default="./data")
     args = parser.parse_args()
 
+    layer = load_layer(args)
+    preprocess_func = load_prepfunc(args)
+
+    print("GraphConv", args.conv)
     print("format:", args.format)
     print("dataset:", args.dataset)
     print("hidden dim", args.dim)
     print("num heads", args.heads)
-
-    if args.format == "csr":
-        layer = SparseMHA
-        preprocess_func = preprocess_CSR
-    elif args.format == "hyper":
-        layer = SparseMHA_hyper_inference_timing
-        preprocess_func = preprocess_Hyper
-    else:
-        raise ValueError(f"Unsupported format {args.format}")
 
     # If CUDA is available, use GPU to accelerate the training, use CPU
     # otherwise.
@@ -39,39 +49,26 @@ if __name__ == "__main__":
     g = dataset[0].to(dev)
     # Create the sparse adjacency matrix A.
     params = preprocess_func(g)
-    params = [param.to(dev) for param in params]
     X = g.ndata["feat"]
     in_size = X.shape[1]
-    GTlayer = GTlayer(
-        layer, in_size=in_size, hidden_size=args.dim, num_heads=args.heads
-    ).to(dev)
+    model = Model(MHAlayer=layer, in_size=in_size, hidden_size=args.dim)
+    model = model.to(dev)
+    print("model", model)
 
     print("----------------------Forward------------------------")
     time_no_fuse = []
     time_fuse = []
     warmup = 2
     for epoch in range(50):
-        logits, elapsed_time = GTlayer(params, X)
+        logits, elapsed_time = model(params, X)
         if epoch >= warmup:
             time_no_fuse.append(elapsed_time)
             print(f"epoch {epoch} non-fused time %.4f" % elapsed_time)
-            logits_fuse, elapsed_time = GTlayer(params, X, fuse=True)
+            logits_fuse, elapsed_time = model(params, X, fuse=True)
             time_fuse.append(elapsed_time)
             print(f"epoch {epoch} fused time %.4f" % elapsed_time)
             if epoch < 3:
-                if all(torch.isclose(logits, logits_fuse, atol=0.001).flatten()):
-                    print("the results are the same, success!!!!!!!!!!")
-                else:
-                    for epoch in range(logits.shape[0]):
-                        if not all(
-                            torch.isclose(
-                                logits[epoch], logits_fuse[epoch], atol=0.001
-                            ).flatten()
-                        ):
-                            print(f"error node {epoch} mismatch")
-                            print(logits[epoch])
-                            print(logits_fuse[epoch])
-                            pdb.set_trace()
+                check_correct(logits, logits_fuse, params)
 
     print("----------------------Result------------------------")
     print(
