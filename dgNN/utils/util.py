@@ -276,71 +276,43 @@ def inference_Node_level(process_func, model, train_dataloader, dev, **kwargs):
 def train_profile(process_func, model, train_dataloader, dev, args, **arg):
     import ScheduleProfiler
 
-    ScheduleProfiler.ScheduleProfiler()
+    profiler = ScheduleProfiler.ScheduleProfiler()
+    fuse_flag = args.format != "nofuse"
     print("----------------------Forward------------------------")
-    # if dataset_name in datasets_NC:
-    #     for i, (batched_g) in enumerate(train_dataloader):
-    #         # print("----------------------without fuse--------------------------")
-    #         params = process_func(batched_g, **arg)
-    #         batched_g, params = Move2Device([batched_g, params], dev)
-    #         profiler.start()
-    #         logits, elapsed_time = model(
-    #             params, batched_g.ndata["feat"], fuse=fuse_flag
-    #         )
-    #         profiler.stop()
-    # else:
-    #     for i, (batched_g, labels) in enumerate(train_dataloader):
-    #         # print("----------------------without fuse--------------------------")
-    #         params = process_func(batched_g, **arg)
-    #         batched_g, labels, params = Move2Device([batched_g, labels, params], dev)
-    #         profiler.start()
-    #         logits, elapsed_time = model(
-    #             params, batched_g.ndata["feat"], fuse=fuse_flag
-    #         )
-    #         profiler.stop()
-    with torch.profiler.profile(
-        schedule=torch.profiler.schedule(wait=5, warmup=1, active=1, repeat=1),
-        on_trace_ready=torch.profiler.tensorboard_trace_handler(
-            f"./log/tensor_board/{args.dataset}_{args.conv}_{args.format}"
-        ),
-        record_shapes=True,
-        profile_memory=True,
-        with_stack=True,
-    ) as prof:
+    if args.dataset in datasets_NC:
         for i, (batched_g) in enumerate(train_dataloader):
             batched_g = batched_g.to(dev)
             params = process_func(batched_g, **arg)
+            profiler.start()
             logits, elapsed_time = model(
-                params, batched_g.ndata["feat"], fuse=args.format != "nofuse"
+                params, batched_g.ndata["feat"], fuse=fuse_flag
             )
-            prof.step()
-    return
-
-
-def train_profile_SBM(process_func, model, train_dataloader, dev, **arg):
-    import ScheduleProfiler
-
-    profiler = ScheduleProfiler.ScheduleProfiler()
-    print("----------------------Forward------------------------")
-    for i, (batched_g) in enumerate(train_dataloader):
-        # print("----------------------without fuse--------------------------")
-        params = process_func(batched_g)
-        params = [param.to(dev) for param in params]
-        batched_g = batched_g.to(dev)
-        profiler.start()
-        logits, elapsed_time = model(params, batched_g.ndata["feat"], **arg)
-        profiler.stop()
-        # if i > warmup:
-        #     time_no_fuse.append(elapsed_time)
-        #     # print("----------------------with fuse--------------------------")
-        #     logits_fuse, elapsed_time = model(
-        #         params, batched_g.ndata["feat"], fuse=True
-        #     )
-        #     time_fuse.append(elapsed_time)
-        #     # pdb.set_trace()
-        #     print(f"epoch {i} fused time %.4f" % elapsed_time)
-        #     # if i < 5:
-        #     #     check_correct(logits, logits_fuse, params)
+            profiler.stop()
+    else:
+        for i, (batched_g, labels) in enumerate(train_dataloader):
+            batched_g, labels = batched_g.to(dev), labels.to(dev)
+            params = process_func(batched_g, **arg)
+            profiler.start()
+            logits, elapsed_time = model(
+                params, batched_g.ndata["feat"], fuse=fuse_flag
+            )
+            profiler.stop()
+    # with torch.profiler.profile(
+    #     schedule=torch.profiler.schedule(wait=5, warmup=1, active=1, repeat=1),
+    #     on_trace_ready=torch.profiler.tensorboard_trace_handler(
+    #         f"./log/tensor_board/{args.dataset}_{args.conv}_{args.format}"
+    #     ),
+    #     record_shapes=True,
+    #     profile_memory=True,
+    #     with_stack=True,
+    # ) as prof:
+    #     for i, (batched_g) in enumerate(train_dataloader):
+    #         batched_g = batched_g.to(dev)
+    #         params = process_func(batched_g, **arg)
+    #         logits, elapsed_time = model(
+    #             params, batched_g.ndata["feat"], fuse=args.format != "nofuse"
+    #         )
+    #         prof.step()
     return
 
 
