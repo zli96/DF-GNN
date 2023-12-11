@@ -69,6 +69,7 @@ def preprocess_Hyper(g, **args):
 
     # using max_degree to cal max smem consume
     # max_degree = int(max(A.sum(1)).item())
+    # print("max degree of all nodes:",max_degree)
     smem_consume = (max_neigh * 8 + WARP_SIZE - 1) // WARP_SIZE * WARP_SIZE
     print("preprocess smem consume", smem_consume)
 

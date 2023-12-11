@@ -1,8 +1,6 @@
 import argparse
 import os, pickle
 
-import dgl.sparse as dglsp
-
 import torch
 from dgl.dataloading import GraphDataLoader
 
