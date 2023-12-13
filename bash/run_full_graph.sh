@@ -5,16 +5,16 @@ if [ -z "${data_dir}" ]; then
 fi
 
 if [ -n "${test_flag}" ]; then
-	convs=(gt agnn gat)
-	datasets=(ppi)
-	formats=(csr)
-	dims=(64)
+	convs=(agnn)
+	datasets=(cora pubmed cite)
+	formats=(hyper)
+	dims=(32)
 	echo test mode !!!!!!!!!!!!
 else
-	convs=(gt)
+	convs=(gt agnn gat)
 	datasets=(cora pubmed cite)
 	formats=(csr hyper softmax)
-	dims=(256 512)
+	dims=(64)
 fi
 
 # formats=(csr hyper)
@@ -32,9 +32,9 @@ for conv in ${convs[@]}; do
 				name=${conv}_${dataset}_${format}_dim${dim}_${Time}
 				if [ -n "${test_flag}" ]; then
 					# # run with nolog
-					python -u dgNN/script/test/test_full_graph.py --dim $dim --dataset ${dataset} --data-dir ${data_dir} --format ${format}
+					python -u dgNN/script/test/test_full_graph.py --dim $dim --dataset ${dataset} --data-dir ${data_dir} --format ${format} --conv ${conv}
 				else
-					python -u dgNN/script/test/test_full_graph.py --dim $dim --dataset ${dataset} --data-dir ${data_dir} --format ${format} --store-result 2>&1 |
+					python -u dgNN/script/test/test_full_graph.py --dim $dim --dataset ${dataset} --data-dir ${data_dir} --format ${format} --conv ${conv} --store-result 2>&1 |
 						tee log/day_${day}/${name}.log
 				fi
 			done
