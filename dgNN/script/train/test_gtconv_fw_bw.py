@@ -1,24 +1,15 @@
-"""
-[A Generalization of Transformer Networks to Graphs]
-(https://arxiv.org/abs/2012.09699)
-"""
-
 import argparse
 import pdb
-import time
 
-import dgl.nn as dglnn
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 import torch.optim as optim
 
 from dgl.dataloading import GraphDataLoader
 
 from dgNN.layers import choose_Inproj, preprocess_Hyper_fw_bw, SparseMHA_fused
-from dgNN.utils import load_dataset_fn, parser_argument
-from ogb.graphproppred import collate_dgl, Evaluator
+from dgNN.utils import load_dataset_fn, parser_argument, Timer
 
 
 def average(list: list) -> float:
@@ -35,6 +26,19 @@ def check_correct(logits, logits_fuse):
         print("check fail!!!!!!!!!!!")
         pdb.set_trace()
         exit()
+
+
+# def batch_g_list(args, dataloader):
+#     datasets_NC = ["PascalVOC-SP", "COCO-SP", "PATTERN", "CLUSTER"]
+#     batch_g_list = []
+#     if args.dataset in datasets_NC:
+#         for iter, batched_g in enumerate(dataloader):
+#             batched_g.ndata["feat"] = torch.rand((batched_g.num_nodes(),64))
+#             batch_g_list.append(batched_g)
+#     else:
+#         for iter, (batched_g, _) in enumerate(dataloader):
+#             batched_g.ndata["feat"] = torch.rand((batched_g.num_nodes(),64))
+#             batch_g_list.append(batched_g)
 
 
 class GTModel(nn.Module):
@@ -54,10 +58,11 @@ class GTModel(nn.Module):
                 for _ in range(num_layers)
             ]
         )
-        self.predictor = nn.Linear(hidden_size, out_size)
+        # self.predictor = SparseMHA_fused(hidden_size, 1, num_heads)
+        self.predictor = nn.Linear(hidden_size, 1)
 
-    def forward(self, X, params, fuse=False):
-        h = self.in_proj(X)
+    def forward(self, h, params, fuse=False):
+        # h = self.in_proj(X)
         for layer in self.layers:
             h = layer(params, h, fuse)
 
@@ -67,23 +72,20 @@ class GTModel(nn.Module):
 @torch.no_grad()
 def evaluate(model, dataloader, device, fuse_flag):
     model.train()
-    y_true = []
-    y_pred = []
-    start = time.time()
-    for batched_g in dataloader:
-        batched_g = batched_g.to(device)
-        params = preprocess_Hyper_fw_bw(batched_g, fuse_flag)
-        ## fuse
-        y_hat = model(
-            batched_g.ndata["feat"],
-            params,
-            fuse=fuse_flag,
-        )
-        labels = batched_g.ndata["label"]
-        y_true.append(labels.view(y_hat.shape).detach().cpu())
-        y_pred.append(y_hat.detach().cpu())
-    eval_time = time.time() - start
-    print(f"evaluate time {eval_time:.2f}")
+    loss_fcn = nn.CrossEntropyLoss()
+    with Timer() as t:
+        for batched_g in dataloader:
+            batched_g = batched_g.to(device)
+            params = preprocess_Hyper_fw_bw(batched_g, fuse_flag)
+            ## fuse
+            y_hat = model(
+                batched_g.ndata["feat"],
+                params,
+                fuse=fuse_flag,
+            )
+            loss = loss_fcn(y_hat.flatten(), batched_g.ndata["label"].float())
+
+    print(f"evaluate time {t.elapsed_secs:.2f}")
 
 
 def check_grad(model, dataset, device, args):
@@ -132,20 +134,22 @@ def only_preprocess(model, dataset, device, args, fuse_flag):
         batch_size=args.batch_size,
         shuffle=True,
     )
-    optimizer = optim.Adam(model.parameters(), lr=0.001)
     num_epochs = 20
     epoch_times = []
-    for epoch in range(num_epochs):
-        torch.cuda.synchronize()
-        start = time.time()
-        model.train()
-        for iter, batched_g in enumerate(train_dataloader):
-            batched_g = batched_g.to(device)
-            preprocess_Hyper_fw_bw(batched_g, fuse_flag)
-            ## fuse
+    batch_gs = []
+    for iter, batched_g in enumerate(train_dataloader):
+        if iter == 20:
+            break
+        batch_gs.append(batched_g)
 
-        torch.cuda.synchronize()
-        epoch_time = time.time() - start
+    for epoch in range(num_epochs):
+        model.train()
+        with Timer() as t:
+            for iter, batched_g in enumerate(batch_gs):
+                batched_g = batched_g.to(device)
+                preprocess_Hyper_fw_bw(batched_g, fuse_flag)
+
+        epoch_time = t.elapsed_secs
         if epoch > 0:
             epoch_times.append(epoch_time)
             print(
@@ -164,36 +168,41 @@ def train(model, dataset, device, args, fuse_flag):
     scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=num_epochs, gamma=0.5)
     loss_fcn = nn.CrossEntropyLoss()
     epoch_times = []
+
+    batch_gs = []
+
+    for iter, batched_g in enumerate(train_dataloader):
+        if iter == 20:
+            break
+        batched_g.ndata["feat"] = torch.rand((batched_g.num_nodes(), 64))
+        batch_gs.append(batched_g)
+
     for epoch in range(num_epochs):
-        torch.cuda.synchronize()
-        start = time.time()
         model.train()
         total_loss = 0.0
-        for iter, batched_g in enumerate(train_dataloader):
-            batched_g = batched_g.to(device)
-            params = preprocess_Hyper_fw_bw(batched_g, fuse_flag)
-            ## fuse
-            logits = model(
-                batched_g.ndata["feat"],
-                params,
-                fuse=fuse_flag,
-            )
-            loss = loss_fcn(logits.flatten(), batched_g.ndata["label"].float())
-            total_loss += loss.item()
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-        torch.cuda.synchronize()
-        epoch_time = time.time() - start
+        with Timer() as t:
+            for iter, batched_g in enumerate(batch_gs):
+                batched_g = batched_g.to(device)
+                params = preprocess_Hyper_fw_bw(batched_g, fuse_flag)
+                ## fuse
+                logits = model(
+                    batched_g.ndata["feat"],
+                    params,
+                    fuse=fuse_flag,
+                )
+                loss = loss_fcn(logits.flatten(), batched_g.ndata["label"].float())
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
         if epoch > 0:
-            epoch_times.append(epoch_time)
+            epoch_times.append(t.elapsed_secs)
             print(
-                f"epoch {epoch:03d} time {epoch_time:.2f} avg epoch time {average(epoch_times):.2f}"
+                f"epoch {epoch:03d} time {t.elapsed_secs:.2f} avg epoch time {average(epoch_times):.2f}"
             )
         scheduler.step()
         evaluate(
             model,
-            train_dataloader,
+            batch_gs,
             device,
             fuse_flag,
         )

@@ -6,19 +6,6 @@ from .gtconv_layer import SparseMHA
 class SparseMHA_fused(SparseMHA):
     def forward(self, params, h, fuse=False):
         N = len(h)
-        h = self.in_proj(h)
-
-        ## get Q, K, V features
-        q = self.q_proj(h).view(N, self.head_dim, self.num_heads)
-        q *= self.scaling
-        k = self.k_proj(h).view(N, self.head_dim, self.num_heads)
-        v = self.v_proj(h).view(N, self.head_dim, self.num_heads)
-
-        # q = self.q_proj(h).reshape(N, self.num_heads, self.head_dim)
-        # q *= self.scaling
-        # k = self.k_proj(h).reshape(N, self.num_heads, self.head_dim)
-        # v = self.v_proj(h).reshape(N, self.num_heads, self.head_dim)
-
         (
             A,
             rows,
@@ -32,9 +19,10 @@ class SparseMHA_fused(SparseMHA):
         ) = params
 
         if fuse:
-            q = q.transpose(1, 2).contiguous()
-            k = k.transpose(1, 2).contiguous()
-            v = v.transpose(1, 2).contiguous()
+            q = self.q_proj(h).reshape(N, self.num_heads, self.head_dim)
+            q *= self.scaling
+            k = self.k_proj(h).reshape(N, self.num_heads, self.head_dim)
+            v = self.v_proj(h).reshape(N, self.num_heads, self.head_dim)
             if self.training:
                 out = GTConvFuse_hyper(
                     rows,
@@ -60,7 +48,11 @@ class SparseMHA_fused(SparseMHA):
                     k,
                     v,
                 )
-            out = out.transpose(1, 2)
         else:
+            ## get Q, K, V features
+            q = self.q_proj(h).reshape(N, self.head_dim, self.num_heads)
+            q *= self.scaling
+            k = self.k_proj(h).reshape(N, self.head_dim, self.num_heads)
+            v = self.v_proj(h).reshape(N, self.head_dim, self.num_heads)
             out = self.forward_nofuse(A, q, k, v)
         return out.reshape(N, -1)

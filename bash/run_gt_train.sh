@@ -7,9 +7,11 @@ if [ -z "${data_dir}" ]; then
 	data_dir="/workspace2/dataset"
 fi
 
-datasets=(PATTERN)
+# datasets=(PATTERN)
+datasets=(PascalVOC-SP COCO-SP CLUSTER)
+
 formats=(hyper)
-batch_sizes=(256)
+batch_sizes=(1024)
 dims=(64)
 
 day=$(date +%m_%d)
