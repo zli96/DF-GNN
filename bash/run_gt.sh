@@ -9,10 +9,10 @@ if [ -z "${data_dir}" ]; then
 	data_dir="/workspace2/dataset"
 fi
 
-if [ -n "${test_flag}" ]; then
+if [ -n ${test_flag} ]; then
 	datasets=(PATTERN)
-	formats=(hybrid)
-	batch_sizes=(2048)
+	formats=(csr softmax hyper)
+	batch_sizes=(1024)
 	dims=(64)
 	echo test mode !!!!!!!!!!!!
 else

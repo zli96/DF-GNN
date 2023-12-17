@@ -6,8 +6,7 @@ export PYTHONPATH="/workspace2/python_profiler/:$PYTHONPATH"
 
 conv=gt
 format=hyper
-dataset=PATTERN
-dim=64
+dim=128
 heads=1
 data_dir="/workspace2/dataset"
 
@@ -27,8 +26,19 @@ python setup.py develop
 # done
 
 batch_sizes=(1024)
+datasets=(PATTERN)
+formats=(hyper)
+
 logtime=$(date +%m_%d_%H_%M_%S)
-for bs in ${batch_sizes[@]}; do
-	name=ncu_${conv}_num_node_32_${format}_${dataset}_dim${dim}_head${heads}_bs${bs}_${logtime}
-	ncu --set full --import-source yes -c 10 -o log/ncu/day_${day}/${name} -k "fused_gt_hyper_inference" python dgNN/script/test/test_fuse_conv.py --format ${format} --dim $dim --heads $heads --batch-size $bs --dataset ${dataset} --data-dir ${data_dir} --conv ${conv} --profile >log/ncu/day_${day}/${name}.log 2>&1
+for dataset in ${datasets[@]}; do
+	for bs in ${batch_sizes[@]}; do
+		for format in ${formats[@]}; do
+			name=ncu_${conv}_${format}_${dataset}_dim${dim}_head${heads}_bs${bs}_${logtime}
+			if [ "$format" == "csr" ]; then
+				ncu --set full --import-source yes -c 10 -o log/ncu/day_${day}/${name} -k "fused_gt_csr" python dgNN/script/test/test_fuse_conv.py --format ${format} --dim $dim --heads $heads --batch-size $bs --dataset ${dataset} --data-dir ${data_dir} --conv ${conv} --profile >log/ncu/day_${day}/${name}.log 2>&1
+			else
+				ncu --set full --import-source yes -c 10 -o log/ncu/day_${day}/${name} -k "fused_gt_hyper_inference" python dgNN/script/test/test_fuse_conv.py --format ${format} --dim $dim --heads $heads --batch-size $bs --dataset ${dataset} --data-dir ${data_dir} --conv ${conv} --profile >log/ncu/day_${day}/${name}.log 2>&1
+			fi
+		done
+	done
 done
