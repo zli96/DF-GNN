@@ -73,47 +73,42 @@ __global__ void spmm_backward_kernel(int h, int f, const int *col_ptr,
 template <typename DType>
 __global__ void fused_backward_kernel(int m, int h, int f, const int *row,
                                       const int *row_ptr, const int *col_ind,
-                                      const DType *K, const DType *V,
-                                      const DType *attn_edge, const DType *grad,
+                                      const DType *K, const DType *rhs,
+                                      const DType *attn_edge, const DType *lhs,
                                       DType *grad_edge, DType *grad_Q) {
   const int bidx = blockIdx.x;
   const int hid = blockIdx.y;
   const int tidx = threadIdx.x;
   const int tidy = threadIdx.y;
+  const int tid = threadIdx.y * 32 + tidx;
 
   // the node bound of this block
-  const int blockSize = blockDim.y;
-  const int blk_node_lb = blockSize * bidx;
-  const int blk_node_hb = MIN(blk_node_lb + blockSize, m);
+  const int blk_node_lb = blockDim.y * bidx;
+  const int blk_node_hb = MIN(blk_node_lb + blockDim.y, m);
 
   // the edge bound of this block
   const int blk_edge_lb = row_ptr[blk_node_lb];
-  const int blk_edge_hb = row_ptr[blk_node_hb];
+  // const int blk_edge_hb = row_ptr[blk_node_hb];
 
   // the num of edges in this block
-  const int blk_num_edge = blk_edge_hb - blk_edge_lb;
+  const int blk_num_edge = row_ptr[blk_node_hb] - blk_edge_lb;
 
   // init smem
   extern __shared__ DType smem[];
   DType *neigh_nodes_weight = smem; // [8, f]
 
-  int nnz_per_warp = (blk_num_edge + blockSize - 1) / blockSize;
-
-  const DType *lhs = grad;
-  const DType *rhs = V;
+  int nnz_per_warp = (blk_num_edge + blockDim.y - 1) / blockDim.y;
 
   const int *rowoff = row + blk_edge_lb;
   const int *indicesoff = col_ind + blk_edge_lb;
 
-  int src;
-  int dst;
   // SDDMM, edge parallel
   for (int i = 0; i < nnz_per_warp; i++) {
     int curr_edge = tidy * nnz_per_warp + i;
     // edge bound for curr block
     if (curr_edge < blk_num_edge) {
-      src = __ldg(rowoff + curr_edge);
-      dst = __ldg(indicesoff + curr_edge);
+      int src = __ldg(rowoff + curr_edge);
+      int dst = __ldg(indicesoff + curr_edge);
 
       const DType *lhsoff = lhs + src * f * h + hid * f;
       const DType *rhsoff = rhs + dst * f * h + hid * f;
@@ -131,6 +126,13 @@ __global__ void fused_backward_kernel(int m, int h, int f, const int *row,
         neigh_nodes_weight[curr_edge] = att_val;
       }
     }
+  }
+  __syncthreads();
+
+  for (int i = tid; i < blk_num_edge; i += 256) {
+    DType grad_i = neigh_nodes_weight[i];
+    DType out = attn_edge[blk_edge_lb + i];
+    neigh_nodes_weight[i] = grad_i * out;
   }
   __syncthreads();
 
@@ -154,10 +156,7 @@ __global__ void fused_backward_kernel(int m, int h, int f, const int *row,
       int pid = tidx + (j << 5); // node need to process in loop j
       DType prod = 0;
       if (pid < num_edge) {
-        DType grad_i = neigh_nodes_weight_off[pid];
-        DType out = attn_edge[edge_lb + pid];
-        prod = grad_i * out;
-        neigh_nodes_weight_off[pid] = prod;
+        prod = neigh_nodes_weight_off[pid];
       }
       __syncwarp();
 #pragma unroll
@@ -168,16 +167,20 @@ __global__ void fused_backward_kernel(int m, int h, int f, const int *row,
       prodsum += prod;
     }
 
+    // write imtermediate value
+    for (int j = tidx; j < num_edge; j += 32) {
+      DType attn_score = attn_edge[edge_lb + j];
+      DType attn_val = neigh_nodes_weight_off[j] - prodsum * attn_score;
+      grad_edge[edge_lb + j] = attn_val;
+      neigh_nodes_weight_off[j] = attn_val;
+    }
+
     for (int i = 0; i < loop_f; i += 1) {
       DType acc = 0;
       int pid = tidx + (i << 5);
       for (int j = 0; j < num_edge; j++) {
         int cid = col_ind[edge_lb + j];
-        DType attn_score = attn_edge[edge_lb + j];
-        DType attn_val = neigh_nodes_weight_off[j] - prodsum * attn_score;
-        if (i == 0) {
-          grad_edge[edge_lb + j] = attn_val;
-        }
+        DType attn_val = neigh_nodes_weight_off[j];
         if (pid < f)
           acc += attn_val * K[cid * hf + hid * f + pid];
       }
