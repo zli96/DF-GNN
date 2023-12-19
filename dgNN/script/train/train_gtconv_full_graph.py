@@ -2,14 +2,12 @@ import argparse
 
 import time
 
-import dgl
 import GPUtil
-import scipy.sparse as sp
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from dgNN.layers import preprocess_Hyper_fw_bw, SparseMHA_fused
+from dgNN.layers import preprocess_Hyper_fw_bw, SparseMHA_forward
 from dgNN.utils import load_data_full_graph
 
 
@@ -30,10 +28,10 @@ class Net(nn.Module):
 
         # hidden layers
         for l in range(num_layers):
-            self.layers.append(SparseMHA_fused(num_hidden, num_hidden, 1))
+            self.layers.append(SparseMHA_forward(num_hidden, num_hidden, 1))
 
     def forward(self, params, h, fuse=False):
-        # h = self.input_proj(h)
+        h = self.input_proj(h)
         for l in range(self.num_layers):
             h = self.layers[l](params, h, fuse)
         return F.log_softmax(self.output_proj(h), dim=-1)
@@ -52,21 +50,14 @@ def main(args):
 
     # load dataset
     dataset = load_data_full_graph(args.dataset, args.data_dir)
-    if args.dataset == "arxiv":
-        g = dataset[0][0]
-        g.ndata["feat"] = g.ndata["feat"][:, : args.dim]
-        g = g.to(dev)
-        labels = dataset[0][1].squeeze(1).to(dev)
-    else:
-        g = dataset[0]
-        g.ndata["feat"] = g.ndata["feat"][:, : args.dim]
-        g = g.to(dev)
-        labels = g.ndata["label"]
+    g = dataset[0]
+    g.ndata["feat"] = g.ndata["feat"][:, : args.dim]
+    g = g.to(dev)
+    labels = g.ndata["label"]
 
     # Create the sparse adjacency matrix A.
     params = preprocess_Hyper_fw_bw(g, True)
     features = g.ndata["feat"]
-    print(features.shape)
 
     n_feats = features.shape[1]
     n_classes = dataset.num_classes
@@ -77,20 +68,22 @@ def main(args):
         args.dim,
         n_classes,
     ).to(dev)
-    if args.dataset == "arxiv":
-        loss_fcn = F.nll_loss
-    else:
-        loss_fcn = torch.nn.CrossEntropyLoss()
+    loss_fcn = torch.nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
 
     print("----train------")
+
     print("----nofused------")
+    maxMemory_nofuse = 0
+    ## warpup
     for epoch in range(3):
         logits = model(params, features)
         loss = loss_fcn(logits, labels)
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
+        GPUs = GPUtil.getGPUs()
+        maxMemory_nofuse = max(GPUs[0].memoryUsed, maxMemory_nofuse)
 
     model.train()
     torch.cuda.synchronize()
@@ -109,12 +102,16 @@ def main(args):
     print(f"no-fused avg train time {train_time*1000:.4f}")
 
     print("----fused------")
+    maxMemory_fused = 0
+    ## warpup
     for epoch in range(3):
         logits = model(params, features, fuse=True)
         loss = loss_fcn(logits, labels)
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
+        GPUs = GPUtil.getGPUs()
+        maxMemory_fused = max(GPUs[0].memoryUsed, maxMemory_fused)
 
     model.train()
     torch.cuda.synchronize()
@@ -132,47 +129,71 @@ def main(args):
     train_time_fused = (end - start) / args.n_epochs
     print(f"fused avg train time {train_time_fused*1000:.4f}")
 
-    print("----infer------")
-    print("----nofused------")
+    print("----optimize------")
+    ## warpup
+    for epoch in range(3):
+        logits = model(params, features)
+        loss = loss_fcn(logits, labels)
+        optimizer.zero_grad()
+        loss.backward()
+
+    model.train()
+    torch.cuda.synchronize()
+    start = time.time()
+    for epoch in range(args.n_epochs):
+        logits = model(params, features)
+        loss = loss_fcn(logits, labels)
+        optimizer.zero_grad()
+        loss.backward()
+    torch.cuda.synchronize()
+    end = time.time()
+    train_time = (end - start) / args.n_epochs
+    print(f"no-fused avg train time {train_time*1000:.4f}")
+
+    ## warpup
+    for epoch in range(3):
+        logits = model(params, features, fuse=True)
+        loss = loss_fcn(logits, labels)
+        optimizer.zero_grad()
+        loss.backward()
+
+    model.train()
+    torch.cuda.synchronize()
+    start = time.time()
+    for epoch in range(args.n_epochs):
+        logits = model(params, features, fuse=True)
+        loss = loss_fcn(logits, labels)
+        optimizer.zero_grad()
+        loss.backward()
+    torch.cuda.synchronize()
+    end = time.time()
+    train_time_fused = (end - start) / args.n_epochs
+    print(f"fused avg train time {train_time_fused*1000:.4f}")
+
+    print("----forward------")
     torch.cuda.synchronize()
     start = time.time()
     for epoch in range(args.n_epochs):
         model.train()
         logits = model(params, features)
+        loss = loss_fcn(logits, labels)
     torch.cuda.synchronize()
     end = time.time()
     inference_time = (end - start) / args.n_epochs
     print(f"no-fused avg infer time {inference_time*1000:.4f}")
 
-    print("----fused------")
     torch.cuda.synchronize()
     start = time.time()
     for epoch in range(args.n_epochs):
         model.train()
         logits = model(params, features, fuse=True)
+        loss = loss_fcn(logits, labels)
     torch.cuda.synchronize()
     end = time.time()
     inference_time_fused = (end - start) / args.n_epochs
     print(f"fused avg infer time {inference_time_fused*1000:.4f}")
-
-    # print(f"max memory:{maxMemory}MB")
-    # print("train time:", train_time)
-    # print("inference time:", inference_time)
-
-    # if args.output != None:
-    #     with open("{}".format(args.output), "a") as f:
-    #         print(
-    #             "train_GAT_dgnn,{} heads={} hidden_dim={},{:f}s,{:f}s,{}MB,{}".format(
-    #                 args.dataset,
-    #                 args.n_heads,
-    #                 args.n_hidden,
-    #                 train_time,
-    #                 inference_time,
-    #                 maxMemory,
-    #                 acc,
-    #             ),
-    #             file=f,
-    #         )
+    print(f"max memory before fuse:{maxMemory_nofuse}MB")
+    print(f"max memory before fuse:{maxMemory_fused}MB")
 
 
 if __name__ == "__main__":
@@ -181,7 +202,7 @@ if __name__ == "__main__":
     parser.add_argument("--data-dir", type=str)
 
     parser.add_argument(
-        "--n-epochs", type=int, default=20, help="number of training epochs"
+        "--n-epochs", type=int, default=50, help="number of training epochs"
     )
     parser.add_argument(
         "--dim", type=int, default=64, help="number of hidden gcn units"

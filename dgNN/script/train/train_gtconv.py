@@ -14,7 +14,7 @@ import torch.optim as optim
 
 from dgl.dataloading import GraphDataLoader
 
-from dgNN.layers import choose_Inproj, preprocess_Hyper_fw_bw, SparseMHA_fused
+from dgNN.layers import choose_Inproj, preprocess_Hyper_fw_bw, SparseMHA_forward
 from dgNN.utils import load_dataset_fn, parser_argument
 from ogb.graphproppred import collate_dgl, Evaluator
 
@@ -61,7 +61,7 @@ class GTModel(nn.Module):
         self.in_proj = choose_Inproj(dataset_name, hidden_size)
         self.layers = nn.ModuleList(
             [
-                SparseMHA_fused(hidden_size, hidden_size, num_heads)
+                SparseMHA_forward(hidden_size, hidden_size, num_heads)
                 for _ in range(num_layers)
             ]
         )

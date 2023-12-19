@@ -8,7 +8,7 @@ import torch.optim as optim
 
 from dgl.dataloading import GraphDataLoader
 
-from dgNN.layers import AGNNConv_forward, preprocess_Hyper_fw_bw, SparseMHA_fused
+from dgNN.layers import AGNNConv_forward, preprocess_Hyper_fw_bw, SparseMHA_forward
 from dgNN.utils import load_dataset_fn, parser_argument, Timer
 
 
@@ -206,7 +206,7 @@ if __name__ == "__main__":
 
     # choose conv layer
     if args.conv == "gt":
-        layer = SparseMHA_fused
+        layer = SparseMHA_forward
     elif args.conv == "agnn":
         layer = AGNNConv_forward
     else:
