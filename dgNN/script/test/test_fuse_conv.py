@@ -41,7 +41,7 @@ def main(args):
     # normal run
     else:
         time_no_fuse, time_fuse = train_fn(
-            preprocess_func, model, train_dataloader, dev, dim=args.dim
+            preprocess_func, model, train_dataloader, dev
         )
         print("----------------------Result------------------------")
         print(

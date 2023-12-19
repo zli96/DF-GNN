@@ -346,13 +346,13 @@ __global__ void fused_gt_hyper_inference(const int m, const int h, const int f,
         const DType *Koff = K + dst * f * h + hid * f;
 
         DType att_val = 0;
-        for (int j = tidx; j < f; j += 32) {
+        for (int j = tidx; j < f; j += 64) {
           // float2 Q2 = reinterpret_cast<const float2*>(Qoff)[j];
           // float2 K2 = reinterpret_cast<const float2*>(Koff)[j];
           // att_val += vecDot2<float2, float>(Q2, K2);
           att_val += Qoff[j] * Koff[j];
-          // if (j + 32 < f)
-          //   att_val += Qoff[j + 32] * Koff[j + 32];
+          if (j + 32 < f)
+            att_val += Qoff[j + 32] * Koff[j + 32];
         }
 #pragma unroll
         for (int offset = 16; offset > 0; offset /= 2)

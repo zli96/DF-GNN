@@ -196,7 +196,7 @@ def check_correct(logits, logits_fuse, params):
             print("the results are the same, success!!!!!!!!!!")
 
 
-def inference_Graph_level(process_func, model, train_dataloader, dev, **kwargs):
+def inference_Graph_level(process_func, model, train_dataloader, dev):
     r"""training function for the graph-level task"""
     print("----------------------Forward------------------------")
     time_no_fuse = []
@@ -210,7 +210,7 @@ def inference_Graph_level(process_func, model, train_dataloader, dev, **kwargs):
         )
         ## preprocess
         batched_g, labels = batched_g.to(dev), labels.to(dev)
-        params = process_func(batched_g, **kwargs)
+        params = process_func(batched_g)
 
         ## run by DGL sparse API
         model.eval()
@@ -235,7 +235,7 @@ def inference_Graph_level(process_func, model, train_dataloader, dev, **kwargs):
     return time_no_fuse, time_fuse
 
 
-def inference_Node_level(process_func, model, train_dataloader, dev, **kwargs):
+def inference_Node_level(process_func, model, train_dataloader, dev):
     r"""training function for the node-level task"""
     print("----------------------Forward------------------------")
     time_no_fuse = []
@@ -249,7 +249,7 @@ def inference_Node_level(process_func, model, train_dataloader, dev, **kwargs):
         )
         ## preprocess
         batched_g = batched_g.to(dev)
-        params = process_func(batched_g, **kwargs)
+        params = process_func(batched_g)
 
         ## run by DGL sparse API
         model.eval()
@@ -273,7 +273,7 @@ def inference_Node_level(process_func, model, train_dataloader, dev, **kwargs):
     return time_no_fuse, time_fuse
 
 
-def train_profile(process_func, model, train_dataloader, dev, args, **arg):
+def train_profile(process_func, model, train_dataloader, dev, args):
     import ScheduleProfiler
 
     profiler = ScheduleProfiler.ScheduleProfiler()
@@ -282,7 +282,7 @@ def train_profile(process_func, model, train_dataloader, dev, args, **arg):
     if args.dataset in datasets_NC:
         for i, (batched_g) in enumerate(train_dataloader):
             batched_g = batched_g.to(dev)
-            params = process_func(batched_g, **arg)
+            params = process_func(batched_g)
             profiler.start()
             logits, elapsed_time = model(
                 params, batched_g.ndata["feat"], fuse=fuse_flag
@@ -291,7 +291,7 @@ def train_profile(process_func, model, train_dataloader, dev, args, **arg):
     else:
         for i, (batched_g, labels) in enumerate(train_dataloader):
             batched_g, labels = batched_g.to(dev), labels.to(dev)
-            params = process_func(batched_g, **arg)
+            params = process_func(batched_g)
             profiler.start()
             logits, elapsed_time = model(
                 params, batched_g.ndata["feat"], fuse=fuse_flag

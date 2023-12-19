@@ -4,20 +4,16 @@ import dgl
 import dgl.sparse as dglsp
 import torch
 
-from dgl.data import Subset
-
 from .AGNN import AGNNConv_csr, AGNNConv_hyper, AGNNConv_softmax
 
 from .GAT import GATConv_dgNN, GATConv_hybrid, GATConv_hyper, GATConv_softmax
 
-from .GAT_DOT import DOTGATConv_csr, DOTGATConv_hyper, DOTGATConv_softmax
-
-from .GT import SparseMHA_CSR, SparseMHA_hybrid, SparseMHA_hyper, SparseMHA_softmax
-
-from .GT.gtconv_layer_subgraph import (
-    SparseMHA_indegree,
-    SparseMHA_indegree_hyper,
-    SparseMHA_subgraph,
+from .GT import (
+    SparseMHA_CSR,
+    SparseMHA_forward_timing,
+    SparseMHA_hybrid,
+    SparseMHA_hyper,
+    SparseMHA_softmax,
 )
 
 
@@ -48,22 +44,6 @@ def preprocess_CSR(g, **args):
     return A, row_ptr, col_ind, val, smem_consume
 
 
-def preprocess_CSR_g(g, dim):
-    g = dgl.add_self_loop(g)
-    A, max_neigh = g_to_SPmatrix(g)
-    # using max_degree to cal max smem consume
-    # max_degree = int(max(A.sum(1)).item())
-    smem_consume = (max_neigh + WARP_SIZE - 1) // WARP_SIZE * WARP_SIZE
-    print("preprocess smem consume", smem_consume)
-
-    # the CSR format of adj matrix
-    row_ptr, col_ind, val_idx = A.csr()
-    row_ptr = row_ptr.int()
-    col_ind = col_ind.int()
-    val = A.val[val_idx] / (dim**0.5)
-    return g, row_ptr, col_ind, val, smem_consume
-
-
 def preprocess_Hyper(g, **args):
     A, max_neigh = g_to_SPmatrix(g)
 
@@ -85,7 +65,7 @@ def preprocess_Hyper(g, **args):
     return A, row_ptr, col_ind, rows, val, smem_consume
 
 
-def preprocess_Hyper_fw_bw(g, fused):
+def preprocess_Hyper_fw_bw(g, fused=True):
     # print("start preprocess")
     A, max_neigh = g_to_SPmatrix(g)
     if not fused:
@@ -114,27 +94,6 @@ def preprocess_Hyper_fw_bw(g, fused):
     return A, rows, row_ptr, col_ind, val, col_ptr, row_ind, val_idx, smem_consume
 
 
-def preprocess_Hyper_g(g, dim):
-    g = dgl.add_self_loop(g)
-    A, max_neigh = g_to_SPmatrix(g)
-
-    # using max_degree to cal max smem consume
-    # max_degree = int(max(A.sum(1)).item())
-    smem_consume = (max_neigh * 8 + WARP_SIZE - 1) // WARP_SIZE * WARP_SIZE
-    print("preprocess smem consume", smem_consume)
-
-    # A.row: the src node of each edge
-    rows = A.row.int()
-    rows = torch.sort(rows).values
-
-    # the CSR format of adj matrix
-    row_ptr, col_ind, val_idx = A.csr()
-    row_ptr = row_ptr.int()
-    col_ind = col_ind.int()
-    val = A.val[val_idx] / (dim**0.5)
-    return g, row_ptr, col_ind, rows, val, smem_consume
-
-
 def preprocess_softmax(g, **args):
     A, max_neigh = g_to_SPmatrix(g)
 
@@ -155,28 +114,7 @@ def preprocess_softmax(g, **args):
     return A, row_ptr, col_ind, rows, val, smem_consume
 
 
-def preprocess_softmax_g(g, dim):
-    g = dgl.add_self_loop(g)
-    A, max_neigh = g_to_SPmatrix(g)
-
-    # using max_degree to cal max smem consume
-    # max_degree = int(max(A.sum(1)).item())
-    smem_consume = (max_neigh + WARP_SIZE - 1) // WARP_SIZE * WARP_SIZE
-    print("preprocess smem consume", smem_consume)
-
-    # A.row: the src node of each edge
-    rows = A.row.int()
-    rows = torch.sort(rows).values
-
-    # the CSR format of adj matrix
-    row_ptr, col_ind, val_idx = A.csr()
-    row_ptr = row_ptr.int()
-    col_ind = col_ind.int()
-    val = A.val[val_idx] / (dim**0.5)
-    return g, row_ptr, col_ind, rows, val, smem_consume
-
-
-def preprocess_hybrid(g, **args):
+def preprocess_hybrid(g):
     print("preprocess hybrid")
     g = dgl.add_self_loop(g)
     indices = torch.stack(g.edges())
@@ -189,7 +127,7 @@ def preprocess_hybrid(g, **args):
     return A, A2
 
 
-def preprocess_SubGraph(g, **args):
+def preprocess_SubGraph(g):
     nodes = g.batch_num_nodes()
 
     # num of nodes in each sub-graph(accumulate)
@@ -381,14 +319,16 @@ def load_layer_GT(args):
         layer = SparseMHA_hyper(args.dim, args.dim, args.heads)
     elif args.format == "softmax":
         layer = SparseMHA_softmax(args.dim, args.dim, args.heads)
-    elif args.format == "indegree":
-        layer = SparseMHA_indegree(args.dim, args.dim, args.heads)
-    elif args.format == "indegree_hyper":
-        layer = SparseMHA_indegree_hyper(args.dim, args.dim, args.heads)
-    elif args.format == "subgraph":
-        layer = SparseMHA_subgraph(args.dim, args.dim, args.heads)
+    # elif args.format == "indegree":
+    #     layer = SparseMHA_indegree(args.dim, args.dim, args.heads)
+    # elif args.format == "indegree_hyper":
+    #     layer = SparseMHA_indegree_hyper(args.dim, args.dim, args.heads)
+    # elif args.format == "subgraph":
+    #     layer = SparseMHA_subgraph(args.dim, args.dim, args.heads)
     elif args.format == "hybrid":
         layer = SparseMHA_hybrid(args.dim, args.dim, args.heads)
+    elif args.format == "forward":
+        layer = SparseMHA_forward_timing(args.dim, args.dim, args.heads)
     else:
         raise ValueError(f"Unsupported format {args.format} in GTconv")
     return layer
@@ -408,16 +348,16 @@ def load_layer_GAT(args):
     return layer
 
 
-def load_layer_DOTGAT(args):
-    if args.format == "hyper" or args.format == "nofuse":
-        layer = DOTGATConv_hyper(args.dim, args.dim, args.heads)
-    elif args.format == "csr":
-        layer = DOTGATConv_csr(args.dim, args.dim, args.heads)
-    elif args.format == "softmax":
-        layer = DOTGATConv_softmax(args.dim, args.dim, args.heads)
-    else:
-        raise ValueError(f"Unsupported format {args.format} in DOTGATconv")
-    return layer
+# def load_layer_DOTGAT(args):
+#     if args.format == "hyper" or args.format == "nofuse":
+#         layer = DOTGATConv_hyper(args.dim, args.dim, args.heads)
+#     elif args.format == "csr":
+#         layer = DOTGATConv_csr(args.dim, args.dim, args.heads)
+#     elif args.format == "softmax":
+#         layer = DOTGATConv_softmax(args.dim, args.dim, args.heads)
+#     else:
+#         raise ValueError(f"Unsupported format {args.format} in DOTGATconv")
+#     return layer
 
 
 def load_layer_AGNN(args):
@@ -433,9 +373,9 @@ def load_layer_AGNN(args):
 
 
 def load_layer(args):
-    if args.conv == "dotgat":
-        layer = load_layer_DOTGAT(args)
-    elif args.conv == "gat":
+    # if args.conv == "dotgat":
+    #     layer = load_layer_DOTGAT(args)
+    if args.conv == "gat":
         layer = load_layer_GAT(args)
     elif args.conv == "gt":
         layer = load_layer_GT(args)
@@ -447,31 +387,32 @@ def load_layer(args):
 
 
 def load_prepfunc(args):
-    if args.conv == "dotgat":
-        if args.format == "hyper" or args.format == "nofuse":
-            preprocess_func = preprocess_Hyper_g
-        elif args.format == "csr":
-            preprocess_func = preprocess_CSR_g
-        elif args.format == "softmax":
-            preprocess_func = preprocess_softmax_g
-        else:
-            raise ValueError(f"Unsupported format {args.format}")
+    # if args.conv == "dotgat":
+    #     if args.format == "hyper" or args.format == "nofuse":
+    #         preprocess_func = preprocess_Hyper_g
+    #     elif args.format == "csr":
+    #         preprocess_func = preprocess_CSR_g
+    #     elif args.format == "softmax":
+    #         preprocess_func = preprocess_softmax_g
+    #     else:
+    #         raise ValueError(f"Unsupported format {args.format}")
 
+    if args.format == "csr":
+        preprocess_func = preprocess_CSR
+    elif args.format == "hyper" or args.format == "nofuse":
+        preprocess_func = preprocess_Hyper
+    elif args.format == "softmax":
+        preprocess_func = preprocess_softmax
+    # elif args.format == "indegree":
+    #     preprocess_func = preprocess_indegree
+    # elif args.format == "indegree_hyper":
+    #     preprocess_func = preprocess_indegree_hyper
+    elif args.format == "subgraph":
+        preprocess_func = preprocess_SubGraph
+    elif args.format == "hybrid":
+        preprocess_func = preprocess_hybrid
+    elif args.format == "forward":
+        preprocess_func = preprocess_Hyper_fw_bw
     else:
-        if args.format == "csr":
-            preprocess_func = preprocess_CSR
-        elif args.format == "hyper" or args.format == "nofuse":
-            preprocess_func = preprocess_Hyper
-        elif args.format == "softmax":
-            preprocess_func = preprocess_softmax
-        elif args.format == "indegree":
-            preprocess_func = preprocess_indegree
-        elif args.format == "indegree_hyper":
-            preprocess_func = preprocess_indegree_hyper
-        elif args.format == "subgraph":
-            preprocess_func = preprocess_SubGraph
-        elif args.format == "hybrid":
-            preprocess_func = preprocess_hybrid
-        else:
-            raise ValueError(f"Unsupported format {args.format}")
+        raise ValueError(f"Unsupported format {args.format}")
     return preprocess_func
