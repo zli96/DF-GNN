@@ -8,7 +8,7 @@ import torch.optim as optim
 
 from dgl.dataloading import GraphDataLoader
 
-from dgNN.layers import choose_Inproj, preprocess_Hyper_fw_bw, SparseMHA_fused
+from dgNN.layers import AGNNConv_forward, preprocess_Hyper_fw_bw, SparseMHA_fused
 from dgNN.utils import load_dataset_fn, parser_argument, Timer
 
 
@@ -28,38 +28,21 @@ def check_correct(logits, logits_fuse):
         exit()
 
 
-# def batch_g_list(args, dataloader):
-#     datasets_NC = ["PascalVOC-SP", "COCO-SP", "PATTERN", "CLUSTER"]
-#     batch_g_list = []
-#     if args.dataset in datasets_NC:
-#         for iter, batched_g in enumerate(dataloader):
-#             batched_g.ndata["feat"] = torch.rand((batched_g.num_nodes(),64))
-#             batch_g_list.append(batched_g)
-#     else:
-#         for iter, (batched_g, _) in enumerate(dataloader):
-#             batched_g.ndata["feat"] = torch.rand((batched_g.num_nodes(),64))
-#             batch_g_list.append(batched_g)
-
-
-class GTModel(nn.Module):
+class Model(nn.Module):
     def __init__(
         self,
-        dataset_name,
+        layer,
         out_size,
         hidden_size=64,
         num_layers=8,
         num_heads=1,
     ):
         super().__init__()
-        self.in_proj = choose_Inproj(dataset_name, hidden_size)
+        # self.in_proj = choose_Inproj(dataset_name, hidden_size)
         self.layers = nn.ModuleList(
-            [
-                SparseMHA_fused(hidden_size, hidden_size, num_heads)
-                for _ in range(num_layers)
-            ]
+            [layer(hidden_size, hidden_size, num_heads) for _ in range(num_layers)]
         )
-        # self.predictor = SparseMHA_fused(hidden_size, 1, num_heads)
-        self.predictor = nn.Linear(hidden_size, 1)
+        self.predictor = nn.Linear(hidden_size, out_size)
 
     def forward(self, h, params, fuse=False):
         # h = self.in_proj(X)
@@ -166,7 +149,7 @@ def train(model, dataset, device, args, fuse_flag):
     optimizer = optim.Adam(model.parameters(), lr=0.001)
     num_epochs = 20
     scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=num_epochs, gamma=0.5)
-    loss_fcn = nn.CrossEntropyLoss()
+    loss_fcn = nn.BCEWithLogitsLoss()
     epoch_times = []
 
     batch_gs = []
@@ -174,12 +157,11 @@ def train(model, dataset, device, args, fuse_flag):
     for iter, batched_g in enumerate(train_dataloader):
         if iter == 20:
             break
-        batched_g.ndata["feat"] = torch.rand((batched_g.num_nodes(), 64))
+        batched_g.ndata["feat"] = torch.rand((batched_g.num_nodes(), args.dim))
         batch_gs.append(batched_g)
 
     for epoch in range(num_epochs):
         model.train()
-        total_loss = 0.0
         with Timer() as t:
             for iter, batched_g in enumerate(batch_gs):
                 batched_g = batched_g.to(device)
@@ -222,9 +204,17 @@ if __name__ == "__main__":
     # load dataset
     dataset, train_fn = load_dataset_fn(args.dataset, args.data_dir)
 
+    # choose conv layer
+    if args.conv == "gt":
+        layer = SparseMHA_fused
+    elif args.conv == "agnn":
+        layer = AGNNConv_forward
+    else:
+        raise ValueError(f"Unsupported conv {args.conv}")
+
     # Create model.
-    model = GTModel(
-        dataset_name=args.dataset,
+    model = Model(
+        layer=layer,
         out_size=1,
         hidden_size=args.dim,
         num_heads=args.heads,
