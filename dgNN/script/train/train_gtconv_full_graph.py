@@ -179,8 +179,8 @@ def main(args):
         loss = loss_fcn(logits, labels)
     torch.cuda.synchronize()
     end = time.time()
-    inference_time = (end - start) / args.n_epochs
-    print(f"no-fused avg infer time {inference_time*1000:.4f}")
+    forward_time = (end - start) / args.n_epochs
+    print(f"no-fused avg forward time {forward_time*1000:.4f}")
 
     torch.cuda.synchronize()
     start = time.time()
@@ -190,8 +190,8 @@ def main(args):
         loss = loss_fcn(logits, labels)
     torch.cuda.synchronize()
     end = time.time()
-    inference_time_fused = (end - start) / args.n_epochs
-    print(f"fused avg infer time {inference_time_fused*1000:.4f}")
+    forward_time_fused = (end - start) / args.n_epochs
+    print(f"fused avg forward time {forward_time_fused*1000:.4f}")
     print(f"max memory before fuse:{maxMemory_nofuse}MB")
     print(f"max memory before fuse:{maxMemory_fused}MB")
 
@@ -208,7 +208,7 @@ if __name__ == "__main__":
         "--dim", type=int, default=64, help="number of hidden gcn units"
     )
     parser.add_argument(
-        "--n-layers", type=int, default=4, help="number of hidden layers"
+        "--n-layers", type=int, default=8, help="number of hidden layers"
     )
     # parser.add_argument("--output", type=str, default=None, help="output file")
 

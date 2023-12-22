@@ -12,31 +12,36 @@ def mean(arr):
 
 
 def shmoo_batch_size():
-    datasets = ["Peptides-func", "CLUSTER", "CIFAR10", "PATTERN"]
+    datasets = ["PATTERN"]
 
-    format = "hyper"
-    batch_sizes = [2**i for i in range(8, 13)]
+    formats = ["softmax", "csr", "hyper"]
+    batch_sizes = [2**i for i in range(6, 12)]
     dim = 64
 
     for dataset in datasets:
-        result_dir = os.path.join(
-            "/workspace2/fuse_attention", "dataset", dataset, "gat"
-        )
         print(dataset)
         for bs in batch_sizes:
-            output = os.path.join(result_dir, f"{format}_dim{dim}_bs{bs}_result.pkl")
-            with open(output, "rb") as f:
-                time_no_fuse, time_fuse = pickle.load(f)
-
-            print(mean(time_fuse))
+            print(bs)
+            for i, format in enumerate(formats):
+                result_dir = os.path.join(
+                    "/workspace2/fuse_attention", "dataset", dataset, "gt"
+                )
+                output = os.path.join(
+                    result_dir, f"{format}_dim{dim}_bs{bs}_result.pkl"
+                )
+                with open(output, "rb") as f:
+                    time_no_fuse, time_fuse = pickle.load(f)
+                if i == 0:
+                    print(mean(time_no_fuse))
+                print(mean(time_fuse))
 
 
 def shmoo_feature_dim():
-    # datasets = ["PATTERN", "MNIST", "CIFAR10", "COCO-SP", "PascalVOC-SP"]
-    datasets = ["PATTERN", "MNIST", "CIFAR10", "PascalVOC-SP"]
+    datasets = ["PATTERN"]
+    formats = ["softmax", "csr", "hyper"]
+    # dims = [2**i for i in range(4, 9)]
+    dims = [64]
 
-    format = "csr"
-    dims = [2**i for i in range(5, 10)]
     bs = "1024"
 
     for dataset in datasets:
@@ -45,12 +50,18 @@ def shmoo_feature_dim():
         )
         print(dataset)
         for dim in dims:
-            output = os.path.join(result_dir, f"{format}_dim{dim}_bs{bs}_result.pkl")
-            with open(output, "rb") as f:
-                time_no_fuse, time_fuse = pickle.load(f)
-
-            print(mean(time_fuse))
+            print("dim", dim)
+            for i, format in enumerate(formats):
+                output = os.path.join(
+                    result_dir, f"{format}_dim{dim}_bs{bs}_result.pkl"
+                )
+                with open(output, "rb") as f:
+                    time_no_fuse, time_fuse = pickle.load(f)
+                if i == 0:
+                    print(mean(time_no_fuse))
+                print(mean(time_fuse))
 
 
 if __name__ == "__main__":
     shmoo_batch_size()
+    shmoo_feature_dim()

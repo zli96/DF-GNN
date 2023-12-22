@@ -68,7 +68,7 @@ def evaluate(model, dataloader, device, fuse_flag):
             )
             loss = loss_fcn(y_hat.flatten(), batched_g.ndata["label"].float())
 
-    print(f"evaluate time {t.elapsed_secs:.2f}")
+    print(f"evaluate time {t.elapsed_secs:}")
 
 
 def check_grad(model, dataset, device, args):
@@ -136,7 +136,7 @@ def only_preprocess(model, dataset, device, args, fuse_flag):
         if epoch > 0:
             epoch_times.append(epoch_time)
             print(
-                f"epoch {epoch:03d} time {epoch_time:.2f} avg epoch time {average(epoch_times):.2f}"
+                f"epoch {epoch:03d} time {epoch_time:.2f} avg epoch time {average(epoch_times)}"
             )
 
 
@@ -148,7 +148,6 @@ def train(model, dataset, device, args, fuse_flag):
     )
     optimizer = optim.Adam(model.parameters(), lr=0.001)
     num_epochs = 20
-    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=num_epochs, gamma=0.5)
     loss_fcn = nn.BCEWithLogitsLoss()
     epoch_times = []
 
@@ -179,15 +178,39 @@ def train(model, dataset, device, args, fuse_flag):
         if epoch > 0:
             epoch_times.append(t.elapsed_secs)
             print(
-                f"epoch {epoch:03d} time {t.elapsed_secs:.2f} avg epoch time {average(epoch_times):.2f}"
+                f"epoch {epoch:03d} time {t.elapsed_secs:.2f} avg epoch time {average(epoch_times)}"
             )
-        scheduler.step()
         evaluate(
             model,
             batch_gs,
             device,
             fuse_flag,
         )
+    # model.train()
+    # batched_g = batch_gs[0]
+    # batched_g = batched_g.to(device)
+    # params = preprocess_Hyper_fw_bw(batched_g, fuse_flag)
+    # with Timer() as t:
+    #     for i in range(100):
+    #         ## fuse
+    #         logits = model(
+    #             batched_g.ndata["feat"],
+    #             params,
+    #             fuse=fuse_flag,
+    #         )
+    #         loss = loss_fcn(logits.flatten(), batched_g.ndata["label"].float())
+    #         optimizer.zero_grad()
+    #         loss.backward()
+    #         # optimizer.step()
+    # print(
+    #     f"time {t.elapsed_secs/100:.2f} "
+    # )
+    # evaluate(
+    #     model,
+    #     batch_gs,
+    #     device,
+    #     fuse_flag,
+    # )
 
 
 if __name__ == "__main__":
