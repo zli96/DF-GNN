@@ -142,11 +142,10 @@ __global__ void fused_gt_csr(const int h, const int f, const int *indptr,
 
   // compute the output
   DType acc = 0;
-  DType attn_val;
   for (int j = 0; j < num_neighbor; j++) {
     int cid = indices[lb + j];
     DType weight = neigh_nodes_weight[j];
-    attn_val = exp(weight - weightMax);
+    DType attn_val = exp(weight - weightMax);
     if (fid < f) {
       acc += attn_val * V[cid * h * f + hid * f + fid];
     }

@@ -13,6 +13,7 @@ from .GT import (
     SparseMHA_forward_timing,
     SparseMHA_hybrid,
     SparseMHA_hyper,
+    SparseMHA_hyper_ablation,
     SparseMHA_softmax,
 )
 
@@ -329,6 +330,8 @@ def load_layer_GT(args):
         layer = SparseMHA_hybrid(args.dim, args.dim, args.heads)
     elif args.format == "forward":
         layer = SparseMHA_forward_timing(args.dim, args.dim, args.heads)
+    elif args.format == "hyper_ablation":
+        layer = SparseMHA_hyper_ablation(args.dim, args.dim, args.heads)
     else:
         raise ValueError(f"Unsupported format {args.format} in GTconv")
     return layer
@@ -399,7 +402,7 @@ def load_prepfunc(args):
 
     if args.format == "csr":
         preprocess_func = preprocess_CSR
-    elif args.format == "hyper" or args.format == "nofuse":
+    elif args.format in ["hyper", "nofuse", "hyper_ablation"]:
         preprocess_func = preprocess_Hyper
     elif args.format == "softmax":
         preprocess_func = preprocess_softmax

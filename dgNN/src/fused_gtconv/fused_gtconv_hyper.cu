@@ -318,53 +318,51 @@ __global__ void fused_gt_hyper_inference(const int m, const int h, const int f,
   const int blk_node_hb = MIN(blk_node_lb + blockSize, m);
   const int blk_edge_lb = indptr[blk_node_lb];
 
-  {
-    // the edge bound of this block
-    // const int blk_edge_lb = indptr[blk_node_lb];
-    const int blk_edge_hb = indptr[blk_node_hb];
+  // the edge bound of this block
+  // const int blk_edge_lb = indptr[blk_node_lb];
+  const int blk_edge_hb = indptr[blk_node_hb];
 
-    // the num of edges in this block
-    const int blk_num_edge = blk_edge_hb - blk_edge_lb;
-    // SDDMM, edge parallel
+  // the num of edges in this block
+  const int blk_num_edge = blk_edge_hb - blk_edge_lb;
+  // SDDMM, edge parallel
 
-    int nnz_per_warp = (blk_num_edge + blockSize - 1) / blockSize;
+  int nnz_per_warp = (blk_num_edge + blockSize - 1) / blockSize;
 
-    const int *rowoff = row + blk_edge_lb;
-    const int *indicesoff = indices + blk_edge_lb;
-    const DType *valoff = val + blk_edge_lb;
+  const int *rowoff = row + blk_edge_lb;
+  const int *indicesoff = indices + blk_edge_lb;
+  const DType *valoff = val + blk_edge_lb;
 
-    for (int i = 0; i < nnz_per_warp; i++) {
-      int curr_edge = tidy * nnz_per_warp + i;
-      // edge bound for curr block
-      if (curr_edge < blk_num_edge) {
-        int src = __ldg(rowoff + curr_edge);
-        int dst = __ldg(indicesoff + curr_edge);
+  for (int i = 0; i < nnz_per_warp; i++) {
+    int curr_edge = tidy * nnz_per_warp + i;
+    // edge bound for curr block
+    if (curr_edge < blk_num_edge) {
+      int src = __ldg(rowoff + curr_edge);
+      int dst = __ldg(indicesoff + curr_edge);
 
-        // // the Q feature of row node
-        const DType *Qoff = Q + src * f * h + hid * f;
-        // the K feature of col node
-        const DType *Koff = K + dst * f * h + hid * f;
+      // // the Q feature of row node
+      const DType *Qoff = Q + src * f * h + hid * f;
+      // the K feature of col node
+      const DType *Koff = K + dst * f * h + hid * f;
 
-        DType att_val = 0;
-        for (int j = tidx; j < f; j += 64) {
-          // float2 Q2 = reinterpret_cast<const float2*>(Qoff)[j];
-          // float2 K2 = reinterpret_cast<const float2*>(Koff)[j];
-          // att_val += vecDot2<float2, float>(Q2, K2);
-          att_val += Qoff[j] * Koff[j];
-          if (j + 32 < f)
-            att_val += Qoff[j + 32] * Koff[j + 32];
-        }
+      DType att_val = 0;
+      for (int j = tidx; j < f; j += 64) {
+        // float2 Q2 = reinterpret_cast<const float2*>(Qoff)[j];
+        // float2 K2 = reinterpret_cast<const float2*>(Koff)[j];
+        // att_val += vecDot2<float2, float>(Q2, K2);
+        att_val += Qoff[j] * Koff[j];
+        if (j + 32 < f)
+          att_val += Qoff[j + 32] * Koff[j + 32];
+      }
 #pragma unroll
-        for (int offset = 16; offset > 0; offset /= 2)
-          att_val += __shfl_down_sync(full_mask, att_val, offset);
-        if (tidx == 0) {
-          // TODO consider to move val into smem
-          neigh_nodes_weight[curr_edge] = att_val * valoff[curr_edge];
-        }
+      for (int offset = 16; offset > 0; offset /= 2)
+        att_val += __shfl_down_sync(full_mask, att_val, offset);
+      if (tidx == 0) {
+        // TODO consider to move val into smem
+        neigh_nodes_weight[curr_edge] = att_val * valoff[curr_edge];
       }
     }
-    __syncthreads();
   }
+  __syncthreads();
 
   // Softmax+SPMM, node parallel
   int curr_node = blk_node_lb + tidy;

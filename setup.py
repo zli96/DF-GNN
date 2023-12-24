@@ -1,5 +1,4 @@
 import setuptools
-import torch
 from torch.utils.cpp_extension import BuildExtension, CUDAExtension
 
 with open("README.md", "r", encoding="utf-8") as fh:
@@ -42,10 +41,11 @@ setuptools.setup(
             [
                 "dgNN/src/fused_gtconv/fused_gtconv.cpp",
                 "dgNN/src/fused_gtconv/fused_gtconv_csr.cu",
-                "dgNN/src/fused_gtconv/fused_gtconv_indegree.cu",
+                # "dgNN/src/fused_gtconv/fused_gtconv_indegree.cu",
                 "dgNN/src/fused_gtconv/fused_gtconv_hyper.cu",
+                "dgNN/src/fused_gtconv/fused_gtconv_hyper_ablation.cu",
                 "dgNN/src/fused_gtconv/fused_gtconv_softmax.cu",
-                "dgNN/src/fused_gtconv/fused_gtconv_subgraph.cu",
+                # "dgNN/src/fused_gtconv/fused_gtconv_subgraph.cu",
                 "dgNN/src/fused_gtconv/fused_gtconv_backward.cu",
             ],
             extra_compile_args={"cxx": [], "nvcc": ["-arch=sm_75", "-lineinfo"]},

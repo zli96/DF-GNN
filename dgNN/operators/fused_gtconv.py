@@ -25,6 +25,29 @@ def GTConvFuse_inference_hyper(
     return out_feat[0]
 
 
+def GTConvFuse_inference_hyper_ablation(
+    indptr,
+    indices,
+    rows,
+    val,
+    smem_consume,
+    Q,
+    K,
+    V,
+):
+    out_feat = fused_gt.gt_hyper_inference_ablation(
+        indptr,
+        indices,
+        rows,
+        val,
+        smem_consume,
+        Q,
+        K,
+        V,
+    )
+    return out_feat[0]
+
+
 def GTConvFuse_hyper(
     rows,
     row_ptr,
