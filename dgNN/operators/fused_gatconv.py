@@ -1,6 +1,5 @@
 import fused_gatconv as fused_gat
 import torch
-from torch.utils.cpp_extension import load
 
 
 def GATConvFuse(
@@ -33,6 +32,14 @@ def GATConvFuse_inference_hyper(
     smem_consume, attn_row, attn_col, indptr, indices, rows, negative_slope, in_feat
 ):
     return fused_gat.gat_inference_hyper(
+        smem_consume, attn_row, attn_col, indptr, indices, rows, negative_slope, in_feat
+    )
+
+
+def GATConvFuse_inference_hyper_ablation(
+    smem_consume, attn_row, attn_col, indptr, indices, rows, negative_slope, in_feat
+):
+    return fused_gat.gat_inference_hyper_ablation(
         smem_consume, attn_row, attn_col, indptr, indices, rows, negative_slope, in_feat
     )
 

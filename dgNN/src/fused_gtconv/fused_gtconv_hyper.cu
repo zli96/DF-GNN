@@ -43,14 +43,12 @@ __global__ void fused_gt_hyper(const int m, const int nnz, const int h,
   const int *indicesoff = indices + blk_edge_lb;
   const DType *valoff = val + blk_edge_lb;
 
-  int src;
-  int dst;
   for (int i = 0; i < nnz_per_warp; i++) {
     int curr_edge = tidy * nnz_per_warp + i;
     // edge bound for curr block
     if (curr_edge < blk_num_edge) {
-      src = __ldg(rowoff + curr_edge);
-      dst = __ldg(indicesoff + curr_edge);
+      const int src = __ldg(rowoff + curr_edge);
+      const int dst = __ldg(indicesoff + curr_edge);
 
       // // the Q feature of row node
       const DType *Qoff = Q + src * f * h + hid * f;
@@ -318,13 +316,8 @@ __global__ void fused_gt_hyper_inference(const int m, const int h, const int f,
   const int blk_node_hb = MIN(blk_node_lb + blockSize, m);
   const int blk_edge_lb = indptr[blk_node_lb];
 
-  // the edge bound of this block
-  // const int blk_edge_lb = indptr[blk_node_lb];
-  const int blk_edge_hb = indptr[blk_node_hb];
-
   // the num of edges in this block
-  const int blk_num_edge = blk_edge_hb - blk_edge_lb;
-  // SDDMM, edge parallel
+  const int blk_num_edge = indptr[blk_node_hb] - blk_edge_lb;
 
   int nnz_per_warp = (blk_num_edge + blockSize - 1) / blockSize;
 
@@ -332,6 +325,7 @@ __global__ void fused_gt_hyper_inference(const int m, const int h, const int f,
   const int *indicesoff = indices + blk_edge_lb;
   const DType *valoff = val + blk_edge_lb;
 
+  // SDDMM, edge parallel
   for (int i = 0; i < nnz_per_warp; i++) {
     int curr_edge = tidy * nnz_per_warp + i;
     // edge bound for curr block
@@ -346,9 +340,6 @@ __global__ void fused_gt_hyper_inference(const int m, const int h, const int f,
 
       DType att_val = 0;
       for (int j = tidx; j < f; j += 64) {
-        // float2 Q2 = reinterpret_cast<const float2*>(Qoff)[j];
-        // float2 K2 = reinterpret_cast<const float2*>(Koff)[j];
-        // att_val += vecDot2<float2, float>(Q2, K2);
         att_val += Qoff[j] * Koff[j];
         if (j + 32 < f)
           att_val += Qoff[j + 32] * Koff[j + 32];
@@ -412,6 +403,7 @@ __global__ void fused_gt_hyper_inference(const int m, const int h, const int f,
       __syncwarp();
       expAll += exptmp;
     }
+    expAll = (expAll != 0) ? 1.0f / expAll : 0;
 
     // compute the output
     for (int i = tidx; i < f; i += 32) {
@@ -422,7 +414,7 @@ __global__ void fused_gt_hyper_inference(const int m, const int h, const int f,
         acc += attn_val * V[cid * hf + hid * f + i];
       }
       // handle the node with no neighbor
-      out_feat[curr_node * hf + hid * f + i] = (expAll != 0) ? acc / expAll : 0;
+      out_feat[curr_node * hf + hid * f + i] = acc * expAll;
     }
   }
 }

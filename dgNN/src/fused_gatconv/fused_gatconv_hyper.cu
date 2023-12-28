@@ -12,10 +12,12 @@ __global__ void fused_gat_hyper_inference(
   const int hid = blockIdx.y;
   const int tidx = threadIdx.x;
   const int tidy = threadIdx.y;
+  const int tid = tidy * 32 + tidx;
 
   // the node bound of this block
-  const int blk_node_lb = 8 * bidx;
-  const int blk_node_hb = MIN(blk_node_lb + 8, m);
+  const int blockSize = blockDim.y;
+  const int blk_node_lb = blockSize * bidx;
+  const int blk_node_hb = MIN(blk_node_lb + blockSize, m);
 
   // the edge bound of this block
   const int blk_edge_lb = indptr[blk_node_lb];
@@ -28,24 +30,17 @@ __global__ void fused_gat_hyper_inference(
   extern __shared__ DType smem[];
   DType *neigh_nodes_weight = smem; // [8, f]
 
-  // SDDMM, edge parallel
-  int nnz_per_warp = (blk_num_edge + 7) / 8;
-
   const int *rowoff = row + blk_edge_lb;
   const int *indicesoff = indices + blk_edge_lb;
 
-  DType weightMax = -1e38;
-  // // computing weightMax
-  int src, dst;
-  for (int i = 0; i < (nnz_per_warp + 31) / 32; i++) {
-    int curr_edge = tidy * nnz_per_warp + (i << 5) + tidx;
-    DType weight;
-    if (curr_edge < blk_num_edge) {
-      src = __ldg(rowoff + curr_edge);
-      dst = __ldg(indicesoff + curr_edge);
-      weight = attn_row[src * h + hid] + attn_col[dst * h + hid];
+  // SDDMM, edge parallel
+  for (int i = tid; i < blk_num_edge; i += blockSize * WARP_SIZE) {
+    if (i < blk_num_edge) {
+      const int src = __ldg(rowoff + i);
+      const int dst = __ldg(indicesoff + i);
+      DType weight = attn_row[src * h + hid] + attn_col[dst * h + hid];
       weight = LeakyRelu(weight, negative_slope);
-      neigh_nodes_weight[curr_edge] = weight;
+      neigh_nodes_weight[i] = weight;
     }
   }
   __syncthreads();
@@ -98,6 +93,7 @@ __global__ void fused_gat_hyper_inference(
       __syncwarp();
       expAll += exptmp;
     }
+    expAll = (expAll != 0) ? 1.0f / expAll : 0;
 
     // compute the output
     int loop_f = (f + WARP_SIZE - 1) / WARP_SIZE;
@@ -112,8 +108,7 @@ __global__ void fused_gat_hyper_inference(
       }
       // handle the node with no neighbor
       if (pid < f)
-        out_feat[curr_node * hf + hid * f + pid] =
-            (expAll != 0) ? acc / expAll : 0;
+        out_feat[curr_node * hf + hid * f + pid] = acc * expAll;
     }
   }
 }

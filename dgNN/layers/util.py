@@ -6,7 +6,13 @@ import torch
 
 from .AGNN import AGNNConv_csr, AGNNConv_hyper, AGNNConv_softmax
 
-from .GAT import GATConv_dgNN, GATConv_hybrid, GATConv_hyper, GATConv_softmax
+from .GAT import (
+    GATConv_dgNN,
+    GATConv_hybrid,
+    GATConv_hyper,
+    GATConv_hyper_ablation,
+    GATConv_softmax,
+)
 
 from .GT import (
     SparseMHA_CSR,
@@ -346,6 +352,8 @@ def load_layer_GAT(args):
         layer = GATConv_softmax(args.dim, args.dim, args.heads)
     elif args.format == "hybrid":
         layer = GATConv_hybrid(args.dim, args.dim, args.heads)
+    elif args.format == "hyper_ablation":
+        layer = GATConv_hyper_ablation(args.dim, args.dim, args.heads)
     else:
         raise ValueError(f"Unsupported format {args.format} in GATconv")
     return layer
