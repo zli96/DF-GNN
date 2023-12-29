@@ -44,6 +44,7 @@ setuptools.setup(
                 "dgNN/src/fused_gtconv/fused_gtconv_csr.cu",
                 # "dgNN/src/fused_gtconv/fused_gtconv_indegree.cu",
                 "dgNN/src/fused_gtconv/fused_gtconv_hyper.cu",
+                "dgNN/src/fused_gtconv/fused_gtconv_tiling.cu",
                 "dgNN/src/fused_gtconv/fused_gtconv_hyper_ablation.cu",
                 "dgNN/src/fused_gtconv/fused_gtconv_softmax.cu",
                 # "dgNN/src/fused_gtconv/fused_gtconv_subgraph.cu",

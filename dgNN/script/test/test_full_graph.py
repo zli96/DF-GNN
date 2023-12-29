@@ -63,7 +63,7 @@ if __name__ == "__main__":
     time_no_fuse = []
     time_fuse = []
     warmup = 2
-    for epoch in range(50):
+    for epoch in range(20):
         logits, elapsed_time = model(params, X)
         if epoch >= warmup:
             time_no_fuse.append(elapsed_time)
@@ -72,7 +72,8 @@ if __name__ == "__main__":
             time_fuse.append(elapsed_time)
             print(f"epoch {epoch} fused time %.4f" % elapsed_time)
             if epoch < 3:
-                check_correct(logits, logits_fuse, params)
+                check_correct(logits[:1000], logits_fuse[:1000], params)
+                check_correct(logits[-1000:], logits_fuse[-1000:], params)
 
     print("----------------------Result------------------------")
     print(

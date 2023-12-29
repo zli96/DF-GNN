@@ -4,3 +4,4 @@ from .gtconv_layer_hybrid import SparseMHA_hybrid
 from .gtconv_layer_hyper import SparseMHA_hyper
 from .gtconv_layer_hyper_ablation import SparseMHA_hyper_ablation
 from .gtconv_layer_softmax import SparseMHA_softmax
+from .gtconv_layer_tiling import SparseMHA_tiling

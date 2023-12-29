@@ -28,9 +28,6 @@ __global__ void fused_gat_hyper_inference_no_optimization(
   const int blk_edge_lb = indptr[blk_node_lb];
   const int blk_edge_hb = indptr[blk_node_hb];
 
-  // the num of edges in this block
-  const int blk_num_edge = blk_edge_hb - blk_edge_lb;
-
   // init smem
   extern __shared__ DType smem[];
   DType *neigh_nodes_weight = smem; // [8, f]
@@ -230,7 +227,6 @@ __global__ void fused_gat_hyper_inference_softmax(
   const int hid = blockIdx.y;
   const int tidx = threadIdx.x;
   const int tidy = threadIdx.y;
-  const int tid = tidy * 32 + tidx;
 
   // the node bound of this block
   const int blockSize = blockDim.y;
@@ -240,9 +236,6 @@ __global__ void fused_gat_hyper_inference_softmax(
   // the edge bound of this block
   const int blk_edge_lb = indptr[blk_node_lb];
   const int blk_edge_hb = indptr[blk_node_hb];
-
-  // the num of edges in this block
-  const int blk_num_edge = blk_edge_hb - blk_edge_lb;
 
   // init smem
   extern __shared__ DType smem[];

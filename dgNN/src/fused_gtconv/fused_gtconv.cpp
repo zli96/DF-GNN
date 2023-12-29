@@ -18,6 +18,11 @@ gt_csr_inference_cuda(torch::Tensor indptr, torch::Tensor indices,
                       torch::Tensor K, torch::Tensor V);
 
 std::vector<torch::Tensor>
+gt_tiling_inference_cuda(torch::Tensor indptr, torch::Tensor indices,
+                         torch::Tensor val, int smem_consume, torch::Tensor Q,
+                         torch::Tensor K, torch::Tensor V);
+
+std::vector<torch::Tensor>
 gt_hyper_inference_cuda(torch::Tensor indptr, torch::Tensor indices,
                         torch::Tensor rows, torch::Tensor val, int smem_consume,
                         torch::Tensor Q, torch::Tensor K, torch::Tensor V);
@@ -188,6 +193,40 @@ std::vector<torch::Tensor> gt_csr_inference(torch::Tensor indptr,
   assert(indices.size(0) == val.size(0));
 
   return gt_csr_inference_cuda(indptr, indices, val, smem_consume, Q, K, V);
+}
+
+std::vector<torch::Tensor>
+gt_tiling_inference(torch::Tensor indptr, torch::Tensor indices,
+                    torch::Tensor val, int smem_consume, torch::Tensor Q,
+                    torch::Tensor K, torch::Tensor V) {
+  // device check
+  CHECK_DEVICE(indptr);
+  CHECK_DEVICE(indices);
+  CHECK_DEVICE(val);
+  CHECK_DEVICE(Q);
+  CHECK_DEVICE(K);
+  CHECK_DEVICE(V);
+
+  // contiguous check
+  CHECK_CONTIGUOUS(indptr);
+  CHECK_CONTIGUOUS(indices);
+  CHECK_CONTIGUOUS(val);
+  CHECK_CONTIGUOUS(Q);
+  CHECK_CONTIGUOUS(K);
+  CHECK_CONTIGUOUS(V);
+
+  // dtype check
+  assert(indptr.dtype() == torch::kInt32);
+  assert(indices.dtype() == torch::kInt32);
+  assert(val.dtype() == torch::kFloat32);
+  assert(Q.dtype() == torch::kFloat32);
+  assert(K.dtype() == torch::kFloat32);
+  assert(V.dtype() == torch::kFloat32);
+
+  // shape check
+  assert(indices.size(0) == val.size(0));
+
+  return gt_tiling_inference_cuda(indptr, indices, val, smem_consume, Q, K, V);
 }
 
 std::vector<torch::Tensor>
@@ -460,10 +499,12 @@ PYBIND11_MODULE(fused_gtconv, m) {
         "fused graph transformer forward op in hyper format, one kernel");
   m.def("gt_csr_inference", &gt_csr_inference,
         "fused graph transformer inference op");
+  m.def("gt_tiling_inference", &gt_tiling_inference,
+        "fused graph transformer inference op in tiling method, one kernel");
   m.def("gt_hyper_inference", &gt_hyper_inference,
         "fused graph transformer inference op in hyper format, one kernel");
   m.def("gt_softmax_inference", &gt_softmax_inference,
-        "fused graph transformer inference op in hyper format, two kernels");
+        "fused graph transformer inference op in softmax format, two kernels");
   m.def("gt_hyper_inference_ablation", &gt_hyper_inference_ablation);
   //   m.def("gt_subgraph_inference", &gt_subgraph_inference,
   //         "fused graph transformer inference op by subgraph");

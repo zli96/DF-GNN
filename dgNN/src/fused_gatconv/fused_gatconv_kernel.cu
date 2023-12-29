@@ -61,9 +61,7 @@ __global__ void fused_forward_kernel(int m, int nnz, int h, int f,
       float tmp = __shfl_xor_sync(0xffffffff, weight, stride, 32);
       weight = MAX(tmp, weight);
     }
-    weightMax = MAX(
-        weight,
-        weightMax); // store the max row attention value for current node head
+    weightMax = MAX(weight, weightMax);
   }
   // store edge_max for backward
   if (threadIdx.x == 0)

@@ -7,65 +7,6 @@
 using namespace std;
 
 template <typename DType>
-__global__ void fused_inference_kernel_tiling_mul32(
-    const int m, const int nnz, const int h, const int f, const int *indptr,
-    const int *indices, const DType *val, const DType *Q, const DType *K,
-    const DType *V, DType *out_feat) {
-  const int rid = blockIdx.x;                     // loop over row of adj matrix
-  const int hid = blockIdx.y;                     // loop over heads
-  const int fid = threadIdx.y * 32 + threadIdx.x; // loop over feature dim
-
-  const int lb = indptr[rid]; // row rid elements
-  const int hb = indptr[rid + 1];
-
-  const int num_neighbor = hb - lb;
-  extern __shared__ DType smem[];
-  DType *neigh_nodes_weight = smem;
-  static __shared__ DType warpLevelSums[WARP_SIZE];
-  const int hf = h * f;
-  const int hfid = hid * f + fid;
-  const int laneId = threadIdx.x;
-  const int warpId = threadIdx.y;
-  DType Q_i = Q[rid * hf + hfid];
-
-  DType acc = 0, partial_sum = 0;
-  DType weightMax_old = -1e38, weightMax = -1e38;
-  DType expweight, expweightMax;
-
-  for (int j = 0; j < num_neighbor; j++) {
-    DType weight = 0;
-    DType weight_partial = 0;
-
-    int cid = indices[lb + j];
-    weight_partial = Q_i * K[cid * hf + hfid];
-    __syncwarp();
-
-    weight_partial = warpReduceSum(weight_partial, f);
-    if (laneId == 0)
-      warpLevelSums[warpId] = weight_partial;
-    __syncthreads();
-    weight_partial = (fid < f / WARP_SIZE) ? warpLevelSums[laneId] : 0;
-    if (warpId == 0)
-      weight_partial = warpReduceSum(weight_partial, f / WARP_SIZE);
-    if (fid == 0) {
-      neigh_nodes_weight[j] = weight_partial * val[lb + j];
-    }
-    __syncthreads();
-    weight = neigh_nodes_weight[j];
-    weightMax = MAX(weight, weightMax);
-    expweight = exp(weight - weightMax);
-    expweightMax =
-        (weightMax_old == weightMax) ? 1 : exp(weightMax_old - weightMax);
-    acc = acc * expweightMax + expweight * V[cid * hf + hfid];
-    partial_sum = partial_sum * expweightMax + expweight;
-    weightMax_old = weightMax;
-  }
-
-  // handle the node with no neighbor
-  out_feat[rid * hf + hfid] = (partial_sum != 0) ? acc / partial_sum : 0;
-}
-
-template <typename DType>
 __global__ void fused_gt_csr(const int h, const int f, const int *indptr,
                              const int *indices, const DType *val,
                              const DType *Q, const DType *K, const DType *V,
@@ -155,30 +96,6 @@ __global__ void fused_gt_csr(const int h, const int f, const int *indptr,
     out_feat[rid * h * f + hid * f + fid] = (expAll != 0) ? acc / expAll : 0;
 }
 
-void gt_csr_inference_launch(int m, int nnz, int h, int f, int smem_consume,
-                             const int *indptr, const int *indices,
-                             const float *val, const float *Q, const float *K,
-                             const float *V, float *out_feat) {
-  // cudaEvent_t start, stop;
-  // cudaEventCreate(&start);
-  // cudaEventCreate(&stop);
-  // cudaEventRecord(start, 0);
-  const int ntx = WARP_SIZE;
-  const int nty = (f + WARP_SIZE - 1) / WARP_SIZE;
-
-  const dim3 nblks(m, h);
-  const dim3 nthrs(ntx, nty);
-
-  CUDA_KERNEL_CALL((fused_gt_csr<float>), nblks, nthrs,
-                   (smem_consume) * sizeof(float), h, f, indptr, indices, val,
-                   Q, K, V, out_feat);
-  // cudaEventRecord(stop, 0);
-  // cudaEventSynchronize(stop);
-  // float elapsedTime;
-  // cudaEventElapsedTime(&elapsedTime, start, stop);
-  // printf("Time of fused kernel: %f \n", elapsedTime);
-}
-
 std::vector<torch::Tensor>
 gt_csr_inference_cuda(torch::Tensor indptr, torch::Tensor indices,
                       torch::Tensor val, int smem_consume, torch::Tensor Q,
@@ -193,10 +110,16 @@ gt_csr_inference_cuda(torch::Tensor indptr, torch::Tensor indices,
       torch::TensorOptions().dtype(torch::kFloat32).device(torch::kCUDA, devid);
   auto out_feat = torch::zeros({m, h, f}, options);
 
-  gt_csr_inference_launch(m, nnz, h, f, smem_consume, indptr.data_ptr<int>(),
-                          indices.data_ptr<int>(), val.data_ptr<float>(),
-                          Q.data_ptr<float>(), K.data_ptr<float>(),
-                          V.data_ptr<float>(), out_feat.data_ptr<float>());
+  const int ntx = WARP_SIZE;
+  const int nty = (f + WARP_SIZE - 1) / WARP_SIZE;
 
+  const dim3 nblks(m, h);
+  const dim3 nthrs(ntx, nty);
+
+  CUDA_KERNEL_CALL((fused_gt_csr<float>), nblks, nthrs,
+                   (smem_consume) * sizeof(float), h, f, indptr.data_ptr<int>(),
+                   indices.data_ptr<int>(), val.data_ptr<float>(),
+                   Q.data_ptr<float>(), K.data_ptr<float>(),
+                   V.data_ptr<float>(), out_feat.data_ptr<float>());
   return {out_feat};
 }
