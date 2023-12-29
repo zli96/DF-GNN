@@ -1,4 +1,4 @@
-conv=gat
+conv=gt
 
 if [ -z "${heads}" ]; then
 	heads=1
@@ -47,6 +47,6 @@ for dataset in ${datasets[@]}; do
 			export alblation_mode=$mode
 			python -u dgNN/script/test/test_fuse_conv.py --dim $dim --batch-size $bs --data-dir ${data_dir} --dataset ${dataset} --format ${format} --conv ${conv}
 		done
-		# python -u dgNN/script/test/test_fuse_conv.py --dim $dim --batch-size $bs --data-dir ${data_dir} --dataset ${dataset} --format hyper --conv ${conv}
+		python -u dgNN/script/test/test_fuse_conv.py --dim $dim --batch-size $bs --data-dir ${data_dir} --dataset ${dataset} --format hyper --conv ${conv}
 	done
 done

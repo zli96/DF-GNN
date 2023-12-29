@@ -11,9 +11,9 @@ fi
 
 if [ -n "${test_flag}" ]; then
 	datasets=(PATTERN)
-	formats=(hybrid)
-	batch_sizes=(16)
-	dims=(128)
+	formats=(csr hyper)
+	batch_sizes=(1024)
+	dims=(64)
 	echo test mode !!!!!!!!!!!!
 else
 	datasets=(ogbg-molhiv PATTERN CLUSTER MNIST CIFAR10 Peptides-func Peptides-struct PascalVOC-SP COCO-SP)

@@ -63,7 +63,7 @@ if __name__ == "__main__":
     time_no_fuse = []
     time_fuse = []
     warmup = 2
-    for epoch in range(20):
+    for epoch in range(10):
         logits, elapsed_time = model(params, X)
         if epoch >= warmup:
             time_no_fuse.append(elapsed_time)

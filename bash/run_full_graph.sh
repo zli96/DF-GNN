@@ -5,16 +5,22 @@ if [ -z "${data_dir}" ]; then
 fi
 
 if [ -n "${test_flag}" ]; then
-	convs=(agnn)
-	datasets=(cora pubmed cite)
-	formats=(hyper)
-	dims=(32)
+	convs=(gt)
+	datasets=(protein yelp Flickr AmazonCoBuyComputer AmazonCoBuyPhoto CoauthorCS CoauthorPhysics ppa collab)
+
+	formats=(csr)
+	dims=(512)
 	echo test mode !!!!!!!!!!!!
 else
-	convs=(gt agnn gat)
-	datasets=(cora pubmed cite)
-	formats=(csr hyper softmax)
-	dims=(64)
+	# convs=(gt agnn gat)
+	# datasets=(cora pubmed cite)
+	# formats=(csr hyper softmax)
+	# dims=(64)
+
+	convs=(gt)
+	datasets=(protein yelp Flickr AmazonCoBuyComputer AmazonCoBuyPhoto CoauthorCS CoauthorPhysics ppa collab)
+	formats=(csr)
+	dims=(128 256 512)
 fi
 
 # formats=(csr hyper)

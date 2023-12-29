@@ -2,6 +2,8 @@ import os
 
 from timeit import default_timer
 
+import dgl.data
+
 import matplotlib.pyplot as plt
 
 import torch
@@ -26,6 +28,7 @@ from dgl.data import (
 )
 
 from ogb.graphproppred import DglGraphPropPredDataset
+from ogb.linkproppred import DglLinkPropPredDataset
 from ogb.lsc import DglPCQM4Mv2Dataset
 from ogb.nodeproppred import DglNodePropPredDataset
 
@@ -89,20 +92,57 @@ def load_dataset_fn(dataset_name, data_dir):
     return dataset, train_fn
 
 
+def preprocess_proteins(graph):
+    import dgl.function as fn
+
+    graph.update_all(fn.copy_e("feat", "feat_copy"), fn.sum("feat_copy", "feat"))
+    graph.create_formats_()
+
+    return graph
+
+
 def load_data_full_graph(dataset_name, dataset_dir):
     if dataset_name == "cora":
         dataset = CoraGraphDataset(raw_dir=dataset_dir)
     elif dataset_name == "cora-full":
         dataset = CoraFullDataset(raw_dir=dataset_dir)
     elif dataset_name == "arxiv":
-        dataset = DglNodePropPredDataset("ogbn-arxiv")
+        dataset = DglNodePropPredDataset(name="ogbn-arxiv", root=dataset_dir)
         dataset = dataset[0]
+    elif dataset_name == "protein":
+        dataset = DglNodePropPredDataset(name="ogbn-proteins", root=dataset_dir)
+        g, _ = dataset[0]
+        g = preprocess_proteins(g)
+        dataset = [g]
+    elif dataset_name == "product":
+        dataset = DglNodePropPredDataset(name="ogbn-products", root=dataset_dir)
+        g, _ = dataset[0]
+        dataset = [g]
+    elif dataset_name == "ppa":
+        dataset = DglLinkPropPredDataset(name="ogbl-ppa", root=dataset_dir)
+        g = dataset[0]
+        g.ndata["feat"] = g.ndata["feat"].float()
+        dataset = [g]
+    elif dataset_name == "collab":
+        dataset = DglLinkPropPredDataset(name="ogbl-collab", root=dataset_dir)
     elif dataset_name == "cite":
         dataset = CiteseerGraphDataset(raw_dir=dataset_dir)
     elif dataset_name == "pubmed":
         dataset = PubmedGraphDataset(raw_dir=dataset_dir)
     elif dataset_name == "reddit":
         dataset = RedditDataset(raw_dir=dataset_dir)
+    elif dataset_name == "yelp":
+        dataset = dgl.data.YelpDataset(raw_dir=dataset_dir)
+    elif dataset_name == "Flickr":
+        dataset = dgl.data.FlickrDataset(raw_dir=dataset_dir)
+    elif dataset_name == "AmazonCoBuyComputer":
+        dataset = dgl.data.AmazonCoBuyComputerDataset(raw_dir=dataset_dir)
+    elif dataset_name == "AmazonCoBuyPhoto":
+        dataset = dgl.data.AmazonCoBuyPhotoDataset(raw_dir=dataset_dir)
+    elif dataset_name == "CoauthorCS":
+        dataset = dgl.data.CoauthorCSDataset(raw_dir=dataset_dir)
+    elif dataset_name == "CoauthorPhysics":
+        dataset = dgl.data.CoauthorPhysicsDataset(raw_dir=dataset_dir)
     else:
         raise ValueError(f"Unsupport dataset {dataset_name}")
     return dataset
@@ -345,10 +385,10 @@ def benchmark(function, *args):
         out = function(*args)
 
     with Timer() as t:
-        for i in range(100):
+        for i in range(10):
             out = function(*args)
 
-    return out, t.elapsed_secs / 100
+    return out, t.elapsed_secs / 10
 
 
 def parse_args(parser):
