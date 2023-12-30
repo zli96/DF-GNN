@@ -22,6 +22,14 @@ class Model(nn.Module):
         return h
 
 
+def PrintGraphStruct(g):
+    print("----------graph statics -----------")
+    print(f"# of nodes {g.num_nodes()}")
+    print(f"# of edges {g.num_edges()}")
+    print(f"avg. degree {torch.mean(g.out_degrees().float()):.2f}")
+    print(f"max. degree {max(g.out_degrees())}")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="full_graph")
     parser.add_argument("--conv", type=str, default="gt")
@@ -51,6 +59,8 @@ if __name__ == "__main__":
     # load dataset
     dataset = load_data_full_graph(args.dataset, args.data_dir)
     g = dataset[0].to(dev)
+    PrintGraphStruct(g)
+
     # Create the sparse adjacency matrix A.
     params = preprocess_func(g)
     X = g.ndata["feat"]
@@ -58,22 +68,29 @@ if __name__ == "__main__":
     model = Model(MHAlayer=layer, in_size=in_size, hidden_size=args.dim)
     model = model.to(dev)
     print("model", model)
-
     print("----------------------Forward------------------------")
     time_no_fuse = []
     time_fuse = []
-    warmup = 2
-    for epoch in range(10):
+
+    print("------warmup------")
+    for epoch in range(1):
         logits, elapsed_time = model(params, X)
-        if epoch >= warmup:
-            time_no_fuse.append(elapsed_time)
-            print(f"epoch {epoch} non-fused time %.4f" % elapsed_time)
+
+    print("------inference------")
+    for epoch in range(10):
+        if epoch < 2:
+            logits, elapsed_time_nofuse = model(params, X)
+            time_no_fuse.append(elapsed_time_nofuse)
+            logits_fuse, elapsed_time = model(params, X, fuse=True)
+            time_fuse.append(elapsed_time)
+            check_correct(logits[:1000], logits_fuse[:1000], params)
+            check_correct(logits[-1000:], logits_fuse[-1000:], params)
+            print(f"epoch {epoch} non-fused time %.4f" % elapsed_time_nofuse)
+            print(f"epoch {epoch} fused time %.4f" % elapsed_time)
+        else:
             logits_fuse, elapsed_time = model(params, X, fuse=True)
             time_fuse.append(elapsed_time)
             print(f"epoch {epoch} fused time %.4f" % elapsed_time)
-            if epoch < 3:
-                check_correct(logits[:1000], logits_fuse[:1000], params)
-                check_correct(logits[-1000:], logits_fuse[-1000:], params)
 
     print("----------------------Result------------------------")
     print(

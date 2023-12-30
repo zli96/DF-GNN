@@ -16,6 +16,7 @@ from .GAT import (
 
 from .GT import (
     SparseMHA_CSR,
+    SparseMHA_CSR_GM,
     SparseMHA_forward_timing,
     SparseMHA_hybrid,
     SparseMHA_hyper,
@@ -323,6 +324,8 @@ def subgraph_filter(dataset, dataset_name, dim, heads):
 def load_layer_GT(args):
     if args.format == "csr":
         layer = SparseMHA_CSR(args.dim, args.dim, args.heads)
+    elif args.format == "csr_gm":
+        layer = SparseMHA_CSR_GM(args.dim, args.dim, args.heads)
     elif args.format == "tiling":
         layer = SparseMHA_tiling(args.dim, args.dim, args.heads)
     elif args.format == "hyper" or args.format == "nofuse":
@@ -411,7 +414,7 @@ def load_prepfunc(args):
     #     else:
     #         raise ValueError(f"Unsupported format {args.format}")
 
-    if args.format in ["csr", "tiling"]:
+    if args.format in ["csr", "csr_gm", "tiling"]:
         preprocess_func = preprocess_CSR
     elif args.format in ["hyper", "nofuse", "hyper_ablation"]:
         preprocess_func = preprocess_Hyper

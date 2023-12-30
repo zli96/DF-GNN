@@ -286,6 +286,28 @@ def GTConvFuse_inference_csr(
     return out_feat[0]
 
 
+def GTConvFuse_inference_csr_gm(
+    indptr,
+    indices,
+    val,
+    smem_consume,
+    Q,
+    K,
+    V,
+):
+    out_feat = fused_gt.gt_csr_gm_inference(
+        indptr,
+        indices,
+        val,
+        smem_consume,
+        Q,
+        K,
+        V,
+    )
+
+    return out_feat[0]
+
+
 def GTConvFuse_inference_tiling(
     indptr,
     indices,
