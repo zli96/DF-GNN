@@ -19,8 +19,8 @@ gt_csr_inference_cuda(torch::Tensor indptr, torch::Tensor indices,
 
 std::vector<torch::Tensor>
 gt_csr_gm_inference_cuda(torch::Tensor indptr, torch::Tensor indices,
-                         torch::Tensor val, int smem_consume, torch::Tensor Q,
-                         torch::Tensor K, torch::Tensor V);
+                         torch::Tensor val, torch::Tensor Q, torch::Tensor K,
+                         torch::Tensor V);
 
 std::vector<torch::Tensor>
 gt_tiling_inference_cuda(torch::Tensor indptr, torch::Tensor indices,
@@ -200,10 +200,11 @@ std::vector<torch::Tensor> gt_csr_inference(torch::Tensor indptr,
   return gt_csr_inference_cuda(indptr, indices, val, smem_consume, Q, K, V);
 }
 
-std::vector<torch::Tensor>
-gt_csr_gm_inference(torch::Tensor indptr, torch::Tensor indices,
-                    torch::Tensor val, int smem_consume, torch::Tensor Q,
-                    torch::Tensor K, torch::Tensor V) {
+std::vector<torch::Tensor> gt_csr_gm_inference(torch::Tensor indptr,
+                                               torch::Tensor indices,
+                                               torch::Tensor val,
+                                               torch::Tensor Q, torch::Tensor K,
+                                               torch::Tensor V) {
   // device check
   CHECK_DEVICE(indptr);
   CHECK_DEVICE(indices);
@@ -231,7 +232,7 @@ gt_csr_gm_inference(torch::Tensor indptr, torch::Tensor indices,
   // shape check
   assert(indices.size(0) == val.size(0));
 
-  return gt_csr_gm_inference_cuda(indptr, indices, val, smem_consume, Q, K, V);
+  return gt_csr_gm_inference_cuda(indptr, indices, val, Q, K, V);
 }
 
 std::vector<torch::Tensor>

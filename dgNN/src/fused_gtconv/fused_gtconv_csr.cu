@@ -347,8 +347,8 @@ gt_csr_inference_cuda(torch::Tensor indptr, torch::Tensor indices,
 
 std::vector<torch::Tensor>
 gt_csr_gm_inference_cuda(torch::Tensor indptr, torch::Tensor indices,
-                         torch::Tensor val, int smem_consume, torch::Tensor Q,
-                         torch::Tensor K, torch::Tensor V) {
+                         torch::Tensor val, torch::Tensor Q, torch::Tensor K,
+                         torch::Tensor V) {
   // Q: torch.Size([6248, 10, 8])
   const auto m = indptr.size(0) - 1; // num of nodes
   const auto nnz = indices.size(0);  // num of edges

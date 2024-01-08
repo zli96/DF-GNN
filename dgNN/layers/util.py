@@ -12,6 +12,7 @@ from .GAT import (
     GATConv_hyper,
     GATConv_hyper_ablation,
     GATConv_softmax,
+    GATConv_softmax_gm,
     GATConv_tiling,
 )
 
@@ -359,6 +360,8 @@ def load_layer_GAT(args):
         layer = GATConv_hyper(args.dim, args.dim, args.heads)
     elif args.format == "softmax":
         layer = GATConv_softmax(args.dim, args.dim, args.heads)
+    elif args.format == "softmax_gm":
+        layer = GATConv_softmax_gm(args.dim, args.dim, args.heads)
     elif args.format == "hybrid":
         layer = GATConv_hybrid(args.dim, args.dim, args.heads)
     elif args.format == "hyper_ablation":
@@ -421,7 +424,7 @@ def load_prepfunc(args):
         preprocess_func = preprocess_CSR
     elif args.format in ["hyper", "nofuse", "hyper_ablation"]:
         preprocess_func = preprocess_Hyper
-    elif args.format == "softmax":
+    elif args.format in ["softmax", "softmax_gm"]:
         preprocess_func = preprocess_softmax
     # elif args.format == "indegree":
     #     preprocess_func = preprocess_indegree

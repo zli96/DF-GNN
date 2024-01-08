@@ -14,14 +14,14 @@ class SparseMHA_CSR_GM(SparseMHA):
         q *= self.scaling
         k = self.k_proj(h).reshape(N, self.head_dim, self.num_heads)
         v = self.v_proj(h).reshape(N, self.head_dim, self.num_heads)
-        A, indptr, indices, val, smem_consume = params
+        A, indptr, indices, val, _ = params
 
         if fuse:
             q = q.transpose(1, 2).contiguous()
             k = k.transpose(1, 2).contiguous()
             v = v.transpose(1, 2).contiguous()
             out, elapsed_time = benchmark(
-                GTConvFuse_inference_csr_gm, indptr, indices, val, smem_consume, q, k, v
+                GTConvFuse_inference_csr_gm, indptr, indices, val, q, k, v
             )
             out = out.transpose(1, 2)
         else:

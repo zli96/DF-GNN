@@ -3,4 +3,5 @@ from .gatconv_layer_hybrid import GATConv_hybrid
 from .gatconv_layer_hyper import GATConv_hyper
 from .gatconv_layer_hyper_ablation import GATConv_hyper_ablation
 from .gatconv_layer_softmax import GATConv_softmax
+from .gatconv_layer_softmax_gm import GATConv_softmax_gm
 from .gatconv_layer_tiling import GATConv_tiling
