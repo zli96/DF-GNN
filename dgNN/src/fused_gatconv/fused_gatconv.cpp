@@ -128,6 +128,36 @@ gat_inference_hyper_ablation(int smem_consume, torch::Tensor attn_row,
                                            negative_slope, in_feat);
 }
 
+torch::Tensor
+gat_tiling_inference_cuda(torch::Tensor attn_row, torch::Tensor attn_col,
+                          torch::Tensor row_ptr, torch::Tensor col_ind,
+                          float negative_slope, torch::Tensor in_feat);
+
+torch::Tensor gat_inference_tiling(torch::Tensor attn_row,
+                                   torch::Tensor attn_col,
+                                   torch::Tensor row_ptr, torch::Tensor col_ind,
+                                   float negative_slope, torch::Tensor in_feat)
+
+{
+  assert(attn_row.device().type() == torch::kCUDA);
+  assert(attn_col.device().type() == torch::kCUDA);
+  assert(row_ptr.device().type() == torch::kCUDA);
+  assert(col_ind.device().type() == torch::kCUDA);
+  assert(in_feat.device().type() == torch::kCUDA);
+  assert(attn_row.is_contiguous());
+  assert(attn_col.is_contiguous());
+  assert(row_ptr.is_contiguous());
+  assert(col_ind.is_contiguous());
+  assert(in_feat.is_contiguous());
+  assert(attn_row.dtype() == torch::kFloat32);
+  assert(attn_col.dtype() == torch::kFloat32);
+  assert(row_ptr.dtype() == torch::kInt32);
+  assert(col_ind.dtype() == torch::kInt32);
+  assert(in_feat.dtype() == torch::kFloat32);
+  return gat_tiling_inference_cuda(attn_row, attn_col, row_ptr, col_ind,
+                                   negative_slope, in_feat);
+}
+
 torch::Tensor gat_inference_cuda(torch::Tensor attn_row, torch::Tensor attn_col,
                                  torch::Tensor row_ptr, torch::Tensor col_ind,
                                  float negative_slope, torch::Tensor in_feat);
@@ -271,5 +301,6 @@ PYBIND11_MODULE(fused_gatconv, m) {
   m.def("gat_inference_hyper", &gat_inference_hyper, "fused gat inference op");
   m.def("gat_inference_softmax", &gat_inference_softmax,
         "fused gat inference op");
+  m.def("gat_inference_tiling", &gat_inference_tiling);
   m.def("gat_inference_hyper_ablation", &gat_inference_hyper_ablation);
 }

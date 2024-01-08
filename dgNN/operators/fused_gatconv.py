@@ -52,6 +52,14 @@ def GATConvFuse_inference_softmax(
     )
 
 
+def GATConvFuse_inference_tiling(
+    attn_row, attn_col, row_ptr, col_ind, negative_slope, in_feat
+):
+    return fused_gat.gat_inference_tiling(
+        attn_row, attn_col, row_ptr, col_ind, negative_slope, in_feat
+    )
+
+
 def GATConvFuse_inference(
     attn_row, attn_col, row_ptr, col_ind, negative_slope, in_feat
 ):

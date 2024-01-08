@@ -33,6 +33,7 @@ setuptools.setup(
                 "dgNN/src/fused_gatconv/fused_gatconv_hyper.cu",
                 "dgNN/src/fused_gatconv/fused_gatconv_softmax.cu",
                 "dgNN/src/fused_gatconv/fused_gatconv_hyper_ablation.cu",
+                "dgNN/src/fused_gatconv/fused_gatconv_tiling.cu",
             ],
             extra_compile_args={"cxx": [], "nvcc": ["-arch=sm_75", "-lineinfo"]},
             extra_link_args=["-lcurand"],

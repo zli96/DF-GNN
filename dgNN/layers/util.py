@@ -12,6 +12,7 @@ from .GAT import (
     GATConv_hyper,
     GATConv_hyper_ablation,
     GATConv_softmax,
+    GATConv_tiling,
 )
 
 from .GT import (
@@ -352,6 +353,8 @@ def load_layer_GT(args):
 def load_layer_GAT(args):
     if args.format == "csr":
         layer = GATConv_dgNN(args.dim, args.dim, args.heads)
+    elif args.format == "tiling":
+        layer = GATConv_tiling(args.dim, args.dim, args.heads)
     elif args.format == "hyper" or args.format == "nofuse":
         layer = GATConv_hyper(args.dim, args.dim, args.heads)
     elif args.format == "softmax":

@@ -412,17 +412,18 @@ __global__ void fused_gt_hyper_inference_node_parallel(
 
   int curr_node = blk_node_lb + tidy;
   if (curr_node < m) {
+    const int *rowoff = row + blk_edge_lb;
+    const int *indicesoff = indices + blk_edge_lb;
+    const DType *valoff = val + blk_edge_lb;
+
     const int edge_lb = __ldg(indptr + curr_node);
     const int num_edge = __ldg(indptr + curr_node + 1) - edge_lb;
 
-    const int *rowoff = row + edge_lb;
-    const int *indicesoff = indices + edge_lb;
-    const DType *valoff = val + edge_lb;
-
     for (int i = 0; i < num_edge; i++) {
+      int curr_edge = edge_lb + i - blk_edge_lb;
       // edge bound for curr block
-      int src = __ldg(rowoff + i);
-      int dst = __ldg(indicesoff + i);
+      int src = __ldg(rowoff + curr_edge);
+      int dst = __ldg(indicesoff + curr_edge);
 
       // // the Q feature of row node
       const DType *Qoff = Q + src * f * h + hid * f;
@@ -437,7 +438,7 @@ __global__ void fused_gt_hyper_inference_node_parallel(
       for (int offset = 16; offset > 0; offset /= 2)
         att_val += __shfl_down_sync(full_mask, att_val, offset);
       if (tidx == 0) {
-        neigh_nodes_weight[i] = att_val * valoff[i];
+        neigh_nodes_weight[curr_edge] = att_val * valoff[curr_edge];
       }
     }
 
