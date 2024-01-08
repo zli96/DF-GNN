@@ -49,6 +49,7 @@ setuptools.setup(
                 "dgNN/src/fused_gtconv/fused_gtconv_tiling.cu",
                 "dgNN/src/fused_gtconv/fused_gtconv_hyper_ablation.cu",
                 "dgNN/src/fused_gtconv/fused_gtconv_softmax.cu",
+                "dgNN/src/fused_gtconv/fused_gtconv_softmax_gm.cu",
                 # "dgNN/src/fused_gtconv/fused_gtconv_subgraph.cu",
                 "dgNN/src/fused_gtconv/fused_gtconv_backward.cu",
             ],

@@ -264,6 +264,27 @@ def GTConvFuse_inference_softmax(
     return out_feat[0]
 
 
+def GTConvFuse_inference_softmax_gm(
+    indptr,
+    indices,
+    rows,
+    val,
+    Q,
+    K,
+    V,
+):
+    out_feat = fused_gt.gt_softmax_gm_inference(
+        indptr,
+        indices,
+        rows,
+        val,
+        Q,
+        K,
+        V,
+    )
+    return out_feat
+
+
 def GTConvFuse_inference_csr(
     indptr,
     indices,

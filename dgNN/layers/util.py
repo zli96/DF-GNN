@@ -24,6 +24,7 @@ from .GT import (
     SparseMHA_hyper,
     SparseMHA_hyper_ablation,
     SparseMHA_softmax,
+    SparseMHA_softmax_gm,
     SparseMHA_tiling,
 )
 
@@ -334,6 +335,8 @@ def load_layer_GT(args):
         layer = SparseMHA_hyper(args.dim, args.dim, args.heads)
     elif args.format == "softmax":
         layer = SparseMHA_softmax(args.dim, args.dim, args.heads)
+    elif args.format == "softmax_gm":
+        layer = SparseMHA_softmax_gm(args.dim, args.dim, args.heads)
     # elif args.format == "indegree":
     #     layer = SparseMHA_indegree(args.dim, args.dim, args.heads)
     # elif args.format == "indegree_hyper":
