@@ -55,6 +55,7 @@ setuptools.setup(
             ],
             extra_compile_args={"cxx": [], "nvcc": ["-arch=sm_75", "-lineinfo"]},
             extra_link_args=["-lcurand", "-lcusparse"],
+            include_dirs=["dgNN/src/spmm/spmm.cuh", "dgNN/src/sddmm/sddmm.cuh"],
         ),
         CUDAExtension(
             "package.fused_dotgatconv",
