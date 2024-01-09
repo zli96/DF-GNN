@@ -4,7 +4,14 @@ import dgl
 import dgl.sparse as dglsp
 import torch
 
-from .AGNN import AGNNConv_csr, AGNNConv_hyper, AGNNConv_softmax
+from .AGNN import (
+    AGNNConv_csr,
+    AGNNConv_csr_gm,
+    AGNNConv_hyper,
+    AGNNConv_softmax,
+    AGNNConv_softmax_gm,
+    AGNNConv_tiling,
+)
 
 from .GAT import (
     GATConv_dgNN,
@@ -393,6 +400,12 @@ def load_layer_AGNN(args):
         layer = AGNNConv_csr(args.dim, args.dim, args.heads)
     elif args.format == "softmax":
         layer = AGNNConv_softmax(args.dim, args.dim, args.heads)
+    elif args.format == "csr_gm":
+        layer = AGNNConv_csr_gm(args.dim, args.dim, args.heads)
+    elif args.format == "tiling":
+        layer = AGNNConv_tiling(args.dim, args.dim, args.heads)
+    elif args.format == "softmax_gm":
+        layer = AGNNConv_softmax_gm(args.dim, args.dim, args.heads)
     else:
         raise ValueError(f"Unsupported format {args.format} in AGNNconv")
     return layer
