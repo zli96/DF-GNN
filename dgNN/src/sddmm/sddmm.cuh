@@ -69,3 +69,55 @@ __global__ void sddmmCooKernel(const int lhs_len, const int rhs_len,
     }
   }
 }
+
+template <typename DType>
+__global__ void sddmmCsrKernel(const int h, const int f, const int *indptr,
+                               const int *indices, const DType *val,
+                               const DType *Q, const DType *K, DType *out) {
+  const int rid = blockIdx.x;                     // loop over row of adj matrix
+  const int hid = blockIdx.y;                     // loop over heads
+  const int fid = threadIdx.y * 32 + threadIdx.x; // loop over feature dim
+
+  const int lb = indptr[rid]; // row rid elements
+  const int hb = indptr[rid + 1];
+
+  const int laneId = fid % WARP_SIZE;
+  const int warpId = fid / WARP_SIZE;
+
+  const int f_mul_32 = roundup(f, 32);
+  const int num_neighbor = hb - lb;
+
+  // Allocate smem
+  static __shared__ DType warpLevelSums[WARP_SIZE];
+  const DType *valoff = val + lb;
+  DType *outoff = out + lb;
+
+  // init the shared memory
+  DType Q_i = 0;
+  if (fid < f) {
+    Q_i = Q[rid * h * f + hid * f + fid];
+  }
+
+  // compute the attention weight
+  for (int j = 0; j < num_neighbor; j++) {
+    DType weight = 0;
+    DType weight_partial = 0;
+    if (fid < f) {
+      int cid = indices[lb + j];
+      weight_partial = Q_i * K[cid * h * f + hid * f + fid];
+    }
+    __syncwarp();
+
+    weight_partial = warpReduceSum(weight_partial, f_mul_32);
+    if (laneId == 0)
+      warpLevelSums[warpId] = weight_partial;
+    __syncthreads();
+
+    weight_partial = (fid < f_mul_32 / WARP_SIZE) ? warpLevelSums[laneId] : 0;
+    if (warpId == 0)
+      weight_partial = warpReduceSum(weight_partial, f_mul_32 / WARP_SIZE);
+    if (fid == 0) {
+      outoff[j] = weight_partial * valoff[j];
+    }
+  }
+}

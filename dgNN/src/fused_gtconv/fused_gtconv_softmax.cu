@@ -24,6 +24,8 @@ void gt_softmax_inference_launch(int m, int nnz, int h, int f, int smem_consume,
 
   const dim3 nblks2(m, h, 1);
   const dim3 nthrs2(32, (f + 31) / 32, 1);
+  //   CUDA_KERNEL_CALL((sddmmCsrKernel<float>), nblks2, nthrs2,
+  //                    0, h, f, indptr, indices, val, Q, K, attn_edge);
   CUDA_KERNEL_CALL((softMax_SPMM<float>), nblks2, nthrs2,
                    (smem_consume) * sizeof(float), h, f, indptr, indices, V,
                    attn_edge, out_feat);

@@ -1132,22 +1132,22 @@ void gat_inference(int m, int nnz, int h, int f, const float *attn_row,
                    const float *attn_col, const int *row_ptr,
                    const int *col_ind, float negative_slope,
                    const float *in_feat, float *out_feat) {
-  if (f > 64)
-    fused_inference_kernel<<<dim3(m, h, 1), dim3(32, (f + 31) / 32, 1),
-                             32 * (sizeof(float) + sizeof(int))>>>(
-        m, nnz, h, f, attn_row, attn_col, row_ptr, col_ind, in_feat,
-        negative_slope, out_feat);
-  else {
-    // fused_forward_kernel_small_f<<<dim3(m, 1, 1), dim3(32, h, 1),
-    //                                32 * h * sizeof(float)>>>(
-    //     m, nnz, h, f, attn_row, attn_col, row_ptr, col_ind, in_feat,
-    //     negative_slope, edge_max, edge_sum, out_feat);
-    fused_inference_kernel_small_f_sm<<<dim3(m, 1, 1), dim3(32, h, 1),
-                                        (32 + 512) * h * sizeof(float) +
-                                            32 * sizeof(float)>>>(
-        m, nnz, h, f, attn_row, attn_col, row_ptr, col_ind, in_feat,
-        negative_slope, out_feat);
-  }
+  // if (f > 64)
+  //   fused_inference_kernel<<<dim3(m, h, 1), dim3(32, (f + 31) / 32, 1),
+  //                            32 * (sizeof(float) + sizeof(int))>>>(
+  //       m, nnz, h, f, attn_row, attn_col, row_ptr, col_ind, in_feat,
+  //       negative_slope, out_feat);
+  // else {
+  // fused_forward_kernel_small_f<<<dim3(m, 1, 1), dim3(32, h, 1),
+  //                                32 * h * sizeof(float)>>>(
+  //     m, nnz, h, f, attn_row, attn_col, row_ptr, col_ind, in_feat,
+  //     negative_slope, edge_max, edge_sum, out_feat);
+  fused_inference_kernel_small_f_sm<<<dim3(m, 1, 1), dim3(32, h, 1),
+                                      (32 + 512) * h * sizeof(float) +
+                                          32 * sizeof(float)>>>(
+      m, nnz, h, f, attn_row, attn_col, row_ptr, col_ind, in_feat,
+      negative_slope, out_feat);
+  // }
 }
 
 torch::Tensor gat_inference_cuda(torch::Tensor attn_row, torch::Tensor attn_col,
