@@ -130,6 +130,15 @@ __device__ __forceinline__ void Dot4(data *cal, data *lhd, data *rhd) {
 }
 
 template <typename data>
+__device__ __forceinline__ void Mul4_const(data *cal, const data *lhd,
+                                           data Const) {
+  cal[0] += lhd[0] * Const;
+  cal[1] += lhd[1] * Const;
+  cal[2] += lhd[2] * Const;
+  cal[3] += lhd[3] * Const;
+}
+
+template <typename data>
 __device__ __forceinline__ void selfMul4(data *lhd, data *rhd) {
   lhd[0] *= rhd[0];
   lhd[1] *= rhd[1];

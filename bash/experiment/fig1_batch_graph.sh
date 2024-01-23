@@ -10,8 +10,8 @@ set -e
 python setup.py develop
 
 convs=(gt agnn gat)
-datasets=(Peptides-func COCO-SP PascalVOC-SP MNIST CIFAR10 CLUSTER PATTERN)
-formats=(csr softmax hyper)
+datasets=(COCO-SP PascalVOC-SP MNIST CIFAR10 CLUSTER PATTERN)
+formats=(hyper)
 dims=(128)
 bs=1024
 

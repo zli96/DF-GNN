@@ -12,6 +12,8 @@ python setup.py develop
 convs=(gt agnn gat)
 datasets=(cora pubmed cite)
 formats=(csr softmax hyper)
+formats=(hyper)
+
 dims=(128)
 
 for conv in ${convs[@]}; do

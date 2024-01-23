@@ -24,7 +24,7 @@ def plot_batch_graph():
     ]
 
     formats = ["softmax", "csr", "hyper"]
-    dim = 64
+    dim = 128
     bs = "1024"
     for conv in convs:
         print(conv)
