@@ -5,11 +5,27 @@ if [ -z "${data_dir}" ]; then
 fi
 
 if [ -n "${test_flag}" ]; then
-	convs=(gt)
-	datasets=(protein yelp Flickr AmazonCoBuyComputer AmazonCoBuyPhoto CoauthorCS CoauthorPhysics ppa collab)
+	# convs=(gt)
+	# # datasets=(protein yelp Flickr AmazonCoBuyComputer AmazonCoBuyPhoto CoauthorCS CoauthorPhysics ppa collab)
+	# datasets=(cora pubmed cite)
+	# formats=(csr)
+	# dims=(512)
+	# echo test mode !!!!!!!!!!!!
 
-	formats=(csr)
-	dims=(512)
+	# feature parallel && edge parallel && node parallel
+	# export alblation_mode="4"
+	# convs=(gt)
+	# datasets=(arxiv)
+	# formats=(csr hyper_ablation hyper)
+	# dims=(64)
+	convs=(gat)
+	datasets=(reddit protein)
+	# datasets=(arxiv)
+	# formats=(tiling)
+	formats=(softmax_gm tiling)
+
+	# formats=(softmax_gm)
+	dims=(128)
 	echo test mode !!!!!!!!!!!!
 else
 	# convs=(gt agnn gat)
@@ -17,10 +33,16 @@ else
 	# formats=(csr hyper softmax)
 	# dims=(64)
 
+	# convs=(gt)
+	# datasets=(protein yelp Flickr AmazonCoBuyComputer AmazonCoBuyPhoto CoauthorCS CoauthorPhysics ppa collab)
+	# formats=(csr)
+	# dims=(128 256 512)
+
 	convs=(gt)
-	datasets=(protein yelp Flickr AmazonCoBuyComputer AmazonCoBuyPhoto CoauthorCS CoauthorPhysics ppa collab)
-	formats=(csr)
-	dims=(128 256 512)
+	datasets=(Flickr reddit protein)
+	formats=(csr_gm tiling softmax_gm)
+	dims=(128)
+	echo test mode !!!!!!!!!!!!
 fi
 
 # formats=(csr hyper)

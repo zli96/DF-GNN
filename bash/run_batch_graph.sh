@@ -1,7 +1,5 @@
 read -p "Whether use test mode(default=False): " test_flag
 
-conv=agnn
-
 if [ -z "${heads}" ]; then
 	heads=1
 fi
@@ -10,16 +8,18 @@ if [ -z "${data_dir}" ]; then
 fi
 
 if [ -n "${test_flag}" ]; then
-	datasets=(MNIST CIFAR10)
-	formats=(csr hyper softmax)
+	conv=gt
+	datasets=(PATTERN)
+	formats=(hyper)
 	batch_sizes=(1024)
-	dims=(64)
+	dims=(32 64)
 	echo test mode !!!!!!!!!!!!
 else
-	datasets=(PATTERN CLUSTER MNIST CIFAR10 Peptides-func Peptides-struct PascalVOC-SP COCO-SP)
-	formats=(csr hyper softmax)
+	datasets=(PATTERN CLUSTER MNIST CIFAR10 Peptides-func COCO-SP PascalVOC-SP)
+	formats=(csr hyper softmax tiling)
 	batch_sizes=(16 32 64 128 256 512 1024 2048 4096)
-	dims=(32 64 128)
+	dims=(64)
+
 fi
 
 day=$(date +%m_%d)

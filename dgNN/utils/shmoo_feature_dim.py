@@ -37,16 +37,26 @@ def shmoo_batch_size():
 
 
 def shmoo_feature_dim():
+    conv = "gt"
     datasets = ["PATTERN"]
+    datasets = [
+        "Peptides-func",
+        "COCO-SP",
+        "PascalVOC-SP",
+        "MNIST",
+        "CIFAR10",
+        "CLUSTER",
+        "PATTERN",
+    ]
+
     formats = ["softmax", "csr", "hyper"]
-    # dims = [2**i for i in range(4, 9)]
     dims = [64]
 
     bs = "1024"
 
     for dataset in datasets:
         result_dir = os.path.join(
-            "/workspace2/fuse_attention", "dataset", dataset, "gt"
+            "/workspace2/fuse_attention", "dataset", dataset, conv
         )
         print(dataset)
         for dim in dims:
