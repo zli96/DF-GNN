@@ -1,4 +1,4 @@
-## dgNN
+## DFGNN
 
 graph statistics [figure/graph_statistics.md](figure/graph_statistics.md)
 

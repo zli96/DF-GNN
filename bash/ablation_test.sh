@@ -34,9 +34,9 @@ python setup.py develop
 
 # 		for mode in ${modes[@]}; do
 # 			export alblation_mode=$mode
-# 			python -u dgNN/script/test/test_fuse_conv.py --dim $dim --batch-size $bs --data-dir ${data_dir} --dataset ${dataset} --format ${format} --conv ${conv} | tee -a log/day_${day}/${name}.log
+# 			python -u DFGNN/script/test/test_fuse_conv.py --dim $dim --batch-size $bs --data-dir ${data_dir} --dataset ${dataset} --format ${format} --conv ${conv} | tee -a log/day_${day}/${name}.log
 # 		done
-# 		python -u dgNN/script/test/test_fuse_conv.py --dim $dim --batch-size $bs --data-dir ${data_dir} --dataset ${dataset} --format hyper --conv ${conv} --store-result | tee -a log/day_${day}/${name}.log
+# 		python -u DFGNN/script/test/test_fuse_conv.py --dim $dim --batch-size $bs --data-dir ${data_dir} --dataset ${dataset} --format hyper --conv ${conv} --store-result | tee -a log/day_${day}/${name}.log
 # 	done
 # done
 
@@ -45,8 +45,8 @@ for dataset in ${datasets[@]}; do
 		name=${conv}_${dataset}_${format}_dim${dim}_${Time}
 		for mode in ${modes[@]}; do
 			export alblation_mode=$mode
-			python -u dgNN/script/test/test_fuse_conv.py --dim $dim --batch-size $bs --data-dir ${data_dir} --dataset ${dataset} --format ${format} --conv ${conv}
+			python -u DFGNN/script/test/test_fuse_conv.py --dim $dim --batch-size $bs --data-dir ${data_dir} --dataset ${dataset} --format ${format} --conv ${conv}
 		done
-		python -u dgNN/script/test/test_fuse_conv.py --dim $dim --batch-size $bs --data-dir ${data_dir} --dataset ${dataset} --format hyper --conv ${conv}
+		python -u DFGNN/script/test/test_fuse_conv.py --dim $dim --batch-size $bs --data-dir ${data_dir} --dataset ${dataset} --format hyper --conv ${conv}
 	done
 done

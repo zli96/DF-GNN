@@ -12,7 +12,7 @@ if [ -n "${test_flag}" ]; then
 	datasets=(PATTERN)
 	formats=(hyper)
 	batch_sizes=(1024)
-	dims=(32 64)
+	dims=(64)
 	echo test mode !!!!!!!!!!!!
 else
 	datasets=(PATTERN CLUSTER MNIST CIFAR10 Peptides-func COCO-SP PascalVOC-SP)
@@ -36,9 +36,9 @@ for dim in ${dims[@]}; do
 			for bs in ${batch_sizes[@]}; do
 				if [ -n "${test_flag}" ]; then
 					# # run with nolog
-					python -u dgNN/script/test/test_fuse_conv.py --dim $dim --batch-size $bs --data-dir ${data_dir} --dataset ${dataset} --format ${format} --conv ${conv}
+					python -u DFGNN/script/test/test_fuse_conv.py --dim $dim --batch-size $bs --data-dir ${data_dir} --dataset ${dataset} --format ${format} --conv ${conv}
 				else
-					python -u dgNN/script/test/test_fuse_conv.py --dim $dim --batch-size $bs --data-dir ${data_dir} --dataset ${dataset} --format ${format} --conv ${conv} --store-result 2>&1 | tee -a log/day_${day}/${name}.log
+					python -u DFGNN/script/test/test_fuse_conv.py --dim $dim --batch-size $bs --data-dir ${data_dir} --dataset ${dataset} --format ${format} --conv ${conv} --store-result 2>&1 | tee -a log/day_${day}/${name}.log
 
 				fi
 			done

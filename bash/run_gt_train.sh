@@ -32,8 +32,8 @@ python setup.py develop
 # for dim in ${dims[@]}; do
 # 	for bs in ${batch_sizes[@]}; do
 # 		# name=train_gtconv_dim${dim}_bs${bs}
-# 		# python -u dgNN/script/train/train_gtconv.py --dim $dim --batch-size $bs --data-dir ${data_dir} | tee -a log/day_${day}/${name}.log
-# 		python -u dgNN/script/train/train_gtconv.py --dim $dim --batch-size $bs --data-dir ${data_dir} --checkgrad
+# 		# python -u DFGNN/script/train/train_gtconv.py --dim $dim --batch-size $bs --data-dir ${data_dir} | tee -a log/day_${day}/${name}.log
+# 		python -u DFGNN/script/train/train_gtconv.py --dim $dim --batch-size $bs --data-dir ${data_dir} --checkgrad
 # 	done
 # done
 
@@ -42,10 +42,10 @@ for dim in ${dims[@]}; do
 		for bs in ${batch_sizes[@]}; do
 			if [ -n "${test_flag}" ]; then
 				# run with nolog
-				python -u dgNN/script/train/test_conv_fw_bw.py --dim $dim --batch-size $bs --data-dir ${data_dir} --dataset ${dataset} --conv ${conv}
+				python -u DFGNN/script/train/test_conv_fw_bw.py --dim $dim --batch-size $bs --data-dir ${data_dir} --dataset ${dataset} --conv ${conv}
 			else
 				name=train_${conv}conv_${dataset}_dim${dim}_bs${bs}
-				python -u dgNN/script/train/test_conv_fw_bw.py --dim $dim --batch-size $bs --data-dir ${data_dir} --dataset ${dataset} --conv ${conv} | tee log/day_${day}/${name}.log
+				python -u DFGNN/script/train/test_conv_fw_bw.py --dim $dim --batch-size $bs --data-dir ${data_dir} --dataset ${dataset} --conv ${conv} | tee log/day_${day}/${name}.log
 			fi
 		done
 	done

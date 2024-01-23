@@ -60,9 +60,9 @@ for conv in ${convs[@]}; do
 				name=${conv}_${dataset}_${format}_dim${dim}_${Time}
 				if [ -n "${test_flag}" ]; then
 					# # run with nolog
-					python -u dgNN/script/test/test_full_graph.py --dim $dim --dataset ${dataset} --data-dir ${data_dir} --format ${format} --conv ${conv}
+					python -u DFGNN/script/test/test_full_graph.py --dim $dim --dataset ${dataset} --data-dir ${data_dir} --format ${format} --conv ${conv}
 				else
-					python -u dgNN/script/test/test_full_graph.py --dim $dim --dataset ${dataset} --data-dir ${data_dir} --format ${format} --conv ${conv} --store-result 2>&1 |
+					python -u DFGNN/script/test/test_full_graph.py --dim $dim --dataset ${dataset} --data-dir ${data_dir} --format ${format} --conv ${conv} --store-result 2>&1 |
 						tee log/day_${day}/${name}.log
 				fi
 			done

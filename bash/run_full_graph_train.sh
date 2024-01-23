@@ -26,8 +26,8 @@ python setup.py develop
 ## train
 for dataset in ${datasets[@]}; do
 	if [ -n "${test_flag}" ]; then
-		python -u dgNN/script/train/train_gtconv_full_graph.py --dim $dim --dataset ${dataset} --data-dir ${data_dir} --n-epochs 100
+		python -u DFGNN/script/train/train_gtconv_full_graph.py --dim $dim --dataset ${dataset} --data-dir ${data_dir} --n-epochs 100
 	else
-		python -u dgNN/script/train/train_gtconv_full_graph.py --dim $dim --dataset ${dataset} --data-dir ${data_dir} --n-epochs 100 | tee log/day_${day}/gt_train_full_graph_${dataset}_dim${dim}.log
+		python -u DFGNN/script/train/train_gtconv_full_graph.py --dim $dim --dataset ${dataset} --data-dir ${data_dir} --n-epochs 100 | tee log/day_${day}/gt_train_full_graph_${dataset}_dim${dim}.log
 	fi
 done

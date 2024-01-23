@@ -47,9 +47,9 @@ for dim in ${dims[@]}; do
 			OUTPUT_PATH="/workspace2/dataset/graphworld/${TASK}_${GENERATOR}/power_ex${power_exponent}/avg_d${avg_degree}"
 			if [ -n "${test_flag}" ]; then
 				## test without log
-				python -u dgNN/script/test/test_gt_graphworld.py --dim $dim --data-dir ${data_dir} --format ${format} --output ${OUTPUT_PATH} --rerun | tee -a test.log
+				python -u DFGNN/script/test/test_gt_graphworld.py --dim $dim --data-dir ${data_dir} --format ${format} --output ${OUTPUT_PATH} --rerun | tee -a test.log
 			else
-				python -u dgNN/script/test/test_gt_graphworld.py --dim $dim --data-dir ${data_dir} --format ${format} --output ${OUTPUT_PATH} --rerun --store-result 2>&1 | tee -a $log_file
+				python -u DFGNN/script/test/test_gt_graphworld.py --dim $dim --data-dir ${data_dir} --format ${format} --output ${OUTPUT_PATH} --rerun --store-result 2>&1 | tee -a $log_file
 			fi
 		done
 	done

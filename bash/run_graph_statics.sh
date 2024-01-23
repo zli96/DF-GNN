@@ -19,6 +19,6 @@ mkdir log/day_${day}
 set -e
 python setup.py develop
 for dataset in ${datasets[@]}; do
-	# python -u dgNN/utils/neighbor_overlap.py --dim $dim --dataset ${dataset} --blocksize ${blk}| tee log/day_${day}/neigh_overlap_${dataset}_dim${dim}_blk${blk}_${Time}.log
-	python -u dgNN/utils/graph_statistics.py --dataset ${dataset}
+	# python -u DFGNN/utils/neighbor_overlap.py --dim $dim --dataset ${dataset} --blocksize ${blk}| tee log/day_${day}/neigh_overlap_${dataset}_dim${dim}_blk${blk}_${Time}.log
+	python -u DFGNN/utils/graph_statistics.py --dataset ${dataset}
 done

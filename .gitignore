@@ -7,10 +7,10 @@ log
 *.txt
 *.json
 build/
-dgNN/dgNN.egg-info/
-dgNN.egg-info/
+DFGNN/DFGNN.egg-info/
+DFGNN.egg-info/
 dist/
-*dgNN.egg-info
+*DFGNN.egg-info
 *.so
 /test
 /dataset
