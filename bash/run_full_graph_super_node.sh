@@ -1,11 +1,11 @@
 # # available parameter
 # convs=(gt agnn gat)
-# datasets=(cora pubmed cite)
-# formats=(csr hyper softmax)
+# datasets=(ppa reddit protein)
+# formats=(csr_gm softmax_gm tiling)
 
 convs=(gt)
-datasets=(cora)
-formats=(csr hyper softmax)
+datasets=(ppa)
+formats=(csr_gm softmax_gm tiling)
 dims=(128)
 
 data_dir="/workspace2/dataset"
