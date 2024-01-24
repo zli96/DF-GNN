@@ -34,9 +34,10 @@ bash install.sh
 
 We provide serval bash examples to run the model
 
+**Measure the DFGNN kernel performance**
 ```shell
 // run the gt convolution on PATTERN dataset with hyper method
-python -u DFGNN/script/test/test_fuse_conv.py --dim 64 --batch-size 1024 --dataset PATTERN --format hyper --conv gt
+python -u DFGNN/script/test/test_batch_graph.py --dim 64 --batch-size 1024 --dataset PATTERN --format hyper --conv gt
 
 
 // run the DFGNN on the batch graph datasets
@@ -55,6 +56,15 @@ bash bash/run_nsys.sh
 bash bash/run_ncu.sh 
 ```
 
+**Measure the DFGNN training performance**
+```shell
+// Batch graph datasets
+bash bash/run_batch_graph_train_timing.sh
+
+// Full graph datasets
+bash bash/run_full_graph_train_timing.sh
+```
+
 ### Datasets
 
 Current support dataset
@@ -65,9 +75,9 @@ Batch dataset:
 * superpixel： CIFAR10, MNIST
 * LRGB: PascalVOC-SP, COCO-SP, Peptides-func, Peptides-struct
 
-For Batch datasets, you can run it by [dgNN/script/test/test_gt.py](dgNN/script/test/test_gt.py)
 
 Full dataset: (only one graph)
 * cora, arxiv, pumbed, cite
 
-For full datasets, you can run it by [dgNN/script/test/test_gt_full_graph.py](dgNN/script/test/test_gt_full_graph.py)
+Full dataset with super node: (only one graph)
+* ppa, reddit, protein

@@ -3,13 +3,14 @@ import pdb
 
 import torch
 import torch.nn as nn
-
 import torch.optim as optim
 
 from DFGNN.layers import AGNNConv_forward, preprocess_Hyper_fw_bw, SparseMHA_forward
 from DFGNN.utils import load_dataset_fn, parser_argument, Timer
 
 from dgl.dataloading import GraphDataLoader
+from tabulate import tabulate
+from tqdm import tqdm
 
 
 def average(list: list) -> float:
@@ -54,6 +55,7 @@ class Model(nn.Module):
 
 @torch.no_grad()
 def evaluate(model, dataloader, device, fuse_flag):
+    # Measure forward time
     model.train()
     loss_fcn = nn.CrossEntropyLoss()
     with Timer() as t:
@@ -67,8 +69,7 @@ def evaluate(model, dataloader, device, fuse_flag):
                 fuse=fuse_flag,
             )
             loss = loss_fcn(y_hat.flatten(), batched_g.ndata["label"].float())
-
-    print(f"evaluate time {t.elapsed_secs:}")
+    return t.elapsed_secs
 
 
 def check_grad(model, dataset, device, args):
@@ -121,11 +122,11 @@ def only_preprocess(model, dataset, device, args, fuse_flag):
     epoch_times = []
     batch_gs = []
     for iter, batched_g in enumerate(train_dataloader):
-        if iter == 20:
+        if iter == num_epochs:
             break
         batch_gs.append(batched_g)
 
-    for epoch in range(num_epochs):
+    for epoch in tqdm(range(num_epochs), desc="Measure Preprocess time"):
         model.train()
         with Timer() as t:
             for iter, batched_g in enumerate(batch_gs):
@@ -135,9 +136,11 @@ def only_preprocess(model, dataset, device, args, fuse_flag):
         epoch_time = t.elapsed_secs
         if epoch > 0:
             epoch_times.append(epoch_time)
-            print(
-                f"epoch {epoch:03d} time {epoch_time:.2f} avg epoch time {average(epoch_times)}"
-            )
+
+    avg_pre_time = average(epoch_times) * 1000
+    print(f"avg preprocess time per epoch {avg_pre_time:.2f} ms")
+
+    return avg_pre_time
 
 
 def train(model, dataset, device, args, fuse_flag):
@@ -150,7 +153,7 @@ def train(model, dataset, device, args, fuse_flag):
     num_epochs = 20
     loss_fcn = nn.BCEWithLogitsLoss()
     epoch_times = []
-
+    forward_times = []
     batch_gs = []
 
     for iter, batched_g in enumerate(train_dataloader):
@@ -159,13 +162,12 @@ def train(model, dataset, device, args, fuse_flag):
         batched_g.ndata["feat"] = torch.rand((batched_g.num_nodes(), args.dim))
         batch_gs.append(batched_g)
 
-    for epoch in range(num_epochs):
+    for epoch in tqdm(range(num_epochs), desc="Measure full epoch time"):
         model.train()
         with Timer() as t:
             for iter, batched_g in enumerate(batch_gs):
                 batched_g = batched_g.to(device)
                 params = preprocess_Hyper_fw_bw(batched_g, fuse_flag)
-                ## fuse
                 logits = model(
                     batched_g.ndata["feat"],
                     params,
@@ -177,40 +179,21 @@ def train(model, dataset, device, args, fuse_flag):
                 optimizer.step()
         if epoch > 0:
             epoch_times.append(t.elapsed_secs)
-            print(
-                f"epoch {epoch:03d} time {t.elapsed_secs:.2f} avg epoch time {average(epoch_times)}"
+        forward_times.append(
+            evaluate(
+                model,
+                batch_gs,
+                device,
+                fuse_flag,
             )
-        evaluate(
-            model,
-            batch_gs,
-            device,
-            fuse_flag,
         )
-    # model.train()
-    # batched_g = batch_gs[0]
-    # batched_g = batched_g.to(device)
-    # params = preprocess_Hyper_fw_bw(batched_g, fuse_flag)
-    # with Timer() as t:
-    #     for i in range(100):
-    #         ## fuse
-    #         logits = model(
-    #             batched_g.ndata["feat"],
-    #             params,
-    #             fuse=fuse_flag,
-    #         )
-    #         loss = loss_fcn(logits.flatten(), batched_g.ndata["label"].float())
-    #         optimizer.zero_grad()
-    #         loss.backward()
-    #         # optimizer.step()
-    # print(
-    #     f"time {t.elapsed_secs/100:.2f} "
-    # )
-    # evaluate(
-    #     model,
-    #     batch_gs,
-    #     device,
-    #     fuse_flag,
-    # )
+
+    avg_epoch_time = average(epoch_times) * 1000
+    avg_forward_time = average(forward_times) * 1000
+    print(f"avg full training time per epoch {avg_epoch_time:.2f} ms")
+    print(f"avg preprocess+forward time per epoch {avg_forward_time:.2f} ms")
+
+    return avg_epoch_time, avg_forward_time
 
 
 if __name__ == "__main__":
@@ -250,11 +233,37 @@ if __name__ == "__main__":
         check_grad(model, dataset, dev, args)
     else:
         print("---------------fused--------------")
-        train(model, dataset, dev, args, True)
-        print("---------------fused preprocess--------------")
-        only_preprocess(model, dataset, dev, args, True)
+        time_fuse = train(model, dataset, dev, args, True)
+        pre_time_fuse = only_preprocess(model, dataset, dev, args, True)
+        fw_time_fuse = time_fuse[1] - pre_time_fuse
+        bw_time_fuse = time_fuse[0] - time_fuse[1]
 
         print("---------------non-fused--------------")
-        train(model, dataset, dev, args, False)
-        print("---------------non-fused preprocess--------------")
-        only_preprocess(model, dataset, dev, args, False)
+        time_nofuse = train(model, dataset, dev, args, False)
+        pre_time_nofuse = only_preprocess(model, dataset, dev, args, False)
+        fw_time_nofuse = time_nofuse[1] - pre_time_nofuse
+        bw_time_nofuse = time_nofuse[0] - time_nofuse[1]
+
+        time = [
+            [
+                "DGL Sparse",
+                pre_time_nofuse,
+                fw_time_nofuse,
+                bw_time_nofuse,
+                time_nofuse[0],
+            ],
+            ["DF-GNN", pre_time_fuse, fw_time_fuse, bw_time_fuse, time_fuse[0]],
+        ]
+
+        print(
+            tabulate(
+                time,
+                headers=[
+                    "",
+                    "Preprocess(ms)",
+                    "Forward(ms)",
+                    "Backward(ms)",
+                    "Sum(ms)",
+                ],
+            )
+        )

@@ -1,14 +1,14 @@
 import argparse
-
 import time
 
-import GPUtil
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 from DFGNN.layers import preprocess_Hyper_fw_bw, SparseMHA_forward
 from DFGNN.utils import load_data_full_graph
+
+from tabulate import tabulate
 
 
 class Net(nn.Module):
@@ -22,11 +22,9 @@ class Net(nn.Module):
         super(Net, self).__init__()
         self.num_layers = num_layers
         self.layers = nn.ModuleList()
-        # input projection (no residual)
         self.input_proj = nn.Linear(in_dim, num_hidden)
         self.output_proj = nn.Linear(num_hidden, num_classes)
 
-        # hidden layers
         for l in range(num_layers):
             self.layers.append(SparseMHA_forward(num_hidden, num_hidden, 1))
 
@@ -71,10 +69,8 @@ def main(args):
     loss_fcn = torch.nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
 
-    print("----train------")
+    print("----Measure full training time------")
 
-    print("----nofused------")
-    maxMemory_nofuse = 0
     ## warpup
     for epoch in range(3):
         logits = model(params, features)
@@ -82,8 +78,6 @@ def main(args):
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        GPUs = GPUtil.getGPUs()
-        maxMemory_nofuse = max(GPUs[0].memoryUsed, maxMemory_nofuse)
 
     model.train()
     torch.cuda.synchronize()
@@ -98,20 +92,15 @@ def main(args):
             print(f"epoch: {epoch}, loss: {loss.item()}")
     torch.cuda.synchronize()
     end = time.time()
-    train_time = (end - start) / args.n_epochs
-    print(f"no-fused avg train time {train_time*1000:.4f}")
+    epoch_time = ((end - start) / args.n_epochs) * 1000
+    print(f"no-fused avg train time {epoch_time:.4f}")
 
-    print("----fused------")
-    maxMemory_fused = 0
-    ## warpup
     for epoch in range(3):
         logits = model(params, features, fuse=True)
         loss = loss_fcn(logits, labels)
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        GPUs = GPUtil.getGPUs()
-        maxMemory_fused = max(GPUs[0].memoryUsed, maxMemory_fused)
 
     model.train()
     torch.cuda.synchronize()
@@ -126,10 +115,10 @@ def main(args):
             print(f"epoch: {epoch}, loss: {loss.item()}")
     torch.cuda.synchronize()
     end = time.time()
-    train_time_fused = (end - start) / args.n_epochs
-    print(f"fused avg train time {train_time_fused*1000:.4f}")
+    epoch_time_fused = ((end - start) / args.n_epochs) * 1000
+    print(f"fused avg train time {epoch_time_fused:.4f}")
 
-    print("----optimize------")
+    print("----Measure forward+backward time------")
     ## warpup
     for epoch in range(3):
         logits = model(params, features)
@@ -147,8 +136,8 @@ def main(args):
         loss.backward()
     torch.cuda.synchronize()
     end = time.time()
-    train_time = (end - start) / args.n_epochs
-    print(f"no-fused avg train time {train_time*1000:.4f}")
+    fw_bw_time = ((end - start) / args.n_epochs) * 1000
+    print(f"no-fused avg train time {fw_bw_time:.4f}")
 
     ## warpup
     for epoch in range(3):
@@ -167,10 +156,10 @@ def main(args):
         loss.backward()
     torch.cuda.synchronize()
     end = time.time()
-    train_time_fused = (end - start) / args.n_epochs
-    print(f"fused avg train time {train_time_fused*1000:.4f}")
+    fw_bw_time_fused = ((end - start) / args.n_epochs) * 1000
+    print(f"fused avg train time {fw_bw_time_fused:.4f}")
 
-    print("----forward------")
+    print("----Measure forward time------")
     torch.cuda.synchronize()
     start = time.time()
     for epoch in range(args.n_epochs):
@@ -179,8 +168,8 @@ def main(args):
         loss = loss_fcn(logits, labels)
     torch.cuda.synchronize()
     end = time.time()
-    forward_time = (end - start) / args.n_epochs
-    print(f"no-fused avg forward time {forward_time*1000:.4f}")
+    fw_time = ((end - start) / args.n_epochs) * 1000
+    print(f"no-fused avg forward time {fw_time:.4f}")
 
     torch.cuda.synchronize()
     start = time.time()
@@ -190,10 +179,26 @@ def main(args):
         loss = loss_fcn(logits, labels)
     torch.cuda.synchronize()
     end = time.time()
-    forward_time_fused = (end - start) / args.n_epochs
-    print(f"fused avg forward time {forward_time_fused*1000:.4f}")
-    print(f"max memory before fuse:{maxMemory_nofuse}MB")
-    print(f"max memory before fuse:{maxMemory_fused}MB")
+    fw_time_fused = ((end - start) / args.n_epochs) * 1000
+    print(f"fused avg forward time {fw_time_fused:.4f}")
+
+    bw_time = fw_bw_time - fw_time
+    bw_time_fused = fw_bw_time_fused - fw_time_fused
+
+    up_time = epoch_time - fw_bw_time
+    up_time_fused = epoch_time_fused - fw_bw_time_fused
+
+    stage_time = [
+        ["DGL Sparse", fw_time, bw_time, up_time, epoch_time],
+        ["DF-GNN", fw_time_fused, bw_time_fused, up_time_fused, epoch_time_fused],
+    ]
+
+    print(
+        tabulate(
+            stage_time,
+            headers=["", "Forward(ms)", "Backward(ms)", "Update(ms)", "Sum(ms)"],
+        )
+    )
 
 
 if __name__ == "__main__":
@@ -210,8 +215,5 @@ if __name__ == "__main__":
     parser.add_argument(
         "--n-layers", type=int, default=8, help="number of hidden layers"
     )
-    # parser.add_argument("--output", type=str, default=None, help="output file")
-
     args = parser.parse_args()
-    print(args)
     main(args)
