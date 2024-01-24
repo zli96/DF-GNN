@@ -20,7 +20,7 @@ for conv in ${convs[@]}; do
 		for dataset in ${datasets[@]}; do
 			for format in ${formats[@]}; do
 				name=${conv}_${dataset}_${format}_dim${dim}_${Time}
-				python -u DFGNN/script/test/test_fuse_conv.py --dim $dim --batch-size $bs --data-dir ${data_dir} --dataset ${dataset} --format ${format} --conv ${conv} --store-result 2>&1 | tee -a log/day_${day}/${name}.log
+				python -u DFGNN/script/test/test_batch_graph.py --dim $dim --batch-size $bs --data-dir ${data_dir} --dataset ${dataset} --format ${format} --conv ${conv} --store-result 2>&1 | tee -a log/day_${day}/${name}.log
 			done
 		done
 	done

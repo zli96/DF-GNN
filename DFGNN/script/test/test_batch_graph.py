@@ -9,7 +9,6 @@ from dgl.dataloading import GraphDataLoader
 
 
 def main(args):
-
     # If CUDA is available, use GPU to accelerate the training, use CPU
     # otherwise.
     dev = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")

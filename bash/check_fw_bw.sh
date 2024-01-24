@@ -21,25 +21,25 @@ fi
 ## forward check
 
 ## GT
-python -u DFGNN/script/test/test_fuse_conv.py --dim 64 --batch-size 64 --data-dir ${data_dir} --dataset PATTERN --format hyper --conv gt | tee $log
+python -u DFGNN/script/test/test_batch_graph.py --dim 64 --batch-size 64 --data-dir ${data_dir} --dataset PATTERN --format hyper --conv gt | tee $log
 
-python -u DFGNN/script/test/test_fuse_conv.py --dim 64 --batch-size 64 --data-dir ${data_dir} --dataset PATTERN --format csr --conv gt | tee -a $log
+python -u DFGNN/script/test/test_batch_graph.py --dim 64 --batch-size 64 --data-dir ${data_dir} --dataset PATTERN --format csr --conv gt | tee -a $log
 
-python -u DFGNN/script/test/test_fuse_conv.py --dim 64 --batch-size 64 --data-dir ${data_dir} --dataset PATTERN --format softmax --conv gt | tee -a $log
+python -u DFGNN/script/test/test_batch_graph.py --dim 64 --batch-size 64 --data-dir ${data_dir} --dataset PATTERN --format softmax --conv gt | tee -a $log
 
 ## AGNN
-python -u DFGNN/script/test/test_fuse_conv.py --dim 64 --batch-size 64 --data-dir ${data_dir} --dataset PATTERN --format hyper --conv agnn | tee -a $log
+python -u DFGNN/script/test/test_batch_graph.py --dim 64 --batch-size 64 --data-dir ${data_dir} --dataset PATTERN --format hyper --conv agnn | tee -a $log
 
-python -u DFGNN/script/test/test_fuse_conv.py --dim 64 --batch-size 64 --data-dir ${data_dir} --dataset PATTERN --format csr --conv agnn | tee -a $log
+python -u DFGNN/script/test/test_batch_graph.py --dim 64 --batch-size 64 --data-dir ${data_dir} --dataset PATTERN --format csr --conv agnn | tee -a $log
 
-python -u DFGNN/script/test/test_fuse_conv.py --dim 64 --batch-size 64 --data-dir ${data_dir} --dataset PATTERN --format softmax --conv agnn | tee -a $log
+python -u DFGNN/script/test/test_batch_graph.py --dim 64 --batch-size 64 --data-dir ${data_dir} --dataset PATTERN --format softmax --conv agnn | tee -a $log
 
 ## GAT
-python -u DFGNN/script/test/test_fuse_conv.py --dim 64 --batch-size 64 --data-dir ${data_dir} --dataset PATTERN --format hyper --conv gat | tee -a $log
+python -u DFGNN/script/test/test_batch_graph.py --dim 64 --batch-size 64 --data-dir ${data_dir} --dataset PATTERN --format hyper --conv gat | tee -a $log
 
-python -u DFGNN/script/test/test_fuse_conv.py --dim 64 --batch-size 64 --data-dir ${data_dir} --dataset PATTERN --format csr --conv gat | tee -a $log
+python -u DFGNN/script/test/test_batch_graph.py --dim 64 --batch-size 64 --data-dir ${data_dir} --dataset PATTERN --format csr --conv gat | tee -a $log
 
-python -u DFGNN/script/test/test_fuse_conv.py --dim 64 --batch-size 64 --data-dir ${data_dir} --dataset PATTERN --format softmax --conv gat | tee -a $log
+python -u DFGNN/script/test/test_batch_graph.py --dim 64 --batch-size 64 --data-dir ${data_dir} --dataset PATTERN --format softmax --conv gat | tee -a $log
 
 ## backward check
 python -u DFGNN/script/train/test_gtconv_fw_bw.py --dim 64 --batch-size 64 --data-dir ${data_dir} --dataset PATTERN --checkgrad | tee -a $log

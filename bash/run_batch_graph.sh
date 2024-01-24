@@ -5,9 +5,9 @@
 
 convs=(gt)
 datasets=(PATTERN)
-formats=(csr softmax hyper)
+formats=(hyper)
 batch_sizes=(1024)
-dims=(128)
+dims=(32 64 128)
 
 data_dir="/workspace2/dataset"
 
@@ -18,7 +18,7 @@ for conv in ${convs[@]}; do
 		for dataset in ${datasets[@]}; do
 			for format in ${formats[@]}; do
 				for bs in ${batch_sizes[@]}; do
-					python -u DFGNN/script/test/test_fuse_conv.py --dim $dim --batch-size $bs --data-dir ${data_dir} --dataset ${dataset} --format ${format} --conv ${conv}
+					python -u DFGNN/script/test/test_batch_graph.py --dim $dim --batch-size $bs --data-dir ${data_dir} --dataset ${dataset} --format ${format} --conv ${conv}
 				done
 			done
 		done

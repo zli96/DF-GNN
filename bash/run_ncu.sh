@@ -35,9 +35,9 @@ for dataset in ${datasets[@]}; do
 		for format in ${formats[@]}; do
 			name=ncu_${conv}_${format}_${dataset}_dim${dim}_head${heads}_bs${bs}_${logtime}
 			if [ "$format" == "csr" ]; then
-				ncu --set full --import-source yes -c 10 -o log/ncu/day_${day}/${name} -k "fused_gt_csr" python DFGNN/script/test/test_fuse_conv.py --format ${format} --dim $dim --heads $heads --batch-size $bs --dataset ${dataset} --data-dir ${data_dir} --conv ${conv} --profile >log/ncu/day_${day}/${name}.log 2>&1
+				ncu --set full --import-source yes -c 10 -o log/ncu/day_${day}/${name} -k "fused_gt_csr" python DFGNN/script/test/test_batch_graph.py --format ${format} --dim $dim --heads $heads --batch-size $bs --dataset ${dataset} --data-dir ${data_dir} --conv ${conv} --profile >log/ncu/day_${day}/${name}.log 2>&1
 			else
-				ncu --set full --import-source yes -c 10 -o log/ncu/day_${day}/${name} -k "fused_gt_hyper_inference" python DFGNN/script/test/test_fuse_conv.py --format ${format} --dim $dim --heads $heads --batch-size $bs --dataset ${dataset} --data-dir ${data_dir} --conv ${conv} --profile >log/ncu/day_${day}/${name}.log 2>&1
+				ncu --set full --import-source yes -c 10 -o log/ncu/day_${day}/${name} -k "fused_gt_hyper_inference" python DFGNN/script/test/test_batch_graph.py --format ${format} --dim $dim --heads $heads --batch-size $bs --dataset ${dataset} --data-dir ${data_dir} --conv ${conv} --profile >log/ncu/day_${day}/${name}.log 2>&1
 			fi
 		done
 	done
