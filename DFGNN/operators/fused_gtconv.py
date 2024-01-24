@@ -127,8 +127,6 @@ class FusedGTFunction_hyper(torch.autograd.Function):
             attn_edge,
         ) = ctx.saved_tensors
         grad_out = grad_out.contiguous()
-        # print("start fused backward")
-        # print(grad_out.shape)
         grad_Q, grad_K, grad_V = fused_gt.gt_backward(
             row_ptr,
             col_ind,
@@ -145,10 +143,6 @@ class FusedGTFunction_hyper(torch.autograd.Function):
             grad_out,
         )
 
-        # print('end backward')
-        # # print(torch.isnan(grad_feat).sum())
-        # # print(torch.isnan(grad_attn_row).sum())
-        # # print(torch.isnan(grad_attn_col).sum())
         return (
             None,
             None,

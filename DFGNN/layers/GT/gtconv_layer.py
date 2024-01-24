@@ -18,8 +18,6 @@ class SparseMHA(nn.Module):
         self.v_proj = nn.Linear(out_size, out_size)
 
     def forward_nofuse(self, A, q, k, v):
-        # TODO: spmm 要不要用csr格式（但好像更慢）
-        # A.csr()
         attn = dglsp.bsddmm(A, q, k.transpose(1, 0))  # [N, N, nh]
         attn = attn.softmax()
         out = dglsp.bspmm(attn, v)

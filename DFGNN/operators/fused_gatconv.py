@@ -146,10 +146,6 @@ class FusedGATFunction(torch.autograd.Function):
             attn_col,
             grad_out,
         )
-        # print('end backward')
-        # print(torch.isnan(grad_feat).sum())
-        # print(torch.isnan(grad_attn_row).sum())
-        # print(torch.isnan(grad_attn_col).sum())
         return (
             grad_attn_row,
             grad_attn_col,

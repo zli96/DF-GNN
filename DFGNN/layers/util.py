@@ -142,7 +142,6 @@ def preprocess_hybrid(g):
     A = dglsp.spmatrix(indices, shape=(N, N))
     val = torch.ones([g.num_edges(), 1], device=g.device)
     A2 = dglsp.val_like(A, val=val)
-
     return A, A2
 
 
@@ -381,18 +380,6 @@ def load_layer_GAT(args):
     return layer
 
 
-# def load_layer_DOTGAT(args):
-#     if args.format == "hyper" or args.format == "nofuse":
-#         layer = DOTGATConv_hyper(args.dim, args.dim, args.heads)
-#     elif args.format == "csr":
-#         layer = DOTGATConv_csr(args.dim, args.dim, args.heads)
-#     elif args.format == "softmax":
-#         layer = DOTGATConv_softmax(args.dim, args.dim, args.heads)
-#     else:
-#         raise ValueError(f"Unsupported format {args.format} in DOTGATconv")
-#     return layer
-
-
 def load_layer_AGNN(args):
     if args.format == "hyper" or args.format == "nofuse":
         layer = AGNNConv_hyper(args.dim, args.dim, args.heads)
@@ -412,8 +399,6 @@ def load_layer_AGNN(args):
 
 
 def load_layer(args):
-    # if args.conv == "dotgat":
-    #     layer = load_layer_DOTGAT(args)
     if args.conv == "gat":
         layer = load_layer_GAT(args)
     elif args.conv == "gt":
@@ -426,16 +411,6 @@ def load_layer(args):
 
 
 def load_prepfunc(args):
-    # if args.conv == "dotgat":
-    #     if args.format == "hyper" or args.format == "nofuse":
-    #         preprocess_func = preprocess_Hyper_g
-    #     elif args.format == "csr":
-    #         preprocess_func = preprocess_CSR_g
-    #     elif args.format == "softmax":
-    #         preprocess_func = preprocess_softmax_g
-    #     else:
-    #         raise ValueError(f"Unsupported format {args.format}")
-
     if args.format in ["csr", "csr_gm", "tiling"]:
         preprocess_func = preprocess_CSR
     elif args.format in ["hyper", "nofuse", "hyper_ablation"]:

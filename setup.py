@@ -66,21 +66,6 @@ setuptools.setup(
             extra_compile_args={"cxx": [], "nvcc": ["-arch=sm_75", "-lineinfo"]},
             extra_link_args=["-lcurand", "-lcusparse"],
         ),
-        CUDAExtension(
-            "package.mhsddmm",
-            ["DFGNN/src/sddmm/mhsddmm.cc", "DFGNN/src/sddmm/mhsddmm_kernel.cu"],
-            extra_compile_args={"cxx": [], "nvcc": ["-arch=sm_75"]},
-            extra_link_args=["-lcurand"],
-        ),
-        CUDAExtension(
-            "package.mhtranspose",
-            [
-                "DFGNN/src/csr2csc/mhtranspose.cc",
-                "DFGNN/src/csr2csc/mhtranspose_kernel.cu",
-            ],
-            extra_compile_args={"cxx": [], "nvcc": ["-arch=sm_75"]},
-            extra_link_args=["-lcurand"],
-        ),
     ],
     cmdclass={"build_ext": BuildExtension},
     install_requires=["torch"],
