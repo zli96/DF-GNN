@@ -7,6 +7,27 @@
 
 using namespace std;
 
+// Binary search the row_offsets to find the source node of the edge id.
+template <typename Idx>
+__device__ __forceinline__ Idx BinarySearchSrc(const Idx *array, Idx length,
+                                               Idx eid) {
+  Idx lo = 0, hi = length - 1;
+  while (lo < hi) {
+    Idx mid = (lo + hi) >> 1;
+    if (__ldg(array + mid) <= eid) {
+      lo = mid + 1;
+    } else {
+      hi = mid;
+    }
+  }
+  // INVARIANT: lo == hi
+  if (__ldg(array + hi) == eid) {
+    return hi;
+  } else {
+    return hi - 1;
+  }
+}
+
 template <typename DType>
 __global__ void fused_gt_hyper(const int m, const int nnz, const int h,
                                const int f, const int *row, const int *indptr,
@@ -176,6 +197,7 @@ __global__ void fused_gt_hyper_inference(const int m, const int h, const int f,
     int curr_edge = tidy * nnz_per_warp + i;
     // edge bound for curr block
     if (curr_edge < blk_num_edge) {
+      // int src = BinarySearchSrc<int>(indptr, m+1, blk_edge_lb + curr_edge);
       int src = __ldg(rowoff + curr_edge);
       int dst = __ldg(indicesoff + curr_edge);
 
