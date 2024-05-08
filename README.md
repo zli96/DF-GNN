@@ -2,19 +2,21 @@
 DFGNN provides several fusion implementations for graph convolution
 
 **Baseline:**
-* nofuse: dglsparse package in DGL lib without fusion
-* csr: one kernel in csr format
-* softmax: two kernels, sddmm in coo and softmax+spmm in c
+* [pyg](https://pytorch-geometric.readthedocs.io/en/latest/index.html): gnn message passing lib
+* [dgl sparse](https://doc.dgl.ai/en/latest/api/python/dgl.sparse_v0.html): gnn sparse operator lib 
+* [dgNN](https://github.com/dgSPARSE/dgNN): fused gnn node-parallel kernel introduced in 
+
 
 **Our method:**
 * tiling: one kernel with column tiling method, support for graphs with super node
+* softmax: two kernels, edge-parallel sddmm kernel and node-parallel softmax+spmm kernel
 * hyper: one kernel in csr+coo hyper format, support for batch graphs
 
 ## How to build
 
 **creat conda env**
 
-```
+``` bash
 conda create -n DFGNN
 conda activate DFGNN
 conda install **python**=3.8
@@ -23,9 +25,24 @@ pip install  dgl -f https://data.dgl.ai/wheels/cu118/repo.html
 pip install urllib3 idna certifi matplotlib
 ```
 
+**create docker env**
 
-```shell
-git clone git@github.com:paoxiaode/DFGNN.git
+``` bash
+## run pyg docker 
+cd docker
+bash run.sh
+
+## build dgl
+cd /workspace2/dgl
+mkdir build
+cd build
+cmake -DUSE_CUDA=ON ..
+make -j4  
+```
+
+**install DFGNN**
+
+``` bash
 cd DFGNN
 bash install.sh
 ```
@@ -35,33 +52,33 @@ bash install.sh
 We provide serval bash examples to run the model
 
 **Measure the DFGNN kernel performance**
-```shell
-// run the gt convolution on PATTERN dataset with hyper method
+``` bash
+# run the gt convolution on PATTERN dataset with hyper method
 python -u DFGNN/script/test/test_batch_graph.py --dim 64 --batch-size 1024 --dataset PATTERN --format hyper --conv gt
 
 
-// run the DFGNN on the batch graph datasets
+# run the DFGNN on the batch graph datasets
 bash bash/run_batch_graph.sh
 
-// run the DFGNN on the full graph datasets
+# run the DFGNN on the full graph datasets
 bash bash/run_full_graph.sh 
 
-// run the DFGNN on the full graph with super node datasets
+# run the DFGNN on the full graph with super node datasets
 bash bash/run_full_graph_super_node.sh
 
-// profile the code by the nsight system tool
+# profile the code by the nsight system tool
 bash bash/run_nsys.sh 
 
-// profile the code by the nsight compute tool
+# profile the code by the nsight compute tool
 bash bash/run_ncu.sh 
 ```
 
 **Measure the DFGNN training performance**
-```shell
-// Batch graph datasets
+``` bash
+# Batch graph datasets
 bash bash/run_batch_graph_train_timing.sh
 
-// Full graph datasets
+# Full graph datasets
 bash bash/run_full_graph_train_timing.sh
 ```
 
