@@ -3,6 +3,7 @@ import os
 from timeit import default_timer
 
 import dgl.data
+import dgl.sparse as dglsp
 
 import matplotlib.pyplot as plt
 
@@ -236,6 +237,13 @@ def check_correct(logits, logits_fuse, params):
             print("the results are the same, success!!!!!!!!!!")
 
 
+def preprocess_dglsp(g, **args):
+    indices = torch.stack(g.edges())
+    N = g.num_nodes()
+    A = dglsp.spmatrix(indices, shape=(N, N))
+    return A
+
+
 def inference_Graph_level(process_func, model, train_dataloader, dev):
     r"""training function for the graph-level task"""
     print("----------------------Forward------------------------")
@@ -250,7 +258,7 @@ def inference_Graph_level(process_func, model, train_dataloader, dev):
         )
         ## preprocess
         batched_g, labels = batched_g.to(dev), labels.to(dev)
-        params = process_func(batched_g)
+        params = preprocess_dglsp(batched_g)
 
         ## run by DGL sparse API
         model.eval()
@@ -289,7 +297,7 @@ def inference_Node_level(process_func, model, train_dataloader, dev):
         )
         ## preprocess
         batched_g = batched_g.to(dev)
-        params = process_func(batched_g)
+        params = preprocess_dglsp(batched_g)
 
         ## run by DGL sparse API
         model.eval()
@@ -299,6 +307,7 @@ def inference_Node_level(process_func, model, train_dataloader, dev):
             time_no_fuse.append(elapsed_time)
             ## run by fuse attention
             model.eval()
+            params = process_func(batched_g)
             logits_fuse, elapsed_time = model(
                 params, batched_g.ndata["feat"], fuse=True
             )

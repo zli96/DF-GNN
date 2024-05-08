@@ -8,6 +8,7 @@ from .AGNN import (
     AGNNConv_csr,
     AGNNConv_csr_gm,
     AGNNConv_hyper,
+    AGNNConv_pyg,
     AGNNConv_softmax,
     AGNNConv_softmax_gm,
     AGNNConv_tiling,
@@ -18,6 +19,7 @@ from .GAT import (
     GATConv_hybrid,
     GATConv_hyper,
     GATConv_hyper_ablation,
+    GATConv_pyg,
     GATConv_softmax,
     GATConv_softmax_gm,
     GATConv_tiling,
@@ -30,6 +32,7 @@ from .GT import (
     SparseMHA_hybrid,
     SparseMHA_hyper,
     SparseMHA_hyper_ablation,
+    SparseMHA_pyg,
     SparseMHA_softmax,
     SparseMHA_softmax_gm,
     SparseMHA_tiling,
@@ -47,6 +50,12 @@ def g_to_SPmatrix(g):
     return A, 128
 
 
+def preprocess_pyg(g, **args):
+    src, dst = g.edges()
+    edge_index = torch.stack((src, dst))
+    return edge_index
+
+
 def preprocess_CSR(g, **args):
     A, max_neigh = g_to_SPmatrix(g)
 
@@ -60,7 +69,7 @@ def preprocess_CSR(g, **args):
     row_ptr = row_ptr.int()
     col_ind = col_ind.int()
     val = A.val[val_idx]
-    return A, row_ptr, col_ind, val, smem_consume
+    return row_ptr, col_ind, val, smem_consume
 
 
 def preprocess_Hyper(g, **args):
@@ -81,7 +90,7 @@ def preprocess_Hyper(g, **args):
     row_ptr = row_ptr.int()
     col_ind = col_ind.int()
     val = A.val[val_idx]
-    return A, row_ptr, col_ind, rows, val, smem_consume
+    return row_ptr, col_ind, rows, val, smem_consume
 
 
 def preprocess_Hyper_fw_bw(g, fused=True):
@@ -130,7 +139,7 @@ def preprocess_softmax(g, **args):
     row_ptr = row_ptr.int()
     col_ind = col_ind.int()
     val = A.val[val_idx]
-    return A, row_ptr, col_ind, rows, val, smem_consume
+    return row_ptr, col_ind, rows, val, smem_consume
 
 
 def preprocess_hybrid(g):
@@ -355,6 +364,8 @@ def load_layer_GT(args):
         layer = SparseMHA_forward_timing(args.dim, args.dim, args.heads)
     elif args.format == "hyper_ablation":
         layer = SparseMHA_hyper_ablation(args.dim, args.dim, args.heads)
+    elif args.format == "pyg":
+        layer = SparseMHA_pyg(args.dim, args.dim, args.heads)
     else:
         raise ValueError(f"Unsupported format {args.format} in GTconv")
     return layer
@@ -375,6 +386,8 @@ def load_layer_GAT(args):
         layer = GATConv_hybrid(args.dim, args.dim, args.heads)
     elif args.format == "hyper_ablation":
         layer = GATConv_hyper_ablation(args.dim, args.dim, args.heads)
+    elif args.format == "pyg":
+        layer = GATConv_pyg(args.dim, args.dim, args.heads)
     else:
         raise ValueError(f"Unsupported format {args.format} in GATconv")
     return layer
@@ -393,12 +406,14 @@ def load_layer_AGNN(args):
         layer = AGNNConv_tiling(args.dim, args.dim, args.heads)
     elif args.format == "softmax_gm":
         layer = AGNNConv_softmax_gm(args.dim, args.dim, args.heads)
+    elif args.format == "pyg":
+        layer = AGNNConv_pyg(args.dim, args.dim, args.heads)
     else:
         raise ValueError(f"Unsupported format {args.format} in AGNNconv")
     return layer
 
 
-def load_layer(args):
+def load_graphconv_layer(args):
     if args.conv == "gat":
         layer = load_layer_GAT(args)
     elif args.conv == "gt":
@@ -427,6 +442,8 @@ def load_prepfunc(args):
         preprocess_func = preprocess_hybrid
     elif args.format == "forward":
         preprocess_func = preprocess_Hyper_fw_bw
+    elif args.format == "pyg":
+        preprocess_func = preprocess_pyg
     else:
         raise ValueError(f"Unsupported format {args.format}")
     return preprocess_func

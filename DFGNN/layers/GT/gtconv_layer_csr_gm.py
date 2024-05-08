@@ -7,7 +7,6 @@ from .gtconv_layer import SparseMHA
 class SparseMHA_CSR_GM(SparseMHA):
     def forward(self, params, h, fuse=False):
         N = len(h)
-        h = self.in_proj(h)
 
         ## get Q, K, V features
         q = self.q_proj(h).reshape(N, self.head_dim, self.num_heads)
