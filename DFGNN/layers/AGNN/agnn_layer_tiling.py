@@ -36,6 +36,6 @@ class AGNNConv_tiling(AGNNConvDGL):
             )
         else:
             H = H.reshape(-1, self.out_size, self.num_heads)
-            out, elapsed_time = benchmark(self.forward_nofuse, A, H)
+            out, elapsed_time = benchmark(self.forward_dglsp, A, H)
             out = out.transpose(1, 2)
         return out.reshape(N, -1), elapsed_time * 1000

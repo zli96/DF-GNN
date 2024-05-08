@@ -62,5 +62,5 @@ class AGNNConv_forward(AGNNConvDGL):
             )
         else:
             H = self.proj(feat).view(-1, self.out_size, self.num_heads)
-            out = self.forward_nofuse(A, H)
+            out = self.forward_dglsp(A, H)
         return out.reshape(N, -1)

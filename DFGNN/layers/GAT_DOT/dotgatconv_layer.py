@@ -10,6 +10,6 @@ class DOTGATConvDGL(nn.Module):
         self.num_heads = num_heads
         self.conv_nofuse = DotGatConv(in_size, out_size, num_heads)
 
-    def forward_nofuse(self, g, feat):
+    def forward_dglsp(self, g, feat):
         out = self.conv_nofuse(g, feat)
         return out

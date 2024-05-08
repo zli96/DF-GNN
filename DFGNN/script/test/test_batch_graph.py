@@ -3,7 +3,7 @@ import os, pickle
 
 import torch
 
-from DFGNN.layers import load_layer, load_prepfunc, Model
+from DFGNN.layers import load_graphconv_layer, load_prepfunc, Model
 from DFGNN.utils import load_dataset_fn, mkdir, parser_argument, train_profile
 from dgl.dataloading import GraphDataLoader
 
@@ -15,9 +15,9 @@ def main(args):
 
     # init model
     dataset, train_fn = load_dataset_fn(args.dataset, args.data_dir)
-    layer = load_layer(args)
+    graphconv_layer = load_graphconv_layer(args)
     preprocess_func = load_prepfunc(args)
-    model = Model(args.dataset, MHAlayer=layer, hidden_size=args.dim)
+    model = Model(args.dataset, Conv=graphconv_layer, hidden_size=args.dim)
     model = model.to(dev)
     print("model", model)
 

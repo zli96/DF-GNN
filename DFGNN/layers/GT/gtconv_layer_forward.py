@@ -55,7 +55,7 @@ class SparseMHA_forward(SparseMHA):
             q *= self.scaling
             k = self.k_proj(h).reshape(N, self.head_dim, self.num_heads)
             v = self.v_proj(h).reshape(N, self.head_dim, self.num_heads)
-            out = self.forward_nofuse(A, q, k, v)
+            out = self.forward_dglsp(A, q, k, v)
         return out.reshape(N, -1)
 
 
@@ -100,5 +100,5 @@ class SparseMHA_forward_timing(SparseMHA):
             q *= self.scaling
             k = self.k_proj(h).reshape(N, self.head_dim, self.num_heads)
             v = self.v_proj(h).reshape(N, self.head_dim, self.num_heads)
-            out, elapsed_time = benchmark(self.forward_nofuse, A, q, k, v)
+            out, elapsed_time = benchmark(self.forward_dglsp, A, q, k, v)
         return out.reshape(N, -1), elapsed_time * 1000

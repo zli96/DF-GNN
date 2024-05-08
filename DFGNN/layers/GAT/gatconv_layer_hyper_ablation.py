@@ -29,6 +29,6 @@ class GATConv_hyper_ablation(GATConvDGL):
                 self.conv, indptr, indices, rows, smem_consume, feat
             )
         else:
-            out, elapsed_time = benchmark(self.forward_nofuse, A, feat)
+            out, elapsed_time = benchmark(self.forward_dglsp, A, feat)
 
         return out.reshape(N, -1), elapsed_time * 1000

@@ -25,5 +25,5 @@ class DOTGATConv_softmax(DOTGATConvDGL):
                 H,
             )
         else:
-            out, elapsed_time = benchmark(self.forward_nofuse, g, feat)
+            out, elapsed_time = benchmark(self.forward_dglsp, g, feat)
         return out.reshape(N, -1), elapsed_time * 1000

@@ -33,6 +33,6 @@ class SparseMHA_softmax(SparseMHA):
             )
             out = out.transpose(1, 2)
         else:
-            out, elapsed_time = benchmark(self.forward_nofuse, A, q, k, v)
+            out, elapsed_time = benchmark(self.forward_dglsp, A, q, k, v)
 
         return out.reshape(N, -1), elapsed_time * 1000

@@ -22,6 +22,6 @@ class GATConv_tiling(GATConvDGL):
         if fuse:
             out, elapsed_time = benchmark(self.conv, row_ptr, col_ind, feat)
         else:
-            out, elapsed_time = benchmark(self.forward_nofuse, A, feat)
+            out, elapsed_time = benchmark(self.forward_dglsp, A, feat)
 
         return out.reshape(N, -1), elapsed_time * 1000

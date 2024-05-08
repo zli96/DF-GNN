@@ -27,14 +27,14 @@ def choose_Inproj(dataset_name, hidden_size):
 
 # For dataset with node feature: MNIST, CIFAR10, cora
 class Model(nn.Module):
-    """Graph Transformer Layer"""
+    """Module with specified graph conv on specified dataset"""
 
-    def __init__(self, dataset_name, MHAlayer, hidden_size):
+    def __init__(self, dataset_name, Conv, hidden_size):
         super().__init__()
         self.inproj = choose_Inproj(dataset_name, hidden_size)
-        self.MHA = MHAlayer
+        self.Conv = Conv
 
     def forward(self, params, X, fuse=False):
         h = self.inproj(X)
-        h = self.MHA(params, h, fuse)
+        h = self.Conv(params, h, fuse)
         return h

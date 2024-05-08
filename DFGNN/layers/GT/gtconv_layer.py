@@ -17,7 +17,7 @@ class SparseMHA(nn.Module):
         self.k_proj = nn.Linear(out_size, out_size)
         self.v_proj = nn.Linear(out_size, out_size)
 
-    def forward_nofuse(self, A, q, k, v):
+    def forward_dglsp(self, A, q, k, v):
         attn = dglsp.bsddmm(A, q, k.transpose(1, 0))  # [N, N, nh]
         attn = attn.softmax()
         out = dglsp.bspmm(attn, v)

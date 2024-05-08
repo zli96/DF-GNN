@@ -27,7 +27,7 @@ class GATConvDGL(nn.Module):
     # (HIGHLIGHT) Take the advantage of DGL sparse APIs to implement
     # multihead attention.
     ###########################################################################
-    def forward_nofuse(self, A_hat, Z):
+    def forward_dglsp(self, A_hat, Z):
         Z = self.W(Z).view(Z.shape[0], self.out_size, self.num_heads)
 
         # a^T [Wh_i || Wh_j] = a_l Wh_i + a_r Wh_j

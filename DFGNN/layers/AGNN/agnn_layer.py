@@ -11,7 +11,7 @@ class AGNNConvDGL(nn.Module):
         self.num_heads = num_heads
         self.proj = nn.Linear(in_size, out_size)
 
-    def forward_nofuse(self, A, H):
+    def forward_dglsp(self, A, H):
         H_norm = F.normalize(H, p=2, dim=1)
         attn = dglsp.bsddmm(A, H_norm, H_norm.transpose(1, 0))  # [N, N, nh]
         attn = attn.softmax()

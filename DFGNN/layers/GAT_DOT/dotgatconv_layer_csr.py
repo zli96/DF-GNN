@@ -16,5 +16,5 @@ class DOTGATConv_csr(DOTGATConvDGL):
                 GTConvFuse_inference_csr, indptr, indices, val, smem_consume, H, H, H
             )
         else:
-            out, elapsed_time = benchmark(self.forward_nofuse, g, feat)
+            out, elapsed_time = benchmark(self.forward_dglsp, g, feat)
         return out.reshape(N, -1), elapsed_time * 1000

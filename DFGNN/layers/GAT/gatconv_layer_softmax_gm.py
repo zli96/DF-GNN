@@ -27,6 +27,6 @@ class GATConv_softmax_gm(GATConvDGL):
         if fuse:
             out, elapsed_time = benchmark(self.conv, indptr, indices, rows, feat)
         else:
-            out, elapsed_time = benchmark(self.forward_nofuse, A, feat)
+            out, elapsed_time = benchmark(self.forward_dglsp, A, feat)
 
         return out.reshape(N, -1), elapsed_time * 1000
