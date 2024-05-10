@@ -1,3 +1,4 @@
+from .gatconv_layer_cugraph import GATConv_cugraph
 from .gatconv_layer_fused import GATConv_dgNN, GATConv_hyper, GATConv_softmax
 from .gatconv_layer_hybrid import GATConv_hybrid
 from .gatconv_layer_hyper_ablation import GATConv_hyper_ablation

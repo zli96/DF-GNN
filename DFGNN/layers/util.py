@@ -1,7 +1,10 @@
 import warnings
+from functools import partial
 
 import dgl
 import dgl.sparse as dglsp
+
+import pylibcugraphops.pytorch as ops_torch
 import torch
 
 from .AGNN import (
@@ -15,6 +18,7 @@ from .AGNN import (
 )
 
 from .GAT import (
+    GATConv_cugraph,
     GATConv_dgNN,
     GATConv_hybrid,
     GATConv_hyper,
@@ -28,6 +32,7 @@ from .GAT import (
 from .GT import (
     SparseMHA_CSR,
     SparseMHA_CSR_GM,
+    SparseMHA_cugraph,
     SparseMHA_forward_timing,
     SparseMHA_hybrid,
     SparseMHA_hyper,
@@ -37,7 +42,6 @@ from .GT import (
     SparseMHA_softmax_gm,
     SparseMHA_tiling,
 )
-
 
 WARP_SIZE = 32
 
@@ -91,6 +95,19 @@ def preprocess_Hyper(g, **args):
     col_ind = col_ind.int()
     val = A.val[val_idx]
     return row_ptr, col_ind, rows, val, smem_consume
+
+
+def preprocess_cugraph(g, is_bipartite=False):
+    max_in_degree = -1
+    offsets, indices, _ = g.adj_tensors("csr")
+    graph = ops_torch.CSC(
+        offsets=offsets,
+        indices=indices,
+        num_src_nodes=g.num_src_nodes(),
+        dst_max_in_degree=max_in_degree,
+        is_bipartite=is_bipartite,
+    )
+    return graph
 
 
 def preprocess_Hyper_fw_bw(g, fused=True):
@@ -366,6 +383,8 @@ def load_layer_GT(args):
         layer = SparseMHA_hyper_ablation(args.dim, args.dim, args.heads)
     elif args.format == "pyg":
         layer = SparseMHA_pyg(args.dim, args.dim, args.heads)
+    elif args.format == "cugraph":
+        layer = SparseMHA_cugraph(args.dim, args.dim, args.heads)
     else:
         raise ValueError(f"Unsupported format {args.format} in GTconv")
     return layer
@@ -388,6 +407,8 @@ def load_layer_GAT(args):
         layer = GATConv_hyper_ablation(args.dim, args.dim, args.heads)
     elif args.format == "pyg":
         layer = GATConv_pyg(args.dim, args.dim, args.heads)
+    elif args.format == "cugraph":
+        layer = GATConv_cugraph(args.dim, args.dim, args.heads)
     else:
         raise ValueError(f"Unsupported format {args.format} in GATconv")
     return layer
@@ -444,6 +465,12 @@ def load_prepfunc(args):
         preprocess_func = preprocess_Hyper_fw_bw
     elif args.format == "pyg":
         preprocess_func = preprocess_pyg
+    elif args.format == "cugraph":
+        if args.conv == "gt":
+            preprocess_cugraph_bip = partial(preprocess_cugraph, is_bipartite=True)
+            preprocess_func = preprocess_cugraph_bip
+        else:
+            preprocess_func = preprocess_cugraph
     else:
         raise ValueError(f"Unsupported format {args.format}")
     return preprocess_func

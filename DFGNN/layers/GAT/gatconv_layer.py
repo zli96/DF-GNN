@@ -28,8 +28,6 @@ class GATConvDGL(nn.Module):
     # multihead attention.
     ###########################################################################
     def forward_dglsp(self, A_hat, Z):
-        Z = self.W(Z).view(Z.shape[0], self.out_size, self.num_heads)
-
         # a^T [Wh_i || Wh_j] = a_l Wh_i + a_r Wh_j
         e_l = (Z * self.a_l).sum(dim=1)
         e_r = (Z * self.a_r).sum(dim=1)
