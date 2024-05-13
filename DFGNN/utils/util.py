@@ -269,6 +269,7 @@ def inference_Graph_level(process_func, model, train_dataloader, dev):
             time_no_fuse.append(elapsed_time)
             ## run by fuse attention
             model.eval()
+            params = process_func(batched_g)
             logits_fuse, elapsed_time = model(
                 params, batched_g.ndata["feat"], fuse=True
             )
@@ -420,7 +421,7 @@ def parse_args(parser):
 def parser_argument(parser):
     parser.add_argument("--config", type=str)
     parser.add_argument("--conv", type=str, default="gt")
-    parser.add_argument("--format", type=str, default="csr")
+    parser.add_argument("--format", type=str, default="all")
     parser.add_argument("--dim", type=int)
     parser.add_argument("--heads", type=int, default=1)
     parser.add_argument("--batch-size", type=int)
