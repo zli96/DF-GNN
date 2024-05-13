@@ -10,6 +10,7 @@ import torch
 from .AGNN import (
     AGNNConv_csr,
     AGNNConv_csr_gm,
+    AGNNConv_cugraph,
     AGNNConv_hyper,
     AGNNConv_pyg,
     AGNNConv_softmax,
@@ -429,6 +430,8 @@ def load_layer_AGNN(args):
         layer = AGNNConv_softmax_gm(args.dim, args.dim, args.heads)
     elif args.format == "pyg":
         layer = AGNNConv_pyg(args.dim, args.dim, args.heads)
+    elif args.format == "cugraph":
+        layer = AGNNConv_cugraph(args.dim, args.dim, args.heads)
     else:
         raise ValueError(f"Unsupported format {args.format} in AGNNconv")
     return layer
@@ -466,7 +469,7 @@ def load_prepfunc(args):
     elif args.format == "pyg":
         preprocess_func = preprocess_pyg
     elif args.format == "cugraph":
-        if args.conv == "gt":
+        if args.conv in ["gt", "agnn"]:
             preprocess_cugraph_bip = partial(preprocess_cugraph, is_bipartite=True)
             preprocess_func = preprocess_cugraph_bip
         else:
