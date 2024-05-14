@@ -16,10 +16,10 @@ class SparseMHA_hyper(SparseMHA):
         q, k, v = self.prep_qkv(h)
 
         if fuse:
+            indptr, indices, rows, val, smem_consume = params
             q = q.transpose(1, 2).contiguous()
             k = k.transpose(1, 2).contiguous()
             v = v.transpose(1, 2).contiguous()
-            indptr, indices, rows, val, smem_consume = params
             out, elapsed_time = benchmark(
                 GTConvFuse_inference_hyper,
                 indptr,

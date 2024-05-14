@@ -22,9 +22,9 @@ class AGNNConv_tiling(AGNNConvDGL):
 
     def forward(self, params, feat, fuse=False):
         N = len(feat)
-        A, indptr, indices, val, smem_consume = params
         H = self.proj(feat).view(-1, self.num_heads, self.out_size)
         if fuse:
+            indptr, indices, val, smem_consume = params
             H = H.contiguous()
             out, elapsed_time = benchmark(
                 self.conv,
@@ -35,6 +35,7 @@ class AGNNConv_tiling(AGNNConvDGL):
                 smem_consume,
             )
         else:
+            A = params
             H = H.reshape(-1, self.out_size, self.num_heads)
             out, elapsed_time = benchmark(self.forward_dglsp, A, H)
             out = out.transpose(1, 2)

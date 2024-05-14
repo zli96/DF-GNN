@@ -9,13 +9,10 @@ class SparseMHA_softmax_gm(SparseMHA):
         N = len(h)
 
         ## get Q, K, V features
-        q = self.q_proj(h).reshape(N, self.head_dim, self.num_heads)
-        q *= self.scaling
-        k = self.k_proj(h).reshape(N, self.head_dim, self.num_heads)
-        v = self.v_proj(h).reshape(N, self.head_dim, self.num_heads)
-        A, indptr, indices, rows, val, _ = params
+        q, k, v = self.prep_qkv(h)
 
         if fuse:
+            indptr, indices, rows, val, _ = params
             q = q.transpose(1, 2).contiguous()
             k = k.transpose(1, 2).contiguous()
             v = v.transpose(1, 2).contiguous()
@@ -31,6 +28,7 @@ class SparseMHA_softmax_gm(SparseMHA):
             )
             out = out.transpose(1, 2)
         else:
+            A = params
             out, elapsed_time = benchmark(self.forward_dglsp, A, q, k, v)
 
         return out.reshape(N, -1), elapsed_time * 1000
