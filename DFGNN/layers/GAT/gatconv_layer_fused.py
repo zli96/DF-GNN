@@ -61,6 +61,7 @@ class GATConv_hyper(GATConvDGL):
         if fuse:
             indptr, indices, rows, _, smem_consume = params
             feat = self.W(feat).view(-1, self.num_heads, self.out_size)
+            feat = feat.detach().contiguous()
             out, elapsed_time = benchmark(
                 self.conv,
                 indptr,
@@ -74,6 +75,7 @@ class GATConv_hyper(GATConvDGL):
         else:
             A = params
             feat = self.W(feat).view(-1, self.out_size, self.num_heads)
+            feat = feat.detach().contiguous()
             out, elapsed_time = benchmark(self.forward_dglsp, A, feat)
 
         return out.reshape(N, -1), elapsed_time * 1000
@@ -109,7 +111,6 @@ class GATConv_hyper_recompute(GATConvDGL):
             )
         else:
             A = params
-            print(A)
             feat = self.W(feat).view(-1, self.out_size, self.num_heads)
             out, elapsed_time = benchmark(self.forward_dglsp, A, feat)
 

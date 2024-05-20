@@ -1,11 +1,20 @@
 import argparse
 import os, pickle
 
+import dgl.sparse as dglsp
+
 import torch
 import torch.nn as nn
 
-from DFGNN.layers import load_layer, load_prepfunc
+from DFGNN.layers import load_graphconv_layer, load_prepfunc
 from DFGNN.utils import check_correct, load_data_full_graph, mkdir
+
+
+def preprocess_dglsp(g):
+    indices = torch.stack(g.edges())
+    N = g.num_nodes()
+    A = dglsp.spmatrix(indices, shape=(N, N))
+    return A
 
 
 class Model(nn.Module):
@@ -30,6 +39,57 @@ def PrintGraphStruct(g):
     print(f"max. degree {max(g.out_degrees())}")
 
 
+def test_format(args, dev, g):
+    layer = load_graphconv_layer(args)
+    preprocess_func = load_prepfunc(args)
+
+    # Create the sparse adjacency matrix A.
+    A = preprocess_dglsp(g)
+    params = preprocess_func(g)
+    X = g.ndata["feat"]
+    in_size = X.shape[1]
+    model = Model(MHAlayer=layer, in_size=in_size, hidden_size=args.dim)
+    model = model.to(dev)
+    print("model", model)
+    print("----------------------Forward------------------------")
+    time_no_fuse = []
+    time_fuse = []
+
+    print("------warmup------")
+    for epoch in range(1):
+        logits, elapsed_time = model(A, X)
+
+    print("------inference------")
+    for epoch in range(10):
+        logits, elapsed_time_nofuse = model(A, X)
+        logits_fuse, elapsed_time = model(params, X, fuse=True)
+        if epoch < 2:
+            check_correct(logits[:1000], logits_fuse[:1000], params)
+            check_correct(logits[-1000:], logits_fuse[-1000:], params)
+        time_no_fuse.append(elapsed_time_nofuse)
+        time_fuse.append(elapsed_time)
+        print(f"epoch {epoch} non-fused time %.4f" % elapsed_time_nofuse)
+        print(f"epoch {epoch} fused time %.4f" % elapsed_time)
+
+    print("----------------------Result------------------------")
+    print(
+        "no-fuse average time {:.4f} ms".format(sum(time_no_fuse) / len(time_no_fuse))
+    )
+    print("fuse average time {:.4f} ms".format(sum(time_fuse) / len(time_fuse)))
+
+    if args.store_result:
+        result_dir = os.path.join(os.getcwd(), "dataset", args.dataset, args.conv)
+        mkdir(result_dir)
+        result_path = os.path.join(
+            result_dir,
+            f"{args.format}_dim{args.dim}_result.pkl",
+        )
+        print("store result at", result_path)
+        with open(result_path, "wb") as f:
+            pickle.dump([time_no_fuse[:-1], time_fuse[:-1]], f)
+            print("-----------dump run result--------------------")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="full_graph")
     parser.add_argument("--conv", type=str, default="gt")
@@ -40,9 +100,6 @@ if __name__ == "__main__":
     parser.add_argument("--data-dir", type=str, default="./data")
     parser.add_argument("--store-result", action="store_true")
     args = parser.parse_args()
-
-    layer = load_layer(args)
-    preprocess_func = load_prepfunc(args)
 
     print("GraphConv", args.conv)
     print("format:", args.format)
@@ -61,54 +118,29 @@ if __name__ == "__main__":
     g = dataset[0].to(dev)
     PrintGraphStruct(g)
 
-    # Create the sparse adjacency matrix A.
-    params = preprocess_func(g)
-    X = g.ndata["feat"]
-    in_size = X.shape[1]
-    model = Model(MHAlayer=layer, in_size=in_size, hidden_size=args.dim)
-    model = model.to(dev)
-    print("model", model)
-    print("----------------------Forward------------------------")
-    time_no_fuse = []
-    time_fuse = []
-
-    print("------warmup------")
-    for epoch in range(1):
-        logits, elapsed_time = model(params, X)
-
-    print("------inference------")
-    for epoch in range(10):
-        if epoch < 2:
-            logits, elapsed_time_nofuse = model(params, X)
-            time_no_fuse.append(elapsed_time_nofuse)
-            logits_fuse, elapsed_time = model(params, X, fuse=True)
-            time_fuse.append(elapsed_time)
-            check_correct(logits[:1000], logits_fuse[:1000], params)
-            check_correct(logits[-1000:], logits_fuse[-1000:], params)
-            print(f"epoch {epoch} non-fused time %.4f" % elapsed_time_nofuse)
-            print(f"epoch {epoch} fused time %.4f" % elapsed_time)
+    if args.format == "all_fg":
+        # normal full graph dataset
+        for format in ["pyg", "csr", "cugraph", "softmax", "hyper"]:
+            args.format = format
+            print("format", args.format)
+            test_format(args, dev, g)
+    elif args.format == "all_fg_super":
+        # full graph dataset with super node
+        if args.conv == "gat":
+            formats = [
+                "pyg",
+                "csr",
+                "cugraph",
+                "softmax_gm",
+                "tiling",
+                "hyper_recompute",
+            ]
         else:
-            logits_fuse, elapsed_time = model(params, X, fuse=True)
-            time_fuse.append(elapsed_time)
-            print(f"epoch {epoch} fused time %.4f" % elapsed_time)
+            formats = ["csr_gm", "cugraph", "softmax_gm", "tiling"]
 
-    print("----------------------Result------------------------")
-    print(
-        "no-fuse average time {:.4f} ms".format(sum(time_no_fuse) / len(time_no_fuse))
-    )
-    print("fuse average time {:.4f} ms".format(sum(time_fuse) / len(time_fuse)))
-
-    if args.store_result:
-        result_dir = os.path.join(
-            "/workspace2/fuse_attention", "dataset", args.dataset, args.conv
-        )
-        mkdir(result_dir)
-        with open(
-            os.path.join(
-                result_dir,
-                f"{args.format}_dim{args.dim}_result.pkl",
-            ),
-            "wb",
-        ) as f:
-            pickle.dump([time_no_fuse[:-1], time_fuse[:-1]], f)
-            print("-----------dump run result--------------------")
+        for format in formats:
+            args.format = format
+            print("format", args.format)
+            test_format(args, dev, g)
+    else:
+        test_format(args, dev, g)

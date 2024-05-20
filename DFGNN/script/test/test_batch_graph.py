@@ -45,15 +45,13 @@ def test_format(args, dev, train_dataloader, train_fn):
 
         if args.store_result:
             result_dir = os.path.join(os.getcwd(), "dataset", args.dataset, args.conv)
-            print("store log path", result_dir)
             mkdir(result_dir)
-            with open(
-                os.path.join(
-                    result_dir,
-                    f"{args.format}_dim{args.dim}_bs{args.batch_size}_result.pkl",
-                ),
-                "wb",
-            ) as f:
+            result_path = os.path.join(
+                result_dir,
+                f"{args.format}_dim{args.dim}_bs{args.batch_size}_result.pkl",
+            )
+            print("store result at", result_path)
+            with open(result_path, "wb") as f:
                 pickle.dump([time_no_fuse[:-1], time_fuse[:-1]], f)
                 print("-----------dump run result--------------------")
 
@@ -72,7 +70,11 @@ def main(args):
         shuffle=False,
     )
     if args.format == "all":
-        for format in ["csr", "cugraph", "softmax", "hyper"]:
+        if args.conv == "gat":
+            formats = ["csr", "cugraph", "softmax", "hyper", "hyper_recompute"]
+        else:
+            formats = ["csr", "cugraph", "softmax", "hyper"]
+        for format in formats:
             args.format = format
             print("format", args.format)
             test_format(args, dev, train_dataloader, train_fn)
