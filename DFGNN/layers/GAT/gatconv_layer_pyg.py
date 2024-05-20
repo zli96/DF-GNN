@@ -19,8 +19,8 @@ class GATConv_pyg(GATConvDGL):
             add_self_loops=False,
         )
         self.conv.lin = self.W
-        self.conv.att_src = nn.Parameter(self.a_l.transpose(1, 2))
-        self.conv.att_dst = nn.Parameter(self.a_r.transpose(1, 2))
+        self.conv.att_dst = nn.Parameter(self.a_l.transpose(1, 2))
+        self.conv.att_src = nn.Parameter(self.a_r.transpose(1, 2))
 
     def forward(self, params, feat, fuse=False):
         N = len(feat)
@@ -29,6 +29,7 @@ class GATConv_pyg(GATConvDGL):
             out, elapsed_time = benchmark(self.conv, feat, edge_index)
         else:
             A = params
+            feat = self.W(feat).view(-1, self.out_size, self.num_heads)
             out, elapsed_time = benchmark(self.forward_dglsp, A, feat)
 
         return out.reshape(N, -1), elapsed_time * 1000
