@@ -71,7 +71,14 @@ def main(args):
     )
     if args.format == "all":
         if args.conv == "gat":
-            formats = ["csr", "cugraph", "softmax", "hyper", "hyper_recompute"]
+            formats = [
+                "csr",
+                "cugraph",
+                "softmax",
+                "hyper",
+                "hyper_recompute",
+                "hyper_v2",
+            ]
         else:
             formats = ["csr", "cugraph", "softmax", "hyper"]
         for format in formats:

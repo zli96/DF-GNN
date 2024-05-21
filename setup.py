@@ -32,6 +32,7 @@ setuptools.setup(
                 "DFGNN/src/fused_gatconv/fused_gatconv_kernel.cu",
                 "DFGNN/src/fused_gatconv/fused_gatconv_hyper.cu",
                 "DFGNN/src/fused_gatconv/fused_gatconv_hyper_recompute.cu",
+                "DFGNN/src/fused_gatconv/fused_gatconv_hyper_v2.cu",
                 "DFGNN/src/fused_gatconv/fused_gatconv_softmax.cu",
                 "DFGNN/src/fused_gatconv/fused_gatconv_hyper_ablation.cu",
                 "DFGNN/src/fused_gatconv/fused_gatconv_tiling.cu",

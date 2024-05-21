@@ -141,6 +141,23 @@ gat_inference_hyper_recompute(torch::Tensor attn_row, torch::Tensor attn_col,
                                             negative_slope, in_feat);
 }
 
+torch::Tensor gat_hyper_v2_inference_cuda(int smem_consume, torch::Tensor a_l,
+                                          torch::Tensor a_r,
+                                          torch::Tensor indptr,
+                                          torch::Tensor indices,
+                                          float negative_slope,
+                                          torch::Tensor in_feat);
+
+torch::Tensor
+gat_inference_hyper_v2(int smem_consume, torch::Tensor a_l, torch::Tensor a_r,
+                       torch::Tensor indptr, torch::Tensor indices,
+                       float negative_slope, torch::Tensor in_feat)
+
+{
+  return gat_hyper_v2_inference_cuda(smem_consume, a_l, a_r, indptr, indices,
+                                     negative_slope, in_feat);
+}
+
 torch::Tensor
 gat_hyper_ablation_inference_cuda(int smem_consume, torch::Tensor attn_row,
                                   torch::Tensor attn_col, torch::Tensor indptr,
@@ -342,6 +359,8 @@ PYBIND11_MODULE(fused_gatconv, m) {
   m.def("gat_backward", &gat_backward, "fused gat backward op");
   m.def("gat_inference", &gat_inference, "fused gat inference op");
   m.def("gat_inference_hyper", &gat_inference_hyper, "fused gat inference op");
+  m.def("gat_inference_hyper_v2", &gat_inference_hyper_v2,
+        "fused gat inference op");
   m.def("gat_inference_hyper_recompute", &gat_inference_hyper_recompute,
         "fused gat inference op");
   m.def("gat_inference_softmax", &gat_inference_softmax,

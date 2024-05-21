@@ -44,6 +44,14 @@ def GATConvFuse_inference_hyper_recompute(
     )
 
 
+def GATConvFuse_inference_hyper_v2(
+    smem_consume, a_l, a_r, indptr, indices, negative_slope, in_feat
+):
+    return fused_gat.gat_inference_hyper_v2(
+        smem_consume, a_l, a_r, indptr, indices, negative_slope, in_feat
+    )
+
+
 def GATConvFuse_inference_hyper_ablation(
     smem_consume, attn_row, attn_col, indptr, indices, rows, negative_slope, in_feat
 ):

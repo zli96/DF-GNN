@@ -120,7 +120,11 @@ if __name__ == "__main__":
 
     if args.format == "all_fg":
         # normal full graph dataset
-        for format in ["pyg", "csr", "cugraph", "softmax", "hyper"]:
+        if args.conv == "gat":
+            formats = ["pyg", "csr", "cugraph", "softmax", "hyper_v2"]
+        else:
+            formats = ["pyg", "csr", "cugraph", "softmax", "hyper"]
+        for format in formats:
             args.format = format
             print("format", args.format)
             test_format(args, dev, g)

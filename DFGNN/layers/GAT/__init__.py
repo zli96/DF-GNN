@@ -3,6 +3,7 @@ from .gatconv_layer_fused import (
     GATConv_dgNN,
     GATConv_hyper,
     GATConv_hyper_recompute,
+    GATConv_hyper_v2,
     GATConv_softmax,
 )
 from .gatconv_layer_hybrid import GATConv_hybrid
