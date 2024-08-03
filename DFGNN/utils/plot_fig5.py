@@ -15,15 +15,13 @@ def shmoo_batch_size():
     dataset = "PATTERN"
     conv = "gt"
     dim = 128
-    formats = ["softmax", "csr", "hyper"]
+    formats = ["csr", "cugraph", "hyper"]
     batch_sizes = [2**i for i in range(6, 12)]
     print(dataset)
     for bs in batch_sizes:
         print(bs)
         for i, format in enumerate(formats):
-            result_dir = os.path.join(
-                "/workspace2/fuse_attention", "dataset", dataset, conv
-            )
+            result_dir = os.path.join(os.getcwd(), "dataset", dataset, conv)
             output = os.path.join(result_dir, f"{format}_dim{dim}_bs{bs}_result.pkl")
             with open(output, "rb") as f:
                 time_no_fuse, time_fuse = pickle.load(f)

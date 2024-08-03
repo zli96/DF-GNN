@@ -36,9 +36,9 @@ class SparseMHA_hyper_ablation(SparseMHA):
         q *= self.scaling
         k = self.k_proj(h).reshape(N, self.head_dim, self.num_heads)
         v = self.v_proj(h).reshape(N, self.head_dim, self.num_heads)
-        A, indptr, indices, rows, val, smem_consume = params
 
         if fuse:
+            indptr, indices, rows, val, smem_consume = params
             q = q.transpose(1, 2).contiguous()
             k = k.transpose(1, 2).contiguous()
             v = v.transpose(1, 2).contiguous()
@@ -55,6 +55,7 @@ class SparseMHA_hyper_ablation(SparseMHA):
             )
             out = out.transpose(1, 2)
         else:
+            A = params
             out, elapsed_time = benchmark(self.forward_dglsp, A, q, k, v)
 
         return out.reshape(N, -1), elapsed_time * 1000

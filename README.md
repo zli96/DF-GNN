@@ -54,8 +54,9 @@ We provide serval bash examples to run the model
 **Measure the DFGNN kernel performance**
 ``` bash
 # run the gt convolution on PATTERN dataset with hyper method
-python -u DFGNN/script/test/test_batch_graph.py --dim 64 --batch-size 1024 --dataset PATTERN --format hyper --conv gt
+python -u DFGNN/script/test/test_batch_graph.py --dim 128 --batch-size 1024 --dataset PATTERN --format hyper --conv gt --data-dir /workspace2/dataset
 
+python -u DFGNN/script/test/test_full_graph.py --dim 128 --dataset cora --format pyg --conv gat --data-dir /workspace2/dataset
 
 # run the DFGNN on the batch graph datasets
 bash bash/run_batch_graph.sh

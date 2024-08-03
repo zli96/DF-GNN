@@ -363,13 +363,13 @@ __global__ void fused_gt_hyper_inference_vec4(
       if (pid < num_edge) {
         weight = neigh_nodes_weight_off[pid];
       }
-      __syncwarp();
-#pragma unroll
-      for (int stride = 16; stride > 0; stride >>= 1) {
-        weight = max(__shfl_xor_sync(0xffffffff, weight, stride, 32), weight);
-      }
-      __syncwarp();
       weightMax = MAX(weight, weightMax);
+    }
+
+#pragma unroll
+    for (int stride = 16; stride > 0; stride >>= 1) {
+      weightMax =
+          max(__shfl_xor_sync(0xffffffff, weightMax, stride, 32), weightMax);
     }
 
     // compute the sum of exp

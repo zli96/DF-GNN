@@ -3,11 +3,20 @@ FROM nvcr.io/nvidia/pyg:24.03-py3
 RUN apt-get -y update \
         && apt-get install -y gdb 
 
-
 RUN pip install ogb \
         && pip install rdkit 
 
 ENV DGL_HOME=/workspace2/dgl
 ENV DGL_LIBRARY_PATH=/workspace2/dgl/build
 ENV PYTHONPATH="/workspace2/DFGNN/package:/workspace2/DFGNN:/workspace2/python_profiler:/workspace2/dgl/python:$PYTHONPATH"
+
+# # RUN addgroup --gid 1000 ubuntu
+# RUN groupmod --gid 1000 ubuntu
+# RUN addgroup --gid 1000 ubuntu
+# RUN adduser --disabled-password --gecos GECOS -u 1000 -gid 1000 ubuntu
+# RUN adduser ubuntu sudo
+# RUN usermod -a -G root ubuntu
+# RUN echo '%sudo ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
+# USER ubuntu
+
 WORKDIR /workspace2

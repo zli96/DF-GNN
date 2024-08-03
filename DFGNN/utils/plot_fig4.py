@@ -18,7 +18,7 @@ def shmoo_feature_dim():
     formats = ["softmax", "csr", "hyper"]
     dims = [2**i for i in range(4, 9)]
 
-    result_dir = os.path.join("/workspace2/fuse_attention", "dataset", dataset, conv)
+    result_dir = os.path.join(os.getcwd(), "dataset", dataset, conv)
     print(dataset)
     for dim in dims:
         print("dim", dim)

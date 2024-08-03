@@ -84,6 +84,22 @@ __device__ __forceinline__ void Store(data *lhd, data *rhd, int offset) {
       *(reinterpret_cast<ldType *>(rhd));
 }
 
+__device__ inline void st_global(void *addr, const uint8_t (&x)[16]) {
+  using store_t = uint32_t;
+  const store_t *x_store_arr = reinterpret_cast<const store_t *>(x);
+  auto *s1 = reinterpret_cast<void *>(addr);
+  asm volatile("st.global.v4.u32 [%0], {%1, %2, %3, %4};"
+               :
+               : "l"(s1), "r"(x_store_arr[0]), "r"(x_store_arr[1]),
+                 "r"(x_store_arr[2]), "r"(x_store_arr[3]));
+}
+
+template <typename dataType, int N>
+__device__ inline void stg(dataType *addr, const dataType (&x)[N]) {
+  using arr_t = const uint8_t(&)[sizeof(dataType) * N];
+  st_global(static_cast<void *>(addr), reinterpret_cast<arr_t>(x));
+}
+
 template <typename ldType, typename data>
 __device__ __forceinline__ void Load4(ldType *tmp, data *array, int *offset,
                                       int offset2 = 0) {
@@ -148,10 +164,10 @@ __device__ __forceinline__ void selfMul4(data *lhd, data *rhd) {
 
 template <typename data>
 __device__ __forceinline__ void selfMulConst4(data *lhd, data Const) {
-  lhd[0] *= Const;
-  lhd[1] *= Const;
-  lhd[2] *= Const;
-  lhd[3] *= Const;
+  lhd[0] = lhd[0] * Const;
+  lhd[1] = lhd[1] * Const;
+  lhd[2] = lhd[2] * Const;
+  lhd[3] = lhd[3] * Const;
 }
 
 template <typename data>
