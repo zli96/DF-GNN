@@ -22,12 +22,14 @@ def plot_batch_graph():
         "PATTERN",
     ]
 
-    formats = ["pyg", "csr", "cugraph", "softmax", "hyper"]
-    print("formats", formats)
     dim = 128
     bs = "1024"
     for conv in convs:
         print(conv)
+        if conv == "gat":
+            formats = ["pyg", "csr", "cugraph", "softmax", "hyper_v2"]
+        else:
+            formats = ["pyg", "csr", "cugraph", "softmax", "hyper"]
         for dataset in datasets:
             result_dir = os.path.join(os.getcwd(), "dataset", dataset, conv)
             print(dataset)

@@ -16,3 +16,4 @@ dist/
 /dataset
 /data
 log_new/
+tmp/
