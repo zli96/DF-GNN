@@ -1,10 +1,10 @@
-# DFGNN
-DFGNN provides several fusion implementations for graph convolution
+# DF-GNN: Dynamic Fusion Framework for Attention Graph Neural Networks on GPUs
+This is the source code of DF-GNN which is accepted by LOG 24, DFGNN provides several fusion implementations for graph convolution
 
 **Baseline:**
 * [pyg](https://pytorch-geometric.readthedocs.io/en/latest/index.html): gnn message passing lib
 * [dgl sparse](https://doc.dgl.ai/en/latest/api/python/dgl.sparse_v0.html): gnn sparse operator lib 
-* [dgNN](https://github.com/dgSPARSE/dgNN): fused gnn node-parallel kernel introduced in 
+* [dgNN](https://github.com/dgSPARSE/dgNN): fused gnn node-parallel kernel
 
 
 **Our method:**
