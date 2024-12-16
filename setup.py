@@ -26,7 +26,7 @@ setuptools.setup(
     python_requires=">=3.6",
     ext_modules=[
         CUDAExtension(
-            "package.fused_gatconv",
+            "fused_gatconv",
             [
                 "DFGNN/src/fused_gatconv/fused_gatconv.cpp",
                 "DFGNN/src/fused_gatconv/fused_gatconv_kernel.cu",
@@ -38,11 +38,11 @@ setuptools.setup(
                 "DFGNN/src/fused_gatconv/fused_gatconv_tiling.cu",
                 "DFGNN/src/fused_gatconv/fused_gatconv_softmax_gm.cu",
             ],
-            extra_compile_args={"cxx": [], "nvcc": ["-arch=sm_75", "-lineinfo"]},
+            extra_compile_args={"cxx": [], "nvcc": ["-arch=sm_80", "-lineinfo"]},
             extra_link_args=["-lcurand"],
         ),
         CUDAExtension(
-            "package.fused_gtconv",
+            "fused_gtconv",
             [
                 "DFGNN/src/fused_gtconv/fused_gtconv.cpp",
                 "DFGNN/src/fused_gtconv/fused_gtconv_csr.cu",
@@ -55,17 +55,17 @@ setuptools.setup(
                 # "DFGNN/src/fused_gtconv/fused_gtconv_subgraph.cu",
                 "DFGNN/src/fused_gtconv/fused_gtconv_backward.cu",
             ],
-            extra_compile_args={"cxx": [], "nvcc": ["-arch=sm_75", "-lineinfo"]},
+            extra_compile_args={"cxx": [], "nvcc": ["-arch=sm_80", "-lineinfo"]},
             extra_link_args=["-lcurand", "-lcusparse"],
             include_dirs=["DFGNN/src/spmm/spmm.cuh", "DFGNN/src/sddmm/sddmm.cuh"],
         ),
         CUDAExtension(
-            "package.fused_dotgatconv",
+            "fused_dotgatconv",
             [
                 "DFGNN/src/fused_dotgatconv/fused_dotgatconv.cpp",
                 "DFGNN/src/fused_dotgatconv/fused_dotgatconv_tile.cu",
             ],
-            extra_compile_args={"cxx": [], "nvcc": ["-arch=sm_75", "-lineinfo"]},
+            extra_compile_args={"cxx": [], "nvcc": ["-arch=sm_80", "-lineinfo"]},
             extra_link_args=["-lcurand", "-lcusparse"],
         ),
     ],

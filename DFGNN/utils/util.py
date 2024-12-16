@@ -10,15 +10,13 @@ import matplotlib.pyplot as plt
 import torch
 
 import yaml
-
-from dgl.data import (
+from dgl.data import CoraGraphDataset, CoraFullDataset
+from dgl.data.lrgb import (
     AsGraphPredDataset,
     CIFAR10SuperPixelDataset,
     CiteseerGraphDataset,
     CLUSTERDataset,
     COCOSuperpixelsDataset,
-    CoraFullDataset,
-    CoraGraphDataset,
     MNISTSuperPixelDataset,
     PATTERNDataset,
     PeptidesFunctionalDataset,
