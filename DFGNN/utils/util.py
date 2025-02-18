@@ -2,7 +2,6 @@ import os
 
 from timeit import default_timer
 
-import dgl.data
 import dgl.sparse as dglsp
 
 import matplotlib.pyplot as plt
@@ -10,21 +9,23 @@ import matplotlib.pyplot as plt
 import torch
 
 import yaml
-from dgl.data import CoraGraphDataset, CoraFullDataset
-from dgl.data.lrgb import (
-    AsGraphPredDataset,
-    CIFAR10SuperPixelDataset,
-    CiteseerGraphDataset,
-    CLUSTERDataset,
-    COCOSuperpixelsDataset,
-    MNISTSuperPixelDataset,
-    PATTERNDataset,
-    PeptidesFunctionalDataset,
-    PeptidesStructuralDataset,
-    PubmedGraphDataset,
-    RedditDataset,
-    VOCSuperpixelsDataset,
-)
+# ZL: some of those are deprecated in the new dgl
+# I don't use the dataloading functions anyways.
+# from dgl.data import CoraGraphDataset, CoraFullDataset
+# from dgl.data.lrgb import (
+#     AsGraphPredDataset,
+#     CIFAR10SuperPixelDataset,
+#     CiteseerGraphDataset,
+#     CLUSTERDataset,
+#     COCOSuperpixelsDataset,
+#     MNISTSuperPixelDataset,
+#     PATTERNDataset,
+#     PeptidesFunctionalDataset,
+#     PeptidesStructuralDataset,
+#     PubmedGraphDataset,
+#     RedditDataset,
+#     VOCSuperpixelsDataset,
+# )
 
 from ogb.graphproppred import DglGraphPropPredDataset
 from ogb.linkproppred import DglLinkPropPredDataset
@@ -37,114 +38,114 @@ datasets_NC = ["PascalVOC-SP", "COCO-SP", "PATTERN", "CLUSTER"]
 WARP_SIZE = 32
 
 
-def LoadData(DATASET_NAME, data_dir):
+# def LoadData(DATASET_NAME, data_dir):
 
-    # handling for MNIST or CIFAR Superpixels
-    if DATASET_NAME == "MNIST":
-        return MNISTSuperPixelDataset(data_dir)
+#     # handling for MNIST or CIFAR Superpixels
+#     if DATASET_NAME == "MNIST":
+#         return MNISTSuperPixelDataset(data_dir)
 
-    if DATASET_NAME == "CIFAR10":
-        return CIFAR10SuperPixelDataset(data_dir)
+#     if DATASET_NAME == "CIFAR10":
+#         return CIFAR10SuperPixelDataset(data_dir)
 
-    # handling for LRGB datasets
-    LRGB_DATASETS = ["PascalVOC-SP", "COCO-SP", "Peptides-func", "Peptides-struct"]
-    if DATASET_NAME in LRGB_DATASETS:
-        if DATASET_NAME == "PascalVOC-SP":
-            return VOCSuperpixelsDataset(data_dir)
-        elif DATASET_NAME == "COCO-SP":
-            return COCOSuperpixelsDataset(data_dir)
-        elif DATASET_NAME == "Peptides-func":
-            return PeptidesFunctionalDataset(data_dir)
-        elif DATASET_NAME == "Peptides-struct":
-            return PeptidesStructuralDataset(data_dir)
+#     # handling for LRGB datasets
+#     LRGB_DATASETS = ["PascalVOC-SP", "COCO-SP", "Peptides-func", "Peptides-struct"]
+#     if DATASET_NAME in LRGB_DATASETS:
+#         if DATASET_NAME == "PascalVOC-SP":
+#             return VOCSuperpixelsDataset(data_dir)
+#         elif DATASET_NAME == "COCO-SP":
+#             return COCOSuperpixelsDataset(data_dir)
+#         elif DATASET_NAME == "Peptides-func":
+#             return PeptidesFunctionalDataset(data_dir)
+#         elif DATASET_NAME == "Peptides-struct":
+#             return PeptidesStructuralDataset(data_dir)
 
-    raise ValueError("Unknown dataset: {}".format(DATASET_NAME))
-
-
-def load_dataset_fn(dataset_name, data_dir):
-    train_fn = inference_Graph_level
-    if dataset_name in datasets_NC:
-        train_fn = inference_Node_level
-
-    if dataset_name in ["PCQM4Mv2-full", "ogbg-molhiv"]:
-        if dataset_name == "PCQM4Mv2-full":
-            dataset = DglPCQM4Mv2Dataset(root=data_dir)
-        else:
-            dataset = AsGraphPredDataset(
-                DglGraphPropPredDataset(dataset_name, data_dir)
-            )
-    elif dataset_name in [
-        "MNIST",
-        "CIFAR10",
-        "Peptides-func",
-        "Peptides-struct",
-        "PascalVOC-SP",
-        "COCO-SP",
-    ]:
-        dataset = LoadData(dataset_name, data_dir)
-    elif dataset_name == "PATTERN":
-        dataset = PATTERNDataset(mode="train", raw_dir=data_dir)
-    elif dataset_name == "CLUSTER":
-        dataset = CLUSTERDataset(mode="train", raw_dir=data_dir)
-    else:
-        raise ValueError(f"unknown dataset {dataset_name}")
-    return dataset, train_fn
+#     raise ValueError("Unknown dataset: {}".format(DATASET_NAME))
 
 
-def preprocess_proteins(graph):
-    import dgl.function as fn
+# def load_dataset_fn(dataset_name, data_dir):
+#     train_fn = inference_Graph_level
+#     if dataset_name in datasets_NC:
+#         train_fn = inference_Node_level
 
-    graph.update_all(fn.copy_e("feat", "feat_copy"), fn.sum("feat_copy", "feat"))
-    graph.create_formats_()
+#     if dataset_name in ["PCQM4Mv2-full", "ogbg-molhiv"]:
+#         if dataset_name == "PCQM4Mv2-full":
+#             dataset = DglPCQM4Mv2Dataset(root=data_dir)
+#         else:
+#             dataset = AsGraphPredDataset(
+#                 DglGraphPropPredDataset(dataset_name, data_dir)
+#             )
+#     elif dataset_name in [
+#         "MNIST",
+#         "CIFAR10",
+#         "Peptides-func",
+#         "Peptides-struct",
+#         "PascalVOC-SP",
+#         "COCO-SP",
+#     ]:
+#         dataset = LoadData(dataset_name, data_dir)
+#     elif dataset_name == "PATTERN":
+#         dataset = PATTERNDataset(mode="train", raw_dir=data_dir)
+#     elif dataset_name == "CLUSTER":
+#         dataset = CLUSTERDataset(mode="train", raw_dir=data_dir)
+#     else:
+#         raise ValueError(f"unknown dataset {dataset_name}")
+#     return dataset, train_fn
 
-    return graph
+
+# def preprocess_proteins(graph):
+#     import dgl.function as fn
+
+#     graph.update_all(fn.copy_e("feat", "feat_copy"), fn.sum("feat_copy", "feat"))
+#     graph.create_formats_()
+
+#     return graph
 
 
-def load_data_full_graph(dataset_name, dataset_dir):
-    if dataset_name == "cora":
-        dataset = CoraGraphDataset(raw_dir=dataset_dir)
-    elif dataset_name == "cora-full":
-        dataset = CoraFullDataset(raw_dir=dataset_dir)
-    elif dataset_name == "arxiv":
-        dataset = DglNodePropPredDataset(name="ogbn-arxiv", root=dataset_dir)
-        dataset = dataset[0]
-    elif dataset_name == "protein":
-        dataset = DglNodePropPredDataset(name="ogbn-proteins", root=dataset_dir)
-        g, _ = dataset[0]
-        g = preprocess_proteins(g)
-        dataset = [g]
-    elif dataset_name == "product":
-        dataset = DglNodePropPredDataset(name="ogbn-products", root=dataset_dir)
-        g, _ = dataset[0]
-        dataset = [g]
-    elif dataset_name == "ppa":
-        dataset = DglLinkPropPredDataset(name="ogbl-ppa", root=dataset_dir)
-        g = dataset[0]
-        g.ndata["feat"] = g.ndata["feat"].float()
-        dataset = [g]
-    elif dataset_name == "collab":
-        dataset = DglLinkPropPredDataset(name="ogbl-collab", root=dataset_dir)
-    elif dataset_name == "cite":
-        dataset = CiteseerGraphDataset(raw_dir=dataset_dir)
-    elif dataset_name == "pubmed":
-        dataset = PubmedGraphDataset(raw_dir=dataset_dir)
-    elif dataset_name == "reddit":
-        dataset = RedditDataset(raw_dir=dataset_dir)
-    elif dataset_name == "yelp":
-        dataset = dgl.data.YelpDataset(raw_dir=dataset_dir)
-    elif dataset_name == "Flickr":
-        dataset = dgl.data.FlickrDataset(raw_dir=dataset_dir)
-    elif dataset_name == "AmazonCoBuyComputer":
-        dataset = dgl.data.AmazonCoBuyComputerDataset(raw_dir=dataset_dir)
-    elif dataset_name == "AmazonCoBuyPhoto":
-        dataset = dgl.data.AmazonCoBuyPhotoDataset(raw_dir=dataset_dir)
-    elif dataset_name == "CoauthorCS":
-        dataset = dgl.data.CoauthorCSDataset(raw_dir=dataset_dir)
-    elif dataset_name == "CoauthorPhysics":
-        dataset = dgl.data.CoauthorPhysicsDataset(raw_dir=dataset_dir)
-    else:
-        raise ValueError(f"Unsupport dataset {dataset_name}")
-    return dataset
+# def load_data_full_graph(dataset_name, dataset_dir):
+#     if dataset_name == "cora":
+#         dataset = CoraGraphDataset(raw_dir=dataset_dir)
+#     elif dataset_name == "cora-full":
+#         dataset = CoraFullDataset(raw_dir=dataset_dir)
+#     elif dataset_name == "arxiv":
+#         dataset = DglNodePropPredDataset(name="ogbn-arxiv", root=dataset_dir)
+#         dataset = dataset[0]
+#     elif dataset_name == "protein":
+#         dataset = DglNodePropPredDataset(name="ogbn-proteins", root=dataset_dir)
+#         g, _ = dataset[0]
+#         g = preprocess_proteins(g)
+#         dataset = [g]
+#     elif dataset_name == "product":
+#         dataset = DglNodePropPredDataset(name="ogbn-products", root=dataset_dir)
+#         g, _ = dataset[0]
+#         dataset = [g]
+#     elif dataset_name == "ppa":
+#         dataset = DglLinkPropPredDataset(name="ogbl-ppa", root=dataset_dir)
+#         g = dataset[0]
+#         g.ndata["feat"] = g.ndata["feat"].float()
+#         dataset = [g]
+#     elif dataset_name == "collab":
+#         dataset = DglLinkPropPredDataset(name="ogbl-collab", root=dataset_dir)
+#     elif dataset_name == "cite":
+#         dataset = CiteseerGraphDataset(raw_dir=dataset_dir)
+#     elif dataset_name == "pubmed":
+#         dataset = PubmedGraphDataset(raw_dir=dataset_dir)
+#     elif dataset_name == "reddit":
+#         dataset = RedditDataset(raw_dir=dataset_dir)
+#     elif dataset_name == "yelp":
+#         dataset = dgl.data.YelpDataset(raw_dir=dataset_dir)
+#     elif dataset_name == "Flickr":
+#         dataset = dgl.data.FlickrDataset(raw_dir=dataset_dir)
+#     elif dataset_name == "AmazonCoBuyComputer":
+#         dataset = dgl.data.AmazonCoBuyComputerDataset(raw_dir=dataset_dir)
+#     elif dataset_name == "AmazonCoBuyPhoto":
+#         dataset = dgl.data.AmazonCoBuyPhotoDataset(raw_dir=dataset_dir)
+#     elif dataset_name == "CoauthorCS":
+#         dataset = dgl.data.CoauthorCSDataset(raw_dir=dataset_dir)
+#     elif dataset_name == "CoauthorPhysics":
+#         dataset = dgl.data.CoauthorPhysicsDataset(raw_dir=dataset_dir)
+#     else:
+#         raise ValueError(f"Unsupport dataset {dataset_name}")
+#     return dataset
 
 
 def figure_num_std(
