@@ -27,10 +27,10 @@ import yaml
 #     VOCSuperpixelsDataset,
 # )
 
-from ogb.graphproppred import DglGraphPropPredDataset
-from ogb.linkproppred import DglLinkPropPredDataset
-from ogb.lsc import DglPCQM4Mv2Dataset
-from ogb.nodeproppred import DglNodePropPredDataset
+# from ogb.graphproppred import DglGraphPropPredDataset
+# from ogb.linkproppred import DglLinkPropPredDataset
+# from ogb.lsc import DglPCQM4Mv2Dataset
+# from ogb.nodeproppred import DglNodePropPredDataset
 
 
 datasets_NC = ["PascalVOC-SP", "COCO-SP", "PATTERN", "CLUSTER"]
